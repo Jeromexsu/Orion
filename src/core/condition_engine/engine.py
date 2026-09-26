@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import TypeAdapter, ValidationError
 
-from core.condition_engine.contracts import ConditionDef, LeafDef, OpDef
+from core.contracts import ConditionDef, LeafDef, OpDef
 from core.condition_engine.errors import ConditionCompileError
 from core.condition_engine.registry import EvaluatorRegistry
 from core.condition_engine.resolver import TargetResolver

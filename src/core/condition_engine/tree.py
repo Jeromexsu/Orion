@@ -5,7 +5,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from core.condition_engine.contracts import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
+from core.contracts import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
 from core.condition_engine.evaluator import LeafEvaluator
 from core.condition_engine.resolver import Observation
 

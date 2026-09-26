@@ -4,15 +4,13 @@ import pytest
 from pydantic import ValidationError
 
 from core.condition_engine import (
-    HIT,
-    MISS,
-    NOT_APPLICABLE,
     ConditionCompileError,
     ConditionEngine,
     DuplicateEvaluatorError,
     EvaluatorRegistry,
     apply_state_patch,
 )
+from core.contracts import HIT, MISS, NOT_APPLICABLE
 from plugins.condition_engine.on_enter import OnEnter
 from tests.core.condition_engine.conftest import SQUARE, Obs
 

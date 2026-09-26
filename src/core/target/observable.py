@@ -4,7 +4,8 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
-from core.target.contracts import DynamicData, QuerySpec, Target
+from core.contracts import DynamicData, QuerySpec
+from core.target.contracts import Target
 
 
 class Referencer(Protocol):

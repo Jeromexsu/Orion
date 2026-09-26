@@ -4,14 +4,8 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from core.condition_engine import (
-    HIT,
-    MISS,
-    ConditionEngine,
-    EvalResult,
-    EvaluatorRegistry,
-    LeafEvaluator,
-)
+from core.condition_engine import ConditionEngine, EvaluatorRegistry, LeafEvaluator
+from core.contracts import HIT, MISS, EvalResult
 from plugins.condition_engine.on_enter import OnEnter
 
 

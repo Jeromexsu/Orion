@@ -5,7 +5,7 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
-from core.condition_engine.contracts import EvalResult
+from core.contracts import EvalResult
 
 P = TypeVar("P", bound=BaseModel)
 

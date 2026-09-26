@@ -31,6 +31,7 @@ pythonVersion = "3.11"
 typeCheckingMode = "standard"
 # 核心六个模块开 strict；report 的 strict 状态待定
 strict = [
+    "src/core/contracts",
     "src/core/target",
     "src/core/collector",
     "src/core/event",
@@ -61,7 +62,16 @@ type = "independence"
 modules = ["api", "persistence"]
 
 [[tool.importlinter.contracts]]
-name = "target 零依赖"
+name = "contracts 不依赖任何其他 core 模块"
+type = "forbidden"
+source_modules = ["core.contracts"]
+forbidden_modules = [
+    "core.target", "core.collector", "core.event", "core.condition_engine",
+    "core.operators", "core.hil", "core.report",
+]
+
+[[tool.importlinter.contracts]]
+name = "target 零依赖（contracts 除外）"
 type = "forbidden"
 source_modules = ["core.target"]
 forbidden_modules = [
@@ -70,7 +80,7 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "collector 只依赖 target"
+name = "collector 只依赖 target（和 contracts）"
 type = "forbidden"
 source_modules = ["core.collector"]
 forbidden_modules = [
@@ -79,7 +89,7 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "condition_engine 零依赖"
+name = "condition_engine 零依赖（contracts 除外）"
 type = "forbidden"
 source_modules = ["core.condition_engine"]
 forbidden_modules = [
@@ -88,7 +98,7 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "operators 零依赖"
+name = "operators 零依赖（contracts 除外）"
 type = "forbidden"
 source_modules = ["core.operators"]
 forbidden_modules = [
@@ -97,7 +107,7 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "report 零依赖"
+name = "report 零依赖（contracts 除外）"
 type = "forbidden"
 source_modules = ["core.report"]
 forbidden_modules = [

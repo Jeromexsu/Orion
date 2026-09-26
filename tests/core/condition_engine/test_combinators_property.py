@@ -7,16 +7,8 @@ from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import BaseModel
 
-from core.condition_engine import (
-    HIT,
-    MISS,
-    NOT_APPLICABLE,
-    ConditionEngine,
-    EvalResult,
-    EvaluatorRegistry,
-    LeafEvaluator,
-    Outcome,
-)
+from core.condition_engine import ConditionEngine, EvaluatorRegistry, LeafEvaluator
+from core.contracts import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
 
 outcomes = st.sampled_from([HIT, MISS, NOT_APPLICABLE])
 

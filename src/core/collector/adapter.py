@@ -4,7 +4,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from core.target import QuerySpec
+from core.contracts import QuerySpec
 
 
 class FetchedRecord(BaseModel):

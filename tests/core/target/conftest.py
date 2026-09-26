@@ -1,6 +1,7 @@
 import pytest
 
-from core.target import DynamicData, Target, TargetManager
+from core.contracts import DynamicData
+from core.target import Target, TargetManager
 from plugins.target.aircraft import AircraftType
 from tests.core.target.fakes import (
     InMemoryObservableTargetRepository,

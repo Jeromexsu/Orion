@@ -10,7 +10,7 @@ class TargetResolver(Protocol):
 
 
 class Observation(Protocol):
-    """ConditionTree.evaluate 的输入。target 的 DynamicData 结构化满足它。"""
+    """ConditionTree.evaluate 的输入。core.contracts.DynamicData 结构化满足它。"""
 
     @property
     def observable_id(self) -> str: ...
