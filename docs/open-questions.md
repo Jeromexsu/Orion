@@ -33,7 +33,25 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
 **背景**：target 与 collector 耦合较紧。core 层面是单向的（collector 依赖 target；target 只通过
 `UpstreamCatalog` Protocol 知道「上游」这个概念），但插件层面 Adapter 与 Target 子类是成套开发的。
 
-### 4. 其他（随审阅推进逐条确认）
+### 4. 跨目标条件：单个叶子只能看一个目标的数据
+
+**发现于**：审阅 condition_engine 的 `LeafEvaluator` 时。**状态**：待讨论。
+
+每个叶子条件只绑定一个可观测目标，`evaluate(params, fields, state)` 每次只拿到一条数据的 `fields`；
+`LeafNode` 对不属于自己目标的数据直接返回「不适用」。因此需要同时比较多个目标数据的条件——
+如「两架飞机相互接近」「A 在 B 之前进入区域」——单个叶子做不了。组合节点（all/any/not）只组合
+各叶子的三值结果，也拿不到对方的数值。
+
+可能的做法：
+1. 多目标判断方式：允许某种 `LeafEvaluator` 绑定多个目标，每来一条数据把该目标的最新值记进自己的
+   state，再用各目标的最新值判断（需要改 `LeafDef.target` 为多目标、`LeafNode` 的适用性判断）；
+2. 在组合层面引入跨叶子比较：新的节点类型，读取子叶子 `extracted` 出来的数值做比较；
+3. 派生可观测目标：在 collector / target 层把「两机距离」做成一个派生的关注点，条件照旧单目标。
+
+**影响范围**：`contracts/condition.py`（LeafDef）、`condition_engine/tree.py`（LeafNode）、判断方式插件接口；
+方案 3 则主要在 target / collector。
+
+### 5. 其他（随审阅推进逐条确认）
 
 - 模板 ID 全局还是按父事件区分（现为全局：`TemplateRepository` 只按 template_id 存取）。
 - `EvalResult.outcome`、`Draft.status` 的中文字面值是否对外改为英文枚举。
