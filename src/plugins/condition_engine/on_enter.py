@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.condition_engine import LeafEvaluator
+from core.condition_engine import LeafEvaluator, Observation
 from core.contracts import HIT, MISS, EvalResult
 
 Point = tuple[float, float]                 # (lat, lon)
@@ -39,9 +39,9 @@ class OnEnter(LeafEvaluator[OnEnterParams]):
     params_model = OnEnterParams
 
     def evaluate(
-        self, params: OnEnterParams, fields: Mapping[str, Any], state: Mapping[str, Any]
+        self, params: OnEnterParams, obs: Observation, state: Mapping[str, Any]
     ) -> EvalResult:
-        position = (float(fields["lat"]), float(fields["lon"]))
+        position = (float(obs.fields["lat"]), float(obs.fields["lon"]))
         inside = point_in_polygon(position, params.area)
         was_inside: bool | None = state.get("inside")
 

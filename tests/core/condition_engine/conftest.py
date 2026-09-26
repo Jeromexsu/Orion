@@ -1,11 +1,17 @@
 from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 from pydantic import BaseModel, TypeAdapter
 
-from core.condition_engine import ConditionEngine, EvaluatorRegistry, LeafEvaluator
-from core.condition_engine import ConditionTree
+from core.condition_engine import (
+    ConditionEngine,
+    ConditionTree,
+    EvaluatorRegistry,
+    LeafEvaluator,
+    Observation,
+)
 from core.contracts import HIT, MISS, ConditionDef, EvalResult
 from plugins.condition_engine.on_enter import OnEnter
 
@@ -22,12 +28,16 @@ def compile_(engine: ConditionEngine, raw: dict[str, Any]) -> ConditionTree:
     return engine.compile(parse(raw))
 
 
-class Obs:
-    """满足 Observation 的最小实现。"""
+T0 = datetime(2026, 9, 26, tzinfo=UTC)
 
-    def __init__(self, observable_id: str, **fields: Any) -> None:
+
+class Obs:
+    """满足 Observation 的最小实现。at 是相对 T0 的小时数。"""
+
+    def __init__(self, observable_id: str, at: float = 0, **fields: Any) -> None:
         self.observable_id = observable_id
         self.fields: dict[str, Any] = fields
+        self.occurred_at = T0 + timedelta(hours=at)
 
 
 class GtParams(BaseModel):
@@ -42,11 +52,11 @@ class Gt(LeafEvaluator[GtParams]):
     requires = frozenset({"alt"})
     params_model = GtParams
 
-    def evaluate(
-        self, params: GtParams, fields: Mapping[str, Any], state: Mapping[str, Any]
-    ) -> EvalResult:
-        hit = fields[params.field] > params.value
-        return EvalResult(outcome=HIT if hit else MISS, extracted={"alt": fields["alt"]} if hit else {})
+    def evaluate(self, params: GtParams, obs: Observation, state: Mapping[str, Any]) -> EvalResult:
+        hit = obs.fields[params.field] > params.value
+        return EvalResult(
+            outcome=HIT if hit else MISS, extracted={"alt": obs.fields["alt"]} if hit else {}
+        )
 
 
 class StaticResolver:

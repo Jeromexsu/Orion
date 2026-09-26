@@ -1,18 +1,30 @@
+from collections.abc import Mapping
+from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from core.condition_engine import (
     ConditionCompileError,
     ConditionEngine,
     DuplicateEvaluatorError,
     EvaluatorRegistry,
+    LeafEvaluator,
+    Observation,
     apply_state_patch,
 )
-from core.contracts import HIT, MISS, NOT_APPLICABLE
+from core.contracts import HIT, MISS, NOT_APPLICABLE, EvalResult
 from plugins.condition_engine.on_enter import OnEnter
-from tests.core.condition_engine.conftest import SQUARE, Obs, compile_, parse
+from tests.core.condition_engine.conftest import (
+    SQUARE,
+    T0,
+    GtParams,
+    Obs,
+    StaticResolver,
+    compile_,
+    parse,
+)
 
 
 def enter(target: str = "t1:position", **params: Any) -> dict[str, Any]:
@@ -129,3 +141,79 @@ def test_evaluate_does_not_mutate_state(engine: ConditionEngine) -> None:
     state = {"root": {"inside": False}}
     tree.evaluate(Obs("t1:position", lat=5, lon=5), state)
     assert state == {"root": {"inside": False}}
+
+
+# ---------------------------------------------------------------- 判断方式拿到的观测
+
+
+class RecentParams(BaseModel):
+    hours: float
+    count: int
+
+
+class RecentCount(LeafEvaluator[RecentParams]):
+    """示例：滑动窗口。最近 hours 小时内的观测达到 count 条即命中——状态记的是 N 轮，不只上一轮。"""
+
+    type = "recentCount"
+    requires = frozenset({"lat"})
+    params_model = RecentParams
+
+    def evaluate(
+        self, params: RecentParams, obs: Observation, state: Mapping[str, Any]
+    ) -> EvalResult:
+        now = obs.occurred_at
+        window = [*state.get("window", []), now.isoformat()]
+        window = [t for t in window if datetime.fromisoformat(t) > now - timedelta(hours=params.hours)]
+        return EvalResult(
+            outcome=HIT if len(window) >= params.count else MISS, state_patch={"window": window}
+        )
+
+
+class Spy(LeafEvaluator[GtParams]):
+    """记录收到的观测，并尝试篡改它。"""
+
+    type = "spy"
+    requires = frozenset({"alt"})
+    params_model = GtParams
+
+    def __init__(self) -> None:
+        self.seen: list[Observation] = []
+
+    def evaluate(self, params: GtParams, obs: Observation, state: Mapping[str, Any]) -> EvalResult:
+        self.seen.append(obs)
+        with pytest.raises(TypeError):
+            obs.fields["alt"] = 0  # type: ignore[index]
+        return EvalResult(outcome=MISS)
+
+
+def test_evaluator_gets_read_only_observation_with_time() -> None:
+    spy = Spy()
+    registry = EvaluatorRegistry()
+    registry.register(spy)
+    engine = ConditionEngine(registry, StaticResolver())
+    data = Obs("t1:position", at=3, lat=1, lon=1, alt=100)
+
+    result = compile_(engine, {"kind": "leaf", "target": "t1:position", "type": "spy",
+                               "params": {"field": "alt", "value": 0}}).evaluate(data, {})
+    (seen,) = spy.seen
+    assert seen.occurred_at == T0 + timedelta(hours=3)
+    assert data.fields["alt"] == 100
+    assert result.trace[0]["occurred_at"] == (T0 + timedelta(hours=3)).isoformat()
+
+
+def test_state_can_hold_a_sliding_window() -> None:
+    registry = EvaluatorRegistry()
+    registry.register(RecentCount())
+    engine = ConditionEngine(registry, StaticResolver())
+    tree = compile_(engine, {"kind": "leaf", "target": "t1:position", "type": "recentCount",
+                             "params": {"hours": 24, "count": 3}})
+
+    state: dict[str, dict[str, Any]] = {}
+    outcomes: list[str] = []
+    for at in (0, 10, 20, 50, 60, 65):  # 小时
+        result = tree.evaluate(Obs("t1:position", at=at, lat=1, lon=1, alt=0), state)
+        state = apply_state_patch(state, result.state_patch)
+        outcomes.append(result.outcome)
+    # 第 3 条时 24h 内有 3 条；50h 时窗口只剩它自己；65h 时 50/60/65 三条
+    assert outcomes == [MISS, MISS, HIT, MISS, MISS, HIT]
+    assert len(state["root"]["window"]) == 3

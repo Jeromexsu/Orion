@@ -1,13 +1,14 @@
 """组合节点三值逻辑的性质测试。"""
 
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import BaseModel
 
-from core.condition_engine import ConditionEngine, EvaluatorRegistry, LeafEvaluator
+from core.condition_engine import ConditionEngine, EvaluatorRegistry, LeafEvaluator, Observation
 from core.contracts import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
 from tests.core.condition_engine.conftest import compile_
 
@@ -24,7 +25,7 @@ class Fixed(LeafEvaluator[FixedParams]):
     params_model = FixedParams
 
     def evaluate(
-        self, params: FixedParams, fields: Mapping[str, Any], state: Mapping[str, Any]
+        self, params: FixedParams, obs: Observation, state: Mapping[str, Any]
     ) -> EvalResult:
         return EvalResult(outcome=params.outcome)
 
@@ -37,6 +38,7 @@ class AnyTarget:
 class Obs:
     observable_id = "t"
     fields: dict[str, Any] = {}
+    occurred_at = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 registry = EvaluatorRegistry()
