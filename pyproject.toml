@@ -62,8 +62,8 @@ modules = ["api", "persistence"]
 
 
 # ---- core 模块之间的依赖（接口定义在依赖方，数据定义在所属模块）
-#   最底层：target、condition_engine、hil、report —— 不依赖其他 core 模块
-#   collector → target
+#   最底层：target、hil、report —— 不依赖其他 core 模块
+#   collector、condition_engine → target
 #   operators → target、condition_engine、hil（Trigger 引用 DynamicData / EvalResult，SuggestContext 引用 Suggestion）
 #   event     → target、condition_engine、operators、report（不依赖 collector / hil）
 
@@ -77,11 +77,11 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "condition_engine 零依赖"
+name = "condition_engine 只依赖 target（Observation）"
 type = "forbidden"
 source_modules = ["core.condition_engine"]
 forbidden_modules = [
-    "core.target", "core.collector", "core.event",
+    "core.collector", "core.event",
     "core.operators", "core.hil", "core.report",
 ]
 

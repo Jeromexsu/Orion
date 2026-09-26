@@ -10,12 +10,12 @@ from core.collector import (
     FetchedRecord,
     UnknownAdapterError,
 )
-from core.target import DynamicData, ObservableTarget, TargetManager
+from core.target import ObservableTarget, Observation, TargetManager
 from plugins.target.aircraft import Aircraft
 from tests.core.collector.fakes import (
     FakeAdapter,
     InMemoryCursorRepository,
-    InMemoryDynamicDataRepository,
+    InMemoryObservationRepository,
 )
 from tests.core.target.conftest import Subscriber
 from tests.core.target.fakes import InMemoryObservableTargetRepository, InMemoryTargetRepository
@@ -40,9 +40,9 @@ class Env:
         self.manager.register_type(Aircraft)
         self.manager.upsert_target(Aircraft(id="t1", name="x", registration="B-2447"))
         self.cursors = InMemoryCursorRepository()
-        self.data = InMemoryDynamicDataRepository()
+        self.observations = InMemoryObservationRepository()
         self.collector = Collector(
-            self.manager, self.registry, self.cursors, self.data, Dispatcher()
+            self.manager, self.registry, self.cursors, self.observations, Dispatcher()
         )
 
     def observable(self) -> ObservableTarget:
@@ -84,7 +84,7 @@ def test_collect_validates_dedups_persists_and_dispatches(env: Env) -> None:
 
     assert [d.source_id for d in new] == ["a#1", "a#2"]
     assert new[1].fields == {"lat": 31.2, "lon": 121.3, "altitude_m": None}
-    assert env.data.items == new
+    assert env.observations.items == new
     assert sub.received == new
     assert env.cursors.get("t1:position", "adsb") == at(2).isoformat()
 
@@ -110,7 +110,7 @@ def test_upstream_failure_is_isolated(env: Env) -> None:
 
 def test_subscriber_failure_is_isolated(env: Env) -> None:
     class Broken:
-        def on_data(self, data: DynamicData) -> None:
+        def on_observation(self, observation: Observation) -> None:
             raise RuntimeError("boom")
 
     good = Subscriber()
@@ -126,16 +126,16 @@ def test_subscriber_failure_is_isolated(env: Env) -> None:
 
 def test_dispatcher_counts_failures(env: Env) -> None:
     class Broken:
-        def on_data(self, data: DynamicData) -> None:
+        def on_observation(self, observation: Observation) -> None:
             raise RuntimeError("boom")
 
     obs = env.observable()
     obs.acquire(Broken(), ["adsb"])
     obs.acquire(Subscriber(), ["adsb"])
-    data = DynamicData(
+    observation = Observation(
         observable_id=obs.id, upstream="adsb", fields={}, occurred_at=at(0), source_id="x"
     )
-    assert Dispatcher().dispatch(obs, data) == 1
+    assert Dispatcher().dispatch(obs, observation) == 1
 
 
 def test_only_subscribed_upstreams_are_fetched_and_routed(env: Env) -> None:

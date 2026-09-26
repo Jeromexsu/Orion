@@ -4,7 +4,7 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
-from core.target.data import DynamicData, QuerySpec
+from core.target.data import Observation, QuerySpec
 from core.target.errors import UnsupportedFocusError, UnsupportedUpstreamError
 from core.target.target import Target
 
@@ -15,7 +15,7 @@ class Referencer(Protocol):
     实现类必须按身份哈希（普通类默认如此）。
     """
 
-    def on_data(self, data: DynamicData) -> None: ...
+    def on_observation(self, observation: Observation) -> None: ...
 
 
 def observable_key(target_id: str, focus: str) -> str:

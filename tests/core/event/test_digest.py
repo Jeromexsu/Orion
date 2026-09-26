@@ -12,8 +12,8 @@ def test_digest_rolls_one_machine_draft(env: Env) -> None:
     assert "- MU5101" in first.content
     assert "- 进入区域 v1：已结束 0 个周期，未开启" in first.content
 
-    parent.runner("enter-zone").on_data(env.data(20, 20))
-    parent.runner("enter-zone").on_data(env.data(5, 5))
+    parent.runner("enter-zone").on_observation(env.observation(20, 20))
+    parent.runner("enter-zone").on_observation(env.observation(5, 5))
     second = parent.digest()
     assert (second.id, second.version) == (first.id, 2)
     assert "2026 周期进行中 {'hits': 1}" in second.content
@@ -41,8 +41,8 @@ def test_close_report_operator_writes_draft(env: Env) -> None:
             template(threshold=1, hooks=[mount("close_report", "closed", title="进入告警")])
         )
     )
-    parent.runner("enter-zone").on_data(env.data(20, 20))
-    parent.runner("enter-zone").on_data(env.data(5, 5))
+    parent.runner("enter-zone").on_observation(env.observation(20, 20))
+    parent.runner("enter-zone").on_observation(env.observation(5, 5))
 
     (draft,) = env.reports.list_by_parent("p1")
     assert draft.title == "进入告警"

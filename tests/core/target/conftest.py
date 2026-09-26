@@ -1,6 +1,6 @@
 import pytest
 
-from core.target import DynamicData, Target, TargetManager
+from core.target import Observation, Target, TargetManager
 from plugins.target.aircraft import Aircraft
 from tests.core.target.fakes import (
     InMemoryObservableTargetRepository,
@@ -11,10 +11,10 @@ from tests.core.target.fakes import (
 
 class Subscriber:
     def __init__(self) -> None:
-        self.received: list[DynamicData] = []
+        self.received: list[Observation] = []
 
-    def on_data(self, data: DynamicData) -> None:
-        self.received.append(data)
+    def on_observation(self, observation: Observation) -> None:
+        self.received.append(observation)
 
 
 @pytest.fixture

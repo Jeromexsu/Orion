@@ -7,7 +7,7 @@ from core.event import TemplateDef
 from tests.core.collector.fakes import (
     FakeAdapter,
     InMemoryCursorRepository,
-    InMemoryDynamicDataRepository,
+    InMemoryObservationRepository,
 )
 from tests.core.event.conftest import Env, template
 
@@ -21,7 +21,7 @@ def test_collect_drives_sub_event_to_close() -> None:
         env.targets,
         adapter_registry,
         InMemoryCursorRepository(),
-        InMemoryDynamicDataRepository(),
+        InMemoryObservationRepository(),
         Dispatcher(),
     )
 

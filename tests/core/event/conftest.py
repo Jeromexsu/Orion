@@ -19,7 +19,7 @@ from core.operators import (
     Trigger,
 )
 from core.report import ReportManager
-from core.target import DynamicData, TargetManager
+from core.target import Observation, TargetManager
 from plugins.condition_engine.on_enter import OnEnter
 from plugins.operators.close_report import CloseReport
 from plugins.operators.count_hits import CountHits
@@ -94,12 +94,12 @@ class Spotter:
     params_model = NoParams
 
     def run(self, trigger: Trigger, ctx: SuggestContext) -> None:
-        assert trigger.data is not None
+        assert trigger.observation is not None
         ctx.suggest(
             Suggestion(
                 source=self.name,
-                reason=f"saw {ctx.target_name(trigger.data.observable_id)}",
-                evidence=[trigger.data.source_id],
+                reason=f"saw {ctx.target_name(trigger.observation.observable_id)}",
+                evidence=[trigger.observation.source_id],
                 proposal=Proposal(action="add_target", args={}),
             )
         )
@@ -164,15 +164,15 @@ class Env:
             reports=self.reports,
         )
 
-    def data(
+    def observation(
         self,
         lat: float,
         lon: float,
         observable_id: str = "t1:position",
         upstream: str = "adsb",
-    ) -> DynamicData:
+    ) -> Observation:
         n = next(self._seq)
-        return DynamicData(
+        return Observation(
             observable_id=observable_id,
             upstream=upstream,
             fields={"lat": lat, "lon": lon, "altitude_m": None},

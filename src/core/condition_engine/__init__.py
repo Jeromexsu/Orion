@@ -9,7 +9,6 @@ from core.condition_engine.errors import (
     UnknownEvaluatorError,
 )
 from core.condition_engine.evaluator import Evaluator
-from core.condition_engine.observation import Observation
 from core.condition_engine.registry import EvaluatorRegistry
 from core.condition_engine.result import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
 from core.condition_engine.tree import ConditionTree, TreeState, apply_state_patch
@@ -29,7 +28,6 @@ __all__ = [
     "LeafDef",
     "MISS",
     "NOT_APPLICABLE",
-    "Observation",
     "OpDef",
     "Outcome",
     "TreeState",

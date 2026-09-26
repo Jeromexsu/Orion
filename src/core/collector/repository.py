@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Protocol
 
-from core.target import DynamicData
+from core.target import Observation
 
 
 class CursorRepository(Protocol):
@@ -14,9 +14,9 @@ class CursorRepository(Protocol):
     def set(self, observable_id: str, upstream: str, cursor: str) -> None: ...
 
 
-class DynamicDataRepository(Protocol):
-    def append(self, data: DynamicData) -> None: ...        # 只增不改
+class ObservationRepository(Protocol):
+    def append(self, observation: Observation) -> None: ...        # 只增不改
     def exists(self, source_id: str) -> bool: ...            # 去重
     def history(
         self, observable_id: str, since: datetime | None = None
-    ) -> list[DynamicData]: ...
+    ) -> list[Observation]: ...

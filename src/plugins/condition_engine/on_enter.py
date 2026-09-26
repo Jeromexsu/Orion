@@ -5,7 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.condition_engine import HIT, MISS, EvalResult, Evaluator, Observation
+from core.condition_engine import HIT, MISS, EvalResult, Evaluator
+from core.target import Observation
 
 Point = tuple[float, float]                 # (lat, lon)
 Polygon = list[Point]

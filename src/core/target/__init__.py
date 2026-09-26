@@ -1,6 +1,6 @@
 """目标：Target 基类 / ObservableTarget / TargetManager。零依赖。"""
 
-from core.target.data import DynamicData, QuerySpec
+from core.target.data import Observation, QuerySpec
 from core.target.errors import (
     DuplicateTargetTypeError,
     NoUpstreamError,
@@ -20,7 +20,7 @@ from core.target.upstream import UpstreamCatalog
 
 __all__ = [
     "DuplicateTargetTypeError",
-    "DynamicData",
+    "Observation",
     "NoUpstreamError",
     "ObservableTarget",
     "ObservableTargetRepository",

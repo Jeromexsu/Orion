@@ -15,16 +15,16 @@ from core.condition_engine import (
     EvalResult,
     Evaluator,
     EvaluatorRegistry,
-    Observation,
     apply_state_patch,
 )
+from core.target import Observation
 from plugins.condition_engine.on_enter import OnEnter
 from tests.core.condition_engine.conftest import (
     SQUARE,
     T0,
     GtParams,
-    Obs,
     compile_,
+    make_observation,
     parse,
 )
 
@@ -92,39 +92,39 @@ def test_targets(engine: ConditionEngine) -> None:
 
 def test_irrelevant_data_is_not_applicable(engine: ConditionEngine) -> None:
     tree = compile_(engine, op("not", gt(100)))
-    assert tree.evaluate(Obs("t2:position", lat=1, lon=1), {}).outcome == NOT_APPLICABLE
+    assert tree.evaluate(make_observation("t2:position", lat=1, lon=1), {}).outcome == NOT_APPLICABLE
     # 字段不全也是不适用
-    assert tree.evaluate(Obs("t1:position", lat=1, lon=1), {}).outcome == NOT_APPLICABLE
+    assert tree.evaluate(make_observation("t1:position", lat=1, lon=1), {}).outcome == NOT_APPLICABLE
 
 
 def test_stateful_leaf_through_state_patch(engine: ConditionEngine) -> None:
     tree = compile_(engine, enter())
     state: dict[str, dict[str, Any]] = {}
 
-    outside = tree.evaluate(Obs("t1:position", lat=20, lon=20), state)
+    outside = tree.evaluate(make_observation("t1:position", lat=20, lon=20), state)
     assert outside.outcome == MISS
     assert outside.state_patch == {"root": {"inside": False}}
     state = apply_state_patch(state, outside.state_patch)
 
-    entered = tree.evaluate(Obs("t1:position", lat=5, lon=5), state)
+    entered = tree.evaluate(make_observation("t1:position", lat=5, lon=5), state)
     assert entered.outcome == HIT
     assert entered.extracted == {"entered_at": {"lat": 5.0, "lon": 5.0}}
     assert entered.trace[0]["fields"] == {"lat": 5, "lon": 5}
     state = apply_state_patch(state, entered.state_patch)
 
-    staying = tree.evaluate(Obs("t1:position", lat=6, lon=6), state)
+    staying = tree.evaluate(make_observation("t1:position", lat=6, lon=6), state)
     assert staying.outcome == MISS
 
 
 def test_initial_as_enter(engine: ConditionEngine) -> None:
     tree = compile_(engine, enter(initial_as_enter=True))
-    assert tree.evaluate(Obs("t1:position", lat=5, lon=5), {}).outcome == HIT
+    assert tree.evaluate(make_observation("t1:position", lat=5, lon=5), {}).outcome == HIT
 
 
 def test_combinators_never_short_circuit(engine: ConditionEngine) -> None:
     # any 的第一个子节点已命中，第二个有状态叶子仍然要更新
     tree = compile_(engine, op("any", gt(0), enter()))
-    result = tree.evaluate(Obs("t1:position", lat=5, lon=5, alt=100), {})
+    result = tree.evaluate(make_observation("t1:position", lat=5, lon=5, alt=100), {})
     assert result.outcome == HIT
     assert result.state_patch == {"root/1": {"inside": True}}
     assert [t["path"] for t in result.trace] == ["root/0", "root/1"]
@@ -133,7 +133,7 @@ def test_combinators_never_short_circuit(engine: ConditionEngine) -> None:
 def test_not_applicable_is_neutral_in_all(engine: ConditionEngine) -> None:
     tree = compile_(engine, op("all", gt(10), enter(target="t2:position")))
     # 只有 t1 的数据：t2 的叶子不适用，不拖累 all
-    result = tree.evaluate(Obs("t1:position", lat=50, lon=50, alt=100), {})
+    result = tree.evaluate(make_observation("t1:position", lat=50, lon=50, alt=100), {})
     assert result.outcome == HIT
     assert result.extracted == {"alt": 100}
 
@@ -141,7 +141,7 @@ def test_not_applicable_is_neutral_in_all(engine: ConditionEngine) -> None:
 def test_evaluate_does_not_mutate_state(engine: ConditionEngine) -> None:
     tree = compile_(engine, enter())
     state = {"root": {"inside": False}}
-    tree.evaluate(Obs("t1:position", lat=5, lon=5), state)
+    tree.evaluate(make_observation("t1:position", lat=5, lon=5), state)
     assert state == {"root": {"inside": False}}
 
 
@@ -172,7 +172,7 @@ class RecentCount(Evaluator[RecentParams]):
 
 
 class Spy(Evaluator[GtParams]):
-    """记录收到的观测，并尝试篡改它。"""
+    """记录收到的观测，并篡改它（改的只是副本）。"""
 
     type = "spy"
     requires = frozenset({"alt"})
@@ -183,23 +183,23 @@ class Spy(Evaluator[GtParams]):
 
     def evaluate(self, params: GtParams, observation: Observation, state: Mapping[str, Any]) -> EvalResult:
         self.seen.append(observation)
-        with pytest.raises(TypeError):
-            observation.fields["alt"] = 0  # type: ignore[index]
+        observation.fields["alt"] = 0
         return EvalResult(outcome=MISS)
 
 
-def test_evaluator_gets_read_only_observation_with_time() -> None:
+def test_evaluator_gets_a_copy_with_time() -> None:
     spy = Spy()
     registry = EvaluatorRegistry()
     registry.register(spy)
     engine = ConditionEngine(registry)
-    data = Obs("t1:position", at=3, lat=1, lon=1, alt=100)
+    original = make_observation("t1:position", at=3, lat=1, lon=1, alt=100)
 
     result = compile_(engine, {"kind": "leaf", "target": "t1:position", "type": "spy",
-                               "params": {"field": "alt", "value": 0}}).evaluate(data, {})
+                               "params": {"field": "alt", "value": 0}}).evaluate(original, {})
     (seen,) = spy.seen
     assert seen.occurred_at == T0 + timedelta(hours=3)
-    assert data.fields["alt"] == 100
+    assert seen is not original
+    assert original.fields["alt"] == 100  # 判断方式改的是副本
     assert result.trace[0]["occurred_at"] == (T0 + timedelta(hours=3)).isoformat()
 
 
@@ -213,7 +213,7 @@ def test_state_can_hold_a_sliding_window() -> None:
     state: dict[str, dict[str, Any]] = {}
     outcomes: list[str] = []
     for at in (0, 10, 20, 50, 60, 65):  # 小时
-        result = tree.evaluate(Obs("t1:position", at=at, lat=1, lon=1, alt=0), state)
+        result = tree.evaluate(make_observation("t1:position", at=at, lat=1, lon=1, alt=0), state)
         state = apply_state_patch(state, result.state_patch)
         outcomes.append(result.outcome)
     # 第 3 条时 24h 内有 3 条；50h 时窗口只剩它自己；65h 时 50/60/65 三条

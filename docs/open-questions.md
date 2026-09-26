@@ -64,6 +64,11 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
 
 ## 已决
 
+- **观测与动态数据合一**：原 `DynamicData` 改名为 `Observation`，并删除条件引擎里同名的 Protocol（它只是为让条件引擎
+  「零依赖」而设）。条件引擎改为依赖 target（target 不反向依赖，无环）。随之：`DynamicDataRepository` →
+  `ObservationRepository`、`Trigger.data` → `Trigger.observation`、订阅者回调 `on_data` → `on_observation`。
+  判断方式拿到的是观测的副本（深拷贝），不再用只读包装。「动态数据」专指 `Observation.fields`。
+
 - **条件引擎不再查询 target**：去掉设计文档的 `TargetResolver`。`ConditionEngine.compile(definition, fields)`
   由调用方传入「可观测目标 ID → 动态数据字段名」；`EventTemplate.compile()` 按观测声明向 `TargetManager`
   解析（目标、关注点存在，上游可用）并提取字段，所以条件只能引用已声明的观测、判断方式需要的字段必须存在。

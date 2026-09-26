@@ -20,5 +20,5 @@ class Suggestion(BaseModel):
     id: str = Field(default_factory=lambda: uuid4().hex)
     source: str                 # 提出建议的算子名
     reason: str                 # 人类可读的理由
-    evidence: list[str] = Field(default_factory=list[str])  # 依据的动态数据 source_id
+    evidence: list[str] = Field(default_factory=list[str])  # 依据的观测 source_id
     proposal: Proposal

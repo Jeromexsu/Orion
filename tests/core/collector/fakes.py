@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from core.collector import FetchedRecord
-from core.target import DynamicData, QuerySpec
+from core.target import Observation, QuerySpec
 
 
 class FakeAdapter:
@@ -33,17 +33,17 @@ class InMemoryCursorRepository:
         self.items[(observable_id, upstream)] = cursor
 
 
-class InMemoryDynamicDataRepository:
+class InMemoryObservationRepository:
     def __init__(self) -> None:
-        self.items: list[DynamicData] = []
+        self.items: list[Observation] = []
 
-    def append(self, data: DynamicData) -> None:
-        self.items.append(data)
+    def append(self, observation: Observation) -> None:
+        self.items.append(observation)
 
     def exists(self, source_id: str) -> bool:
         return any(d.source_id == source_id for d in self.items)
 
-    def history(self, observable_id: str, since: datetime | None = None) -> list[DynamicData]:
+    def history(self, observable_id: str, since: datetime | None = None) -> list[Observation]:
         return [
             d
             for d in self.items

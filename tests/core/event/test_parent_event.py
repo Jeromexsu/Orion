@@ -23,8 +23,8 @@ INSIDE, OUTSIDE = (5, 5), (20, 20)
 
 def open_cycle(env: Env, runner: EventRunner) -> None:
     """先在区域外、再进入：开启条件命中，开实例（hits=1）。"""
-    runner.on_data(env.data(*OUTSIDE))
-    runner.on_data(env.data(*INSIDE))
+    runner.on_observation(env.observation(*OUTSIDE))
+    runner.on_observation(env.observation(*INSIDE))
 
 
 def make_parent(env: Env, **kwargs: Any) -> ParentEvent:
@@ -97,11 +97,11 @@ def test_open_condition_gates_instances(env: Env) -> None:
     parent = make_parent(env)
     runner = parent.runner("enter-zone")
 
-    runner.on_data(env.data(*OUTSIDE))
+    runner.on_observation(env.observation(*OUTSIDE))
     assert runner.active is None
     assert runner.open_state == {"root": {"inside": False}}
 
-    runner.on_data(env.data(*INSIDE))  # 进入 → 开实例，这条数据交给实例
+    runner.on_observation(env.observation(*INSIDE))  # 进入 → 开实例，这条数据交给实例
     instance = runner.active
     assert instance is not None
     assert instance.cycle == 2026
@@ -112,27 +112,27 @@ def test_open_condition_gates_instances(env: Env) -> None:
 def test_lifecycle_and_open_state_during_run(env: Env) -> None:
     parent = make_parent(env, threshold=3, hooks=[mount("recorder", m) for m in ("created", "closed")])
     runner = parent.runner("enter-zone")
-    runner.on_data(env.data(*OUTSIDE))
-    runner.on_data(env.data(*INSIDE))  # 开启，hits=1
+    runner.on_observation(env.observation(*OUTSIDE))
+    runner.on_observation(env.observation(*INSIDE))  # 开启，hits=1
     first = runner.active
     assert first is not None
 
-    runner.on_data(env.data(*OUTSIDE))  # 运行期间开启条件照常评估、状态保持最新
+    runner.on_observation(env.observation(*OUTSIDE))  # 运行期间开启条件照常评估、状态保持最新
     assert runner.open_state == {"root": {"inside": False}}
-    runner.on_data(env.data(*INSIDE))  # hits=2（开启条件命中，但已有实例，不开新的）
+    runner.on_observation(env.observation(*INSIDE))  # hits=2（开启条件命中，但已有实例，不开新的）
     assert runner.active is first
-    runner.on_data(env.data(*OUTSIDE))
-    runner.on_data(env.data(*INSIDE))  # hits=3 → 收敛关闭
+    runner.on_observation(env.observation(*OUTSIDE))
+    runner.on_observation(env.observation(*INSIDE))  # hits=3 → 收敛关闭
     assert first.is_closed and runner.active is None
     assert env.log.calls == [("recorder", "created"), ("recorder", "closed")]
 
     record = env.events.items[first.id]
     assert (record.close_reason, record.cycle) == ("converged", 2026)
 
-    runner.on_data(env.data(*INSIDE))  # 仍在区域内：不算再次进入，不开新实例
+    runner.on_observation(env.observation(*INSIDE))  # 仍在区域内：不算再次进入，不开新实例
     assert runner.active is None
-    runner.on_data(env.data(*OUTSIDE))
-    runner.on_data(env.data(*INSIDE))  # 离开后再进入 → 下一个周期
+    runner.on_observation(env.observation(*OUTSIDE))
+    runner.on_observation(env.observation(*INSIDE))  # 离开后再进入 → 下一个周期
     assert runner.active is not None and runner.active is not first
     assert len(runner.history()) == 2
 
@@ -140,7 +140,7 @@ def test_lifecycle_and_open_state_during_run(env: Env) -> None:
 def test_unsubscribed_data_ignored(env: Env) -> None:
     parent = make_parent(env)
     runner = parent.runner("enter-zone")
-    runner.on_data(env.data(*INSIDE, observable_id="t2:position"))
+    runner.on_observation(env.observation(*INSIDE, observable_id="t2:position"))
     assert runner.active is None and runner.open_state == {}
 
 
@@ -148,8 +148,8 @@ def test_status_hook_recursion_is_bounded(env: Env) -> None:
     parent = make_parent(env, threshold=5, hooks=[mount("echo", "status_updated")])
     runner = parent.runner("enter-zone")
     open_cycle(env, runner)
-    runner.on_data(env.data(*OUTSIDE))
-    runner.on_data(env.data(*INSIDE))
+    runner.on_observation(env.observation(*OUTSIDE))
+    runner.on_observation(env.observation(*INSIDE))
     active = runner.active
     assert active is not None
     assert active.status == {"hits": 2, "echoed": 2}
@@ -158,9 +158,9 @@ def test_status_hook_recursion_is_bounded(env: Env) -> None:
 def test_suggestions_flow_to_sink(env: Env) -> None:
     parent = make_parent(env, hooks=[mount("spotter", "pre")])
     runner = parent.runner("enter-zone")
-    runner.on_data(env.data(*OUTSIDE))  # 未开启：实例级钩子不跑
+    runner.on_observation(env.observation(*OUTSIDE))  # 未开启：实例级钩子不跑
     assert env.sink.received == []
-    runner.on_data(env.data(*INSIDE))
+    runner.on_observation(env.observation(*INSIDE))
     assert [s.reason for s in env.sink.received] == ["saw MU5101"]
 
 
@@ -257,7 +257,7 @@ def test_restore(env: Env) -> None:
 
     # 规则的条件状态也恢复了：仍在区域内不算再次进入，hits 不变
     # （若状态丢失，首次观测按 initial_as_enter=True 会误判为进入，hits 变成 2）
-    restored.on_data(env.data(6, 6))
+    restored.on_observation(env.observation(6, 6))
     assert restored.active.status == {"hits": 1}
 
 

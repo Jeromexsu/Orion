@@ -1,7 +1,6 @@
 """组合节点三值逻辑的性质测试。"""
 
 from collections.abc import Mapping
-from datetime import UTC, datetime
 from typing import Any, Literal
 
 from hypothesis import given
@@ -16,10 +15,10 @@ from core.condition_engine import (
     EvalResult,
     Evaluator,
     EvaluatorRegistry,
-    Observation,
     Outcome,
 )
-from tests.core.condition_engine.conftest import compile_
+from core.target import Observation
+from tests.core.condition_engine.conftest import compile_, make_observation
 
 outcomes = st.sampled_from([HIT, MISS, NOT_APPLICABLE])
 
@@ -39,12 +38,6 @@ class Fixed(Evaluator[FixedParams]):
         return EvalResult(outcome=params.outcome)
 
 
-class Obs:
-    observable_id = "t"
-    fields: dict[str, Any] = {}
-    occurred_at = datetime(2026, 1, 1, tzinfo=UTC)
-
-
 registry = EvaluatorRegistry()
 registry.register(Fixed())
 engine = ConditionEngine(registry)
@@ -55,7 +48,7 @@ def leaf(o: Outcome) -> dict[str, Any]:
 
 
 def run(definition: dict[str, Any]) -> Outcome:
-    return compile_(engine, definition, {"t": set()}).evaluate(Obs(), {}).outcome
+    return compile_(engine, definition, {"t": set()}).evaluate(make_observation("t"), {}).outcome
 
 
 @given(outcomes)

@@ -1,4 +1,4 @@
-"""采集数据：ObservableTarget 产出 QuerySpec 交给 Adapter；collector 按 dynamic schema 校验后产出 DynamicData。"""
+"""采集相关数据：ObservableTarget 产出 QuerySpec 交给 Adapter；collector 按 dynamic schema 校验后产出 Observation。"""
 
 from datetime import datetime
 from typing import Any
@@ -18,14 +18,17 @@ class QuerySpec(BaseModel):
     since: datetime | None = None
 
 
-class DynamicData(BaseModel):
-    """一条动态数据：判断引擎确认的目标活动发生。"""
+class Observation(BaseModel):
+    """观测：对一个可观测目标的一次观测结果。collector 产出，条件判断的输入。
+
+    fields 是这次观测的动态数据——该关注点 dynamic schema 描述的字段。
+    """
 
     model_config = ConfigDict(frozen=True)
 
-    observable_id: str          # 对应哪个 ObservableTarget
+    observable_id: str          # 对哪个 ObservableTarget 的观测
     upstream: str               # 来自哪个上游，ObservableTarget 按它路由给订阅者
-    fields: dict[str, Any]      # 按 dynamic_schema 校验过的字段，如 {"lat": 31.2, "lon": 121.3}
-    occurred_at: datetime
+    fields: dict[str, Any]      # 动态数据：按 dynamic_schema 校验过的字段，如 {"lat": 31.2, "lon": 121.3}
+    occurred_at: datetime       # 发生时间（不是处理时间）
     source_id: str              # 去重用，如 "adsb#881"
     raw: dict[str, Any] | None = None  # 上游原始响应，便于排查

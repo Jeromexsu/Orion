@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
+from itertools import count
 from typing import Any
 
 import pytest
@@ -14,8 +15,8 @@ from core.condition_engine import (
     EvalResult,
     Evaluator,
     EvaluatorRegistry,
-    Observation,
 )
+from core.target import Observation
 from plugins.condition_engine.on_enter import OnEnter
 
 _condition_def: TypeAdapter[ConditionDef] = TypeAdapter(ConditionDef)
@@ -35,13 +36,18 @@ def compile_(
 T0 = datetime(2026, 9, 26, tzinfo=UTC)
 
 
-class Obs:
-    """满足 Observation 的最小实现。at 是相对 T0 的小时数。"""
+_seq = count()
 
-    def __init__(self, observable_id: str, at: float = 0, **fields: Any) -> None:
-        self.observable_id = observable_id
-        self.fields: dict[str, Any] = fields
-        self.occurred_at = T0 + timedelta(hours=at)
+
+def make_observation(observable_id: str, at: float = 0, **fields: Any) -> Observation:
+    """测试辅助：构造一条观测。at 是相对 T0 的小时数。"""
+    return Observation(
+        observable_id=observable_id,
+        upstream="test",
+        fields=fields,
+        occurred_at=T0 + timedelta(hours=at),
+        source_id=f"test#{next(_seq)}",
+    )
 
 
 class GtParams(BaseModel):

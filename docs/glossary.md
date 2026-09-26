@@ -12,8 +12,8 @@
 | 上游 | `upstream` | 数据来源，如 `adsb`；由 collector 的一个 Adapter 实现 |
 | 可观测目标（obs） | `ObservableTarget` | 封装好的「具体目标 + 一个关注点」，ID 形如 `t1:position`；持有全部可用上游和订阅关系，全局唯一，由 `TargetManager` 创建 |
 | 订阅 | `ObservableTarget.acquire(订阅者, 上游集合)` | 订阅者指定要哪些上游；可观测目标按上游把数据路由给订阅者 |
-| 动态数据 | `DynamicData` | collector 采集、按 dynamic schema 校验后的一条数据：`observable_id`、`upstream`、`fields`、`occurred_at`、`source_id`、`raw` |
-| 观测（observation） | `Observation` | 一次观测的结果，动态数据的子集：`observable_id`、`fields`、`occurred_at`；条件判断的输入 |
+| 观测（observation） | `Observation` | 对一个可观测目标的一次观测结果：`observable_id`、`upstream`、`fields`、`occurred_at`、`source_id`、`raw`。collector 产出，条件判断的输入 |
+| 动态数据 | `Observation.fields` | 一次观测里该关注点 dynamic schema 描述的那组字段，如 `{"lat": ..., "lon": ...}` |
 
 注意区分 **obs**（可观测目标，长期存在的对象）与 **observation**（观测，一条结果）。
 

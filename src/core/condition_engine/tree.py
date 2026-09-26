@@ -1,35 +1,13 @@
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Set
-from datetime import datetime
 from types import MappingProxyType
 from typing import Any, Literal
 
 from pydantic import BaseModel
 
 from core.condition_engine.evaluator import Evaluator
-from core.condition_engine.observation import Observation
 from core.condition_engine.result import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
-
-
-class _ReadOnlyObservation:
-    """交给判断方式的只读观测：fields 是只读视图，判断方式改不动原数据。"""
-
-    def __init__(self, observation: Observation) -> None:
-        self._observable_id = observation.observable_id
-        self._fields = MappingProxyType(dict(observation.fields))
-        self._occurred_at = observation.occurred_at
-
-    @property
-    def observable_id(self) -> str:
-        return self._observable_id
-
-    @property
-    def fields(self) -> Mapping[str, Any]:
-        return self._fields
-
-    @property
-    def occurred_at(self) -> datetime:
-        return self._occurred_at
+from core.target import Observation
 
 # 整棵树的状态：节点路径 → 该叶子的状态
 TreeState = Mapping[str, Mapping[str, Any]]
@@ -69,7 +47,10 @@ class LeafNode(ConditionNode):
             return EvalResult(outcome=NOT_APPLICABLE)
 
         leaf_state = MappingProxyType(dict(state.get(self.path, {})))
-        result = self.evaluator.evaluate(self.params, _ReadOnlyObservation(observation), leaf_state)
+        # 每个叶子拿一份副本：判断方式即使修改了也影响不到其他叶子和调用方
+        result = self.evaluator.evaluate(
+            self.params, observation.model_copy(deep=True), leaf_state
+        )
 
         entry: dict[str, Any] = {
             "path": self.path,

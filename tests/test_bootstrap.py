@@ -6,7 +6,7 @@ from bootstrap import App, Repositories, build_app
 from core.hil import Proposal, Suggestion
 from core.target import TargetNotFoundError, type_name
 from plugins.target.aircraft import Aircraft
-from tests.core.collector.fakes import InMemoryCursorRepository, InMemoryDynamicDataRepository
+from tests.core.collector.fakes import InMemoryCursorRepository, InMemoryObservationRepository
 from tests.core.event.fakes import (
     InMemoryEventRepository,
     InMemoryParentEventRepository,
@@ -24,7 +24,7 @@ def build() -> App:
             targets=InMemoryTargetRepository(),
             observables=InMemoryObservableTargetRepository(),
             cursors=InMemoryCursorRepository(),
-            dynamic_data=InMemoryDynamicDataRepository(),
+            observations=InMemoryObservationRepository(),
             parents=InMemoryParentEventRepository(),
             templates=InMemoryTemplateRepository(),
             events=InMemoryEventRepository(),

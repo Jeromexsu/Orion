@@ -5,7 +5,7 @@ from core.collector.collector import Collector
 from core.collector.dispatcher import Dispatcher
 from core.collector.errors import CollectorError, DuplicateAdapterError, UnknownAdapterError
 from core.collector.registry import AdapterRegistry
-from core.collector.repository import CursorRepository, DynamicDataRepository
+from core.collector.repository import CursorRepository, ObservationRepository
 
 __all__ = [
     "Adapter",
@@ -15,7 +15,7 @@ __all__ = [
     "CursorRepository",
     "Dispatcher",
     "DuplicateAdapterError",
-    "DynamicDataRepository",
+    "ObservationRepository",
     "FetchedRecord",
     "UnknownAdapterError",
 ]

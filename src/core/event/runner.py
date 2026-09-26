@@ -9,7 +9,7 @@ from core.event.event import Event
 from core.event.records import EventRecord, TemplateRef
 from core.event.runtime import EventRuntime
 from core.event.template import EventTemplate
-from core.target import DynamicData, ObservableTarget
+from core.target import ObservableTarget, Observation
 
 logger = logging.getLogger(__name__)
 
@@ -123,11 +123,11 @@ class EventRunner:
 
     # ------------------------------------------------------------ Referencer
 
-    def on_data(self, data: DynamicData) -> None:
-        if data.observable_id not in self._observables:
+    def on_observation(self, observation: Observation) -> None:
+        if observation.observable_id not in self._observables:
             return
 
-        opened = self._template.open_tree.evaluate(data, self._open_state)
+        opened = self._template.open_tree.evaluate(observation, self._open_state)
         if opened.state_patch:
             self._open_state = apply_state_patch(self._open_state, opened.state_patch)
             self._runtime.runner_states.save(self._parent_id, self._template.id, self._open_state)
@@ -140,11 +140,11 @@ class EventRunner:
                 self._template,
                 self._runtime,
                 self.target_names,
-                cycle=data.occurred_at.year,
+                cycle=observation.occurred_at.year,
             )
 
         event = self._active
-        event.process(data)
+        event.process(observation)
         self._runtime.events.save(event.to_record())
         if event.is_closed:
             self._end_cycle()

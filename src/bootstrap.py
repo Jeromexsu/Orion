@@ -11,7 +11,7 @@ from core.collector import (
     Collector,
     CursorRepository,
     Dispatcher,
-    DynamicDataRepository,
+    ObservationRepository,
 )
 from core.condition_engine import ConditionEngine, EvaluatorRegistry
 from core.event import (
@@ -43,7 +43,7 @@ class Repositories:
         targets: TargetRepository,
         observables: ObservableTargetRepository,
         cursors: CursorRepository,
-        dynamic_data: DynamicDataRepository,
+        observations: ObservationRepository,
         parents: ParentEventRepository,
         templates: TemplateRepository,
         events: EventRepository,
@@ -54,7 +54,7 @@ class Repositories:
         self.targets = targets
         self.observables = observables
         self.cursors = cursors
-        self.dynamic_data = dynamic_data
+        self.observations = observations
         self.parents = parents
         self.templates = templates
         self.events = events
@@ -96,7 +96,7 @@ def build_app(repos: Repositories) -> App:
     targets.register_type(Aircraft)
 
     collector = Collector(
-        targets, adapter_registry, repos.cursors, repos.dynamic_data, Dispatcher()
+        targets, adapter_registry, repos.cursors, repos.observations, Dispatcher()
     )
 
     evaluator_registry = EvaluatorRegistry()
