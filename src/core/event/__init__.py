@@ -1,6 +1,6 @@
 """事件：ParentEvent / SubEventSlot / SubEventTemplate / SubEventInstance / EventManager。"""
 
-from core.event.definitions import OperatorMount, RuleDef, TemplateDef
+from core.event.definitions import ObservationDef, OperatorMount, RuleDef, TemplateDef
 from core.event.errors import (
     DuplicateParentEventError,
     EventError,
@@ -15,10 +15,15 @@ from core.event.errors import (
 from core.event.instance import CLOSE_STATUS_KEY, SubEventInstance
 from core.event.manager import EventManager
 from core.event.parent import ParentEvent
-from core.event.records import InstanceRecord, ParentEventRecord, TargetRef, TemplateRef
-from core.event.repository import InstanceRepository, ParentEventRepository, TemplateRepository
+from core.event.records import InstanceRecord, ParentEventRecord, TemplateRef
+from core.event.repository import (
+    InstanceRepository,
+    ParentEventRepository,
+    SlotStateRepository,
+    TemplateRepository,
+)
 from core.event.runtime import EventRuntime
-from core.event.slot import SubEventSlot
+from core.event.slot import SubEventSlot, check_observations
 from core.event.template import CompiledRule, SubEventTemplate
 
 __all__ = [
@@ -31,16 +36,17 @@ __all__ = [
     "InstanceClosedError",
     "InstanceRecord",
     "InstanceRepository",
+    "ObservationDef",
     "OperatorMount",
     "ParentEvent",
     "ParentEventNotFoundError",
     "ParentEventRecord",
     "ParentEventRepository",
     "RuleDef",
+    "SlotStateRepository",
     "SubEventInstance",
     "SubEventSlot",
     "SubEventTemplate",
-    "TargetRef",
     "TargetStillReferencedError",
     "TemplateCompileError",
     "TemplateDef",
@@ -49,4 +55,5 @@ __all__ = [
     "TemplateRepository",
     "TemplateScopeError",
     "TemplateVersionError",
+    "check_observations",
 ]

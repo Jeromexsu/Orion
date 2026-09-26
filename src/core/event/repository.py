@@ -4,7 +4,7 @@
 活对象依赖条件引擎、算子注册表等运行时组件，持久化层不该去构造它们。
 """
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from core.event.definitions import TemplateDef
 from core.event.records import InstanceRecord, ParentEventRecord
@@ -26,3 +26,11 @@ class InstanceRepository(Protocol):
     def find_active(self, parent_id: str, template_id: str) -> InstanceRecord | None: ...
     def save(self, instance: InstanceRecord) -> None: ...
     def history(self, parent_id: str, template_id: str) -> list[InstanceRecord]: ...
+
+
+class SlotStateRepository(Protocol):
+    """slot 的开启条件状态。年度事件跨越多次重启，必须持久化。"""
+
+    def get(self, parent_id: str, template_id: str) -> dict[str, Any] | None: ...
+    def save(self, parent_id: str, template_id: str, state: dict[str, Any]) -> None: ...
+    def remove(self, parent_id: str, template_id: str) -> None: ...

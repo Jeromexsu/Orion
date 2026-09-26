@@ -43,7 +43,7 @@ class EventManager:
         return failed
 
     def restore(self) -> list[str]:
-        """启动时调用：全量加载父事件并重新 acquire 目标（订阅者集合不持久化）。
+        """启动时调用：全量加载父事件，各 slot 重新订阅（订阅关系不持久化）。
 
         单个父事件恢复失败只记日志，不影响其他。返回恢复失败的父事件 ID。
         """

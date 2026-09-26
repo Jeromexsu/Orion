@@ -16,10 +16,11 @@ from core.collector import (
 from core.condition_engine import ConditionEngine, EvaluatorRegistry
 from core.event import (
     EventManager,
-    TemplateDef,
     EventRuntime,
     InstanceRepository,
     ParentEventRepository,
+    SlotStateRepository,
+    TemplateDef,
     TemplateRepository,
 )
 from core.hil import HilManager, SuggestionRepository
@@ -46,6 +47,7 @@ class Repositories:
         parents: ParentEventRepository,
         templates: TemplateRepository,
         instances: InstanceRepository,
+        slot_states: SlotStateRepository,
         drafts: DraftRepository,
         suggestions: SuggestionRepository,
     ) -> None:
@@ -56,6 +58,7 @@ class Repositories:
         self.parents = parents
         self.templates = templates
         self.instances = instances
+        self.slot_states = slot_states
         self.drafts = drafts
         self.suggestions = suggestions
 
@@ -114,6 +117,7 @@ def build_app(repos: Repositories) -> App:
             parents=repos.parents,
             templates=repos.templates,
             instances=repos.instances,
+            slot_states=repos.slot_states,
             reports=reports,
         )
     )
@@ -140,12 +144,10 @@ def _allow_actions(hil: HilManager, events: EventManager) -> None:
     """hil 白名单：建议能触发的核心公开方法。proposal.target 是父事件 ID。"""
 
     def add_target(parent_id: str | None, args: dict[str, Any]) -> object:
-        return events.get(_required(parent_id)).add_target(
-            args["target_id"], args["focus"], args["upstreams"]
-        )
+        return events.get(_required(parent_id)).add_target(args["target_id"])
 
     def remove_target(parent_id: str | None, args: dict[str, Any]) -> object:
-        return events.get(_required(parent_id)).remove_target(args["observable_id"])
+        return events.get(_required(parent_id)).remove_target(args["target_id"])
 
     def upsert_template(parent_id: str | None, args: dict[str, Any]) -> object:
         definition = TemplateDef.model_validate(args["definition"])

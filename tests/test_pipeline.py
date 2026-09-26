@@ -1,4 +1,4 @@
-"""端到端：collector 采集 → Dispatcher → ParentEvent → 条件树 → 推进算子 → 实例收敛。"""
+"""端到端：collector 采集 → Dispatcher → slot（开启条件）→ 实例（规则 → 推进算子）→ 收敛。"""
 
 from datetime import UTC, datetime
 
@@ -22,8 +22,8 @@ def test_collect_drives_sub_event_to_close() -> None:
     )
 
     parent = env.events.create("p1", "东海方向")
-    parent.add_target("t1", "position", ["adsb"])
-    parent.upsert_template(TemplateDef.model_validate(template(threshold=1)))
+    parent.add_target("t1")
+    parent.upsert_template(TemplateDef.model_validate(template(threshold=2)))
 
     adsb.records = [
         FetchedRecord(
@@ -31,10 +31,11 @@ def test_collect_drives_sub_event_to_close() -> None:
             occurred_at=datetime(2026, 9, 26, 12, minute, tzinfo=UTC),
             source_id=f"adsb#{minute}",
         )
-        for minute, (lat, lon) in enumerate([(20, 20), (5, 5)])
+        for minute, (lat, lon) in enumerate([(20, 20), (5, 5), (20, 20), (5, 5)])
     ]
-    assert len(collector.collect()) == 2
+    assert len(collector.collect()) == 4
 
     (record,) = env.instances.history("p1", "enter-zone")
     assert record.close_reason == "converged"
-    assert record.status == {"hits": 1, "closed": True}
+    assert record.status == {"hits": 2, "closed": True}
+    assert record.cycle == 2026

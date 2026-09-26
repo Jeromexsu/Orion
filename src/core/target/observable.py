@@ -10,7 +10,7 @@ from core.target.errors import UnsupportedFocusError, UnsupportedUpstreamError
 
 
 class Referencer(Protocol):
-    """订阅 ObservableTarget 的对象（通常是 ParentEvent），由 Dispatcher 回调。
+    """订阅 ObservableTarget 的对象（即运行中的子事件模板 SubEventSlot），由 Dispatcher 回调。
 
     实现类必须按身份哈希（普通类默认如此）。
     """

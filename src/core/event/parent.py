@@ -1,28 +1,22 @@
 import logging
-from collections.abc import Iterable
-from datetime import UTC, datetime
 
-from core.contracts import DRAFT, Draft, DynamicData
+from core.contracts import DRAFT, Draft
 from core.event.definitions import TemplateDef
-from core.event.errors import (
-    TargetStillReferencedError,
-    TemplateNotFoundError,
-    TemplateVersionError,
-)
-from core.event.instance import SubEventInstance
-from core.event.records import ParentEventRecord, TargetRef, TemplateRef
+from core.event.errors import TargetStillReferencedError, TemplateNotFoundError
+from core.event.records import ParentEventRecord
 from core.event.runtime import EventRuntime
-from core.event.slot import SubEventSlot
+from core.event.slot import SubEventSlot, check_observations
 from core.event.template import SubEventTemplate
-from core.target import ObservableTarget
+from core.target import TargetNotFoundError
 
 logger = logging.getLogger(__name__)
 
 
 class ParentEvent:
-    """父事件：命名空间，持有目标池和一组子事件模板（每个模板一个 SubEventSlot）。
+    """父事件：静态目标的命名空间 + 静态模板的集合。
 
-    它是 ObservableTarget 的订阅者（Referencer）：加入目标池即按指定上游 acquire，移出即 release。
+    它自己不订阅任何东西——不知道关注点和上游。每个模板由一个 SubEventSlot 运行，
+    slot 按模板的观测声明订阅可观测目标、管理子事件生命周期。
     所有变更方法都会立即持久化自己的记录。通过 EventManager 创建和恢复。
     """
 
@@ -30,26 +24,17 @@ class ParentEvent:
         self._id = parent_id
         self._name = name
         self._runtime = runtime
-        self._pool: dict[str, ObservableTarget] = {}
+        self._targets: set[str] = set()
         self._slots: dict[str, SubEventSlot] = {}
 
     @classmethod
     def restore(cls, record: ParentEventRecord, runtime: EventRuntime) -> "ParentEvent":
-        """重启恢复：重新 acquire 目标、重新编译模板、接回活跃实例。不写库。"""
+        """重启恢复：还原命名空间，各 slot 重新订阅并接回活跃实例。不写库。"""
         parent = cls(record.id, record.name, runtime)
-        for ref in record.targets:
-            parent._attach(runtime.targets.get_observable(ref.target_id, ref.focus), ref.upstreams)
+        parent._targets = set(record.targets)
         for ref in record.templates:
-            definition = runtime.templates.get(ref.template_id, ref.version)
-            if definition is None:
-                raise TemplateNotFoundError(f"{ref.template_id} v{ref.version}")
-            template = SubEventTemplate.compile(definition, runtime.conditions, runtime.operators)
-            parent._slots[template.id] = SubEventSlot(
-                parent.id,
-                template,
-                runtime,
-                parent.target_names,
-                active=parent._restore_active(template),
+            parent._slots[ref.template_id] = SubEventSlot.restore(
+                parent.id, ref, runtime, parent._save
             )
         return parent
 
@@ -63,8 +48,8 @@ class ParentEvent:
     def name(self) -> str:
         return self._name
 
-    def targets(self) -> list[ObservableTarget]:
-        return list(self._pool.values())
+    def target_ids(self) -> frozenset[str]:
+        return frozenset(self._targets)
 
     def templates(self) -> list[SubEventTemplate]:
         return [s.template for s in self._slots.values()]
@@ -75,80 +60,61 @@ class ParentEvent:
         except KeyError:
             raise TemplateNotFoundError(template_id) from None
 
-    def target_names(self) -> dict[str, str]:
-        """目标池里 ObservableTarget ID → 目标展示名，给算子上下文用。"""
-        return {oid: obs.target.name for oid, obs in self._pool.items()}
-
     def to_record(self) -> ParentEventRecord:
         return ParentEventRecord(
             id=self._id,
             name=self._name,
-            targets=[
-                TargetRef(
-                    target_id=o.target.id,
-                    focus=o.focus,
-                    upstreams=sorted(o.subscription(self)),
-                )
-                for o in self._pool.values()
-            ],
-            templates=[
-                TemplateRef(template_id=s.template.id, version=s.template.version)
-                for s in self._slots.values()
-            ],
+            targets=sorted(self._targets),
+            templates=[s.to_ref() for s in self._slots.values()],
         )
 
-    # ------------------------------------------------------------ 目标池
+    # ------------------------------------------------------------ 目标命名空间
 
-    def add_target(self, target_id: str, focus: str, upstreams: Iterable[str]) -> ObservableTarget:
-        """把目标加入目标池并订阅指定上游；已在池中则改为订阅新的上游集合。"""
-        observable = self._runtime.targets.get_observable(target_id, focus)
-        wanted = frozenset(upstreams)
-        if observable.id not in self._pool or observable.subscription(self) != wanted:
-            self._attach(observable, wanted)
+    def add_target(self, target_id: str) -> None:
+        """把静态目标加入命名空间。目标必须已存在。"""
+        self._runtime.targets.get_target(target_id)
+        if target_id not in self._targets:
+            self._targets.add(target_id)
             self._save()
-        return observable
 
-    def remove_target(self, observable_id: str) -> None:
-        observable = self._pool.get(observable_id)
-        if observable is None:
+    def remove_target(self, target_id: str) -> None:
+        if target_id not in self._targets:
             return
-        users = [s.template.id for s in self._slots.values() if observable_id in s.template.targets]
+        users = [tid for tid, s in self._slots.items() if target_id in s.target_ids()]
         if users:
-            raise TargetStillReferencedError(f"{observable_id} is used by templates {users}")
-        observable.release(self)
-        del self._pool[observable_id]
+            raise TargetStillReferencedError(f"{target_id} is observed by templates {users}")
+        self._targets.discard(target_id)
         self._save()
 
     # ------------------------------------------------------------ 模板
 
     def upsert_template(self, definition: TemplateDef) -> SubEventTemplate:
-        """编译 → 校验目标范围 → 保存新版本 → 装进槽（已有则替换，当前实例随之关闭）。"""
+        """编译 → 校验命名空间与观测声明 → 保存新版本 → 装入（已有则按「下个周期生效」挂起或切换）。"""
         template = SubEventTemplate.compile(
             definition, self._runtime.conditions, self._runtime.operators
         )
-        template.validate(self._pool.keys())
+        template.validate(self._targets)
+        check_observations(template, self._runtime.targets)
 
         slot = self._slots.get(template.id)
-        if slot is not None and template.version <= slot.template.version:
-            raise TemplateVersionError(
-                f"{template.id}: version {template.version} <= current {slot.template.version}"
-            )
+        if slot is not None:
+            slot.check_version(template)
 
         self._runtime.templates.upsert(definition)
         if slot is None:
-            self._slots[template.id] = SubEventSlot(
-                self._id, template, self._runtime, self.target_names
+            self._slots[template.id] = SubEventSlot.start(
+                self._id, template, self._runtime, self._save
             )
+            self._save()
         else:
-            slot.replace(template)
-        self._save()
+            slot.stage(template)   # 内部通过 on_change 存档
         return template
 
     def remove_template(self, template_id: str) -> None:
         slot = self._slots.pop(template_id, None)
         if slot is None:
             raise TemplateNotFoundError(template_id)
-        slot.close_active("template_removed")
+        slot.dispose("template_removed")
         self._save()
 
     # ------------------------------------------------------------ 报告
@@ -166,50 +132,30 @@ class ParentEvent:
 
     def _digest_content(self) -> str:
         lines = [f"# {self._name}", "", "## 目标"]
-        lines += [f"- {obs.target.name}（{obs.focus}）" for obs in self._pool.values()] or ["- 无"]
+        lines += [f"- {self._target_name(t)}" for t in sorted(self._targets)] or ["- 无"]
         lines += ["", "## 子事件"]
         for slot in self._slots.values():
             closed = sum(1 for r in slot.history() if r.closed_at is not None)
             active = slot.active
-            state = f"进行中 {dict(active.status)}" if active else "无进行中实例"
-            lines.append(f"- {slot.template.definition.name}：已收敛 {closed} 次，{state}")
+            state = (
+                f"{active.cycle} 周期进行中 {dict(active.status)}" if active else "未开启"
+            )
+            pending = f"（v{slot.pending.version} 待下个周期生效）" if slot.pending else ""
+            lines.append(
+                f"- {slot.template.definition.name} v{slot.template.version}{pending}："
+                f"已结束 {closed} 个周期，{state}"
+            )
         if not self._slots:
             lines.append("- 无")
         return "\n".join(lines)
 
-    # ------------------------------------------------------------ Referencer
-
-    def on_data(self, data: DynamicData) -> None:
-        """Dispatcher 回调。每个槽单独隔离异常。"""
-        if data.observable_id not in self._pool:
-            return
-        for slot in list(self._slots.values()):
-            try:
-                slot.on_data(data)
-            except Exception:
-                logger.exception(
-                    "slot %s of parent %s failed on %s", slot.template.id, self._id, data.source_id
-                )
-
     # ------------------------------------------------------------ 内部
 
-    def _attach(self, observable: ObservableTarget, upstreams: Iterable[str]) -> None:
-        observable.acquire(self, upstreams)
-        self._pool[observable.id] = observable
+    def _target_name(self, target_id: str) -> str:
+        try:
+            return self._runtime.targets.get_target(target_id).name
+        except TargetNotFoundError:
+            return target_id
 
     def _save(self) -> None:
         self._runtime.parents.upsert(self.to_record())
-
-    def _restore_active(self, template: SubEventTemplate) -> SubEventInstance | None:
-        record = self._runtime.instances.find_active(self._id, template.id)
-        if record is None:
-            return None
-        if record.template_version != template.version:
-            # 模板已换版本但旧实例没来得及关：补关
-            self._runtime.instances.save(
-                record.model_copy(
-                    update={"closed_at": datetime.now(UTC), "close_reason": "template_replaced"}
-                )
-            )
-            return None
-        return SubEventInstance(record, template, self._runtime, self.target_names)

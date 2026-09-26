@@ -42,6 +42,7 @@ class SubEventInstance:
         self._target_names = target_names
         self._status: dict[str, Any] = dict(record.status)
         self._condition_state: dict[str, dict[str, Any]] = dict(record.condition_state)
+        self._cycle = record.cycle
         self._opened_at = record.opened_at
         self._closed_at = record.closed_at
         self._close_reason = record.close_reason
@@ -54,6 +55,7 @@ class SubEventInstance:
         template: SubEventTemplate,
         runtime: EventRuntime,
         target_names: Callable[[], Mapping[str, str]],
+        cycle: int,
     ) -> "SubEventInstance":
         """新建实例并跑 created 钩子。"""
         record = InstanceRecord(
@@ -61,6 +63,7 @@ class SubEventInstance:
             parent_id=parent_id,
             template_id=template.id,
             template_version=template.version,
+            cycle=cycle,
             status={},
             condition_state={},
             opened_at=_now(),
@@ -80,6 +83,10 @@ class SubEventInstance:
         return self._template
 
     @property
+    def cycle(self) -> int:
+        return self._cycle
+
+    @property
     def status(self) -> Mapping[str, Any]:
         return dict(self._status)
 
@@ -93,6 +100,7 @@ class SubEventInstance:
             parent_id=self._parent_id,
             template_id=self._template.id,
             template_version=self._template.version,
+            cycle=self._cycle,
             status=dict(self._status),
             condition_state=dict(self._condition_state),
             opened_at=self._opened_at,

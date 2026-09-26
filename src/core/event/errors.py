@@ -11,7 +11,7 @@ class TemplateCompileError(EventError):
 
 
 class TemplateScopeError(EventError):
-    """模板引用了父事件目标池之外的目标。"""
+    """模板观测了父事件目标命名空间之外的目标。"""
 
 
 class TemplateVersionError(EventError):
@@ -23,7 +23,7 @@ class TemplateNotFoundError(EventError):
 
 
 class TargetStillReferencedError(EventError):
-    """目标仍被某个模板引用，不能从目标池移除。"""
+    """目标仍被某个模板观测，不能从命名空间移除。"""
 
 
 class ParentEventNotFoundError(EventError):

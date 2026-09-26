@@ -1,3 +1,5 @@
+from typing import Any
+
 from core.contracts import Suggestion
 from core.event import InstanceRecord, ParentEventRecord, TemplateDef
 
@@ -68,3 +70,18 @@ class RecordingSink:
 
     def receive(self, suggestion: Suggestion) -> None:
         self.received.append(suggestion)
+
+
+class InMemorySlotStateRepository:
+    def __init__(self) -> None:
+        self.items: dict[tuple[str, str], dict[str, Any]] = {}
+
+    def get(self, parent_id: str, template_id: str) -> dict[str, Any] | None:
+        state = self.items.get((parent_id, template_id))
+        return dict(state) if state is not None else None
+
+    def save(self, parent_id: str, template_id: str, state: dict[str, Any]) -> None:
+        self.items[(parent_id, template_id)] = dict(state)
+
+    def remove(self, parent_id: str, template_id: str) -> None:
+        self.items.pop((parent_id, template_id), None)

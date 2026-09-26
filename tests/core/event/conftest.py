@@ -18,6 +18,7 @@ from plugins.target.aircraft import Aircraft
 from tests.core.event.fakes import (
     InMemoryInstanceRepository,
     InMemoryParentEventRepository,
+    InMemorySlotStateRepository,
     InMemoryTemplateRepository,
     RecordingSink,
 )
@@ -124,6 +125,7 @@ class Env:
         self.parents = InMemoryParentEventRepository()
         self.templates = InMemoryTemplateRepository()
         self.instances = InMemoryInstanceRepository()
+        self.slot_states = InMemorySlotStateRepository()
         self.runtime = self.make_runtime(self.targets)
         self.events = EventManager(self.runtime)
         self._seq = count()
@@ -133,7 +135,7 @@ class Env:
         targets = TargetManager(
             self.target_repo,
             InMemoryObservableTargetRepository(),
-            StaticUpstreamCatalog({("aircraft", "position"): ["adsb"]}),
+            StaticUpstreamCatalog({("aircraft", "position"): ["adsb", "radar"]}),
         )
         targets.register_type(Aircraft)
         return targets
@@ -149,14 +151,21 @@ class Env:
             parents=self.parents,
             templates=self.templates,
             instances=self.instances,
+            slot_states=self.slot_states,
             reports=self.reports,
         )
 
-    def data(self, lat: float, lon: float, observable_id: str = "t1:position") -> DynamicData:
+    def data(
+        self,
+        lat: float,
+        lon: float,
+        observable_id: str = "t1:position",
+        upstream: str = "adsb",
+    ) -> DynamicData:
         n = next(self._seq)
         return DynamicData(
             observable_id=observable_id,
-            upstream="adsb",
+            upstream=upstream,
             fields={"lat": lat, "lon": lon, "altitude_m": None},
             occurred_at=datetime(2026, 9, 26, tzinfo=UTC) + timedelta(minutes=n),
             source_id=f"adsb#{n}",
@@ -167,25 +176,36 @@ def mount(operator: str, mount_point: str, **params: Any) -> dict[str, Any]:
     return {"operator": operator, "mount_point": mount_point, "params": params}
 
 
+def enter(target: str = "t1:position", initial: bool = False) -> dict[str, Any]:
+    return {
+        "kind": "leaf",
+        "target": target,
+        "type": "onEnter",
+        "params": {"area": SQUARE, "initial_as_enter": initial},
+    }
+
+
 def template(
     version: int = 1,
     threshold: int = 2,
-    target: str = "t1:position",
+    target: str = "t1",
+    upstreams: list[str] | None = None,
     hooks: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    """开启条件：目标进入区域；规则：在区域内（开启那一条也算）累计命中，达到阈值收敛关闭。"""
+    observable = f"{target}:position"
     return {
         "id": "enter-zone",
         "version": version,
         "name": "进入区域",
+        "observations": [
+            {"target_id": target, "focus": "position", "upstreams": upstreams or ["adsb"]}
+        ],
+        "open_condition": enter(observable),
         "rules": [
             {
                 "name": "enter",
-                "condition": {
-                    "kind": "leaf",
-                    "target": target,
-                    "type": "onEnter",
-                    "params": {"area": SQUARE},
-                },
+                "condition": enter(observable, initial=True),
                 "hooks": [mount("count_hits", "rule_hit", threshold=threshold)],
             }
         ],

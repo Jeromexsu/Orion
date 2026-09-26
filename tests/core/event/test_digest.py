@@ -4,24 +4,26 @@ from tests.core.event.conftest import Env, mount, template
 
 def test_digest_rolls_one_machine_draft(env: Env) -> None:
     parent = env.events.create("p1", "东海方向")
-    parent.add_target("t1", "position", ["adsb"])
-    parent.upsert_template(TemplateDef.model_validate(template()))
-    parent.on_data(env.data(20, 20))
+    parent.add_target("t1")
+    parent.upsert_template(TemplateDef.model_validate(template(threshold=9)))
 
     first = parent.digest()
     assert first.title == "东海方向 汇总"
-    assert "- MU5101（position）" in first.content
-    assert "- 进入区域：已收敛 0 次，进行中 {}" in first.content
+    assert "- MU5101" in first.content
+    assert "- 进入区域 v1：已结束 0 个周期，未开启" in first.content
 
-    parent.on_data(env.data(5, 5))
+    parent.slot("enter-zone").on_data(env.data(20, 20))
+    parent.slot("enter-zone").on_data(env.data(5, 5))
     second = parent.digest()
     assert (second.id, second.version) == (first.id, 2)
-    assert "进行中 {'hits': 1}" in second.content
+    assert "2026 周期进行中 {'hits': 1}" in second.content
+
+    parent.upsert_template(TemplateDef.model_validate(template(version=2)))
+    assert "进入区域 v1（v2 待下个周期生效）" in parent.digest().content
 
     # 分析师接手后，下一次汇总另起一份草稿
     env.reports.edit(first.id, "人工修改")
-    third = parent.digest()
-    assert third.id != first.id
+    assert parent.digest().id != first.id
 
 
 def test_digest_all_isolates_failures(env: Env) -> None:
@@ -33,14 +35,14 @@ def test_digest_all_isolates_failures(env: Env) -> None:
 
 def test_close_report_operator_writes_draft(env: Env) -> None:
     parent = env.events.create("p1", "东海方向")
-    parent.add_target("t1", "position", ["adsb"])
+    parent.add_target("t1")
     parent.upsert_template(
         TemplateDef.model_validate(
             template(threshold=1, hooks=[mount("close_report", "closed", title="进入告警")])
         )
     )
-    parent.on_data(env.data(20, 20))
-    parent.on_data(env.data(5, 5))
+    parent.slot("enter-zone").on_data(env.data(20, 20))
+    parent.slot("enter-zone").on_data(env.data(5, 5))
 
     (draft,) = env.reports.list_by_parent("p1")
     assert draft.title == "进入告警"

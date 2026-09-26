@@ -4,12 +4,13 @@ import pytest
 
 from bootstrap import App, Repositories, build_app
 from core.contracts import Proposal, Suggestion
-from core.target import NoUpstreamError, type_name
+from core.target import TargetNotFoundError, type_name
 from plugins.target.aircraft import Aircraft
 from tests.core.collector.fakes import InMemoryCursorRepository, InMemoryDynamicDataRepository
 from tests.core.event.fakes import (
     InMemoryInstanceRepository,
     InMemoryParentEventRepository,
+    InMemorySlotStateRepository,
     InMemoryTemplateRepository,
 )
 from tests.core.hil.fakes import InMemorySuggestionRepository
@@ -27,6 +28,7 @@ def build() -> App:
             parents=InMemoryParentEventRepository(),
             templates=InMemoryTemplateRepository(),
             instances=InMemoryInstanceRepository(),
+            slot_states=InMemorySlotStateRepository(),
             drafts=InMemoryDraftRepository(),
             suggestions=InMemorySuggestionRepository(),
         )
@@ -55,8 +57,12 @@ def test_accepted_suggestion_goes_through_public_method() -> None:
         app.hil.receive(s)
         return s
 
-    # 没有上游能服务 → 公开方法的校验照常生效，建议保持待审
-    bad = propose(target_id="t1", focus="position", upstreams=["adsb"])
-    with pytest.raises(NoUpstreamError):
+    # 目标不存在 → 公开方法的校验照常生效，建议保持待审
+    bad = propose(target_id="ghost")
+    with pytest.raises(TargetNotFoundError):
         app.hil.accept(bad.id)
     assert app.hil.pending() == [bad]
+
+    good = propose(target_id="t1")
+    app.hil.accept(good.id)
+    assert app.events.get("p1").target_ids() == {"t1"}

@@ -5,29 +5,35 @@ import pytest
 from core.event import (
     DuplicateParentEventError,
     EventManager,
-    InstanceClosedError,
     ParentEvent,
     ParentEventNotFoundError,
+    SubEventSlot,
     TargetStillReferencedError,
     TemplateDef,
     TemplateNotFoundError,
     TemplateScopeError,
     TemplateVersionError,
 )
-from core.target import UnsupportedUpstreamError
+from core.target import TargetNotFoundError, UnsupportedUpstreamError
 from tests.core.event.conftest import Env, mount, template
 
+INSIDE, OUTSIDE = (5, 5), (20, 20)
 
-def make_parent(
-    env: Env, hooks: list[dict[str, Any]] | None = None, threshold: int = 2
-) -> ParentEvent:
+
+def open_cycle(env: Env, slot: SubEventSlot) -> None:
+    """先在区域外、再进入：开启条件命中，开实例（hits=1）。"""
+    slot.on_data(env.data(*OUTSIDE))
+    slot.on_data(env.data(*INSIDE))
+
+
+def make_parent(env: Env, **kwargs: Any) -> ParentEvent:
     parent = env.events.create("p1", "东海方向")
-    parent.add_target("t1", "position", ["adsb"])
-    parent.upsert_template(TemplateDef.model_validate(template(threshold=threshold, hooks=hooks)))
+    parent.add_target("t1")
+    parent.upsert_template(TemplateDef.model_validate(template(**kwargs)))
     return parent
 
 
-# ---------------------------------------------------------------- 目标池 / 模板
+# ---------------------------------------------------------------- 父事件：静态命名空间
 
 
 def test_create_and_get(env: Env) -> None:
@@ -40,146 +46,218 @@ def test_create_and_get(env: Env) -> None:
         env.events.get("nope")
 
 
-def test_add_target_acquires_and_persists(env: Env) -> None:
+def test_namespace_holds_static_targets_only(env: Env) -> None:
     parent = env.events.create("p1", "x")
-    obs = parent.add_target("t1", "position", ["adsb"])
-    assert parent in obs.referencers()
-    assert env.targets.active_observables() == [obs]
-    assert [r.target_id for r in env.parents.items["p1"].targets] == ["t1"]
-    assert parent.target_names() == {"t1:position": "MU5101"}
+    parent.add_target("t1")
+    assert parent.target_ids() == {"t1"}
+    assert env.parents.items["p1"].targets == ["t1"]
+    assert env.targets.active_observables() == []  # 父事件不订阅任何东西
+    with pytest.raises(TargetNotFoundError):
+        parent.add_target("ghost")
 
 
-def test_template_must_stay_in_pool(env: Env) -> None:
+def test_template_must_observe_namespace_targets(env: Env) -> None:
     parent = env.events.create("p1", "x")
     with pytest.raises(TemplateScopeError):
         parent.upsert_template(TemplateDef.model_validate(template()))
 
 
-def test_remove_target_referenced_by_template(env: Env) -> None:
+def test_unavailable_upstream_rejected_at_upsert(env: Env) -> None:
+    parent = env.events.create("p1", "x")
+    parent.add_target("t1")
+    with pytest.raises(UnsupportedUpstreamError):
+        parent.upsert_template(TemplateDef.model_validate(template(upstreams=["satellite"])))
+    with pytest.raises(TemplateNotFoundError):
+        parent.slot("enter-zone")
+
+
+def test_remove_target_observed_by_template(env: Env) -> None:
     parent = make_parent(env)
     with pytest.raises(TargetStillReferencedError):
-        parent.remove_target("t1:position")
+        parent.remove_target("t1")
     parent.remove_template("enter-zone")
-    parent.remove_target("t1:position")
-    assert env.targets.active_observables() == []
+    parent.remove_target("t1")
+    assert parent.target_ids() == frozenset()
 
 
-def test_template_versions_must_increase(env: Env) -> None:
+# ---------------------------------------------------------------- slot：订阅与开启
+
+
+def test_slot_subscribes_per_observation(env: Env) -> None:
+    parent = make_parent(env, upstreams=["radar"])
+    slot = parent.slot("enter-zone")
+    (obs,) = env.targets.active_observables()
+    assert obs.referencers() == {slot}
+    assert obs.subscription(slot) == {"radar"}
+    assert slot.target_names() == {"t1:position": "MU5101"}
+
+
+def test_open_condition_gates_instances(env: Env) -> None:
     parent = make_parent(env)
-    with pytest.raises(TemplateVersionError):
-        parent.upsert_template(TemplateDef.model_validate(template(version=1)))
-    with pytest.raises(TemplateNotFoundError):
-        parent.remove_template("nope")
-
-
-# ---------------------------------------------------------------- 管道
-
-
-def test_pipeline_opens_processes_and_closes(env: Env) -> None:
-    parent = make_parent(env, hooks=[mount("recorder", m) for m in ("created", "pre", "post", "status_updated", "closed")])
     slot = parent.slot("enter-zone")
 
-    parent.on_data(env.data(20, 20))  # 区域外：未命中
+    slot.on_data(env.data(*OUTSIDE))
+    assert slot.active is None
+    assert slot.open_state == {"root": {"inside": False}}
+
+    slot.on_data(env.data(*INSIDE))  # 进入 → 开实例，这条数据交给实例
+    instance = slot.active
+    assert instance is not None
+    assert instance.cycle == 2026
+    assert instance.status == {"hits": 1}
+    assert env.slot_states.get("p1", "enter-zone") == {"root": {"inside": True}}
+
+
+def test_lifecycle_and_open_state_during_run(env: Env) -> None:
+    parent = make_parent(env, threshold=3, hooks=[mount("recorder", m) for m in ("created", "closed")])
+    slot = parent.slot("enter-zone")
+    slot.on_data(env.data(*OUTSIDE))
+    slot.on_data(env.data(*INSIDE))  # 开启，hits=1
     first = slot.active
     assert first is not None
-    assert first.status == {}
 
-    parent.on_data(env.data(5, 5))  # 进入：命中 1 次
-    assert first.status == {"hits": 1}
-
-    parent.on_data(env.data(20, 20))  # 出去
-    parent.on_data(env.data(5, 5))  # 再进入：命中 2 次 → 收敛关闭
-    assert first.is_closed
-    assert slot.active is None
-
-    mounts = [m for _, m in env.log.calls]
-    assert mounts[0] == "created"
-    assert mounts.count("pre") == 4 and mounts.count("post") == 4
-    assert mounts.count("status_updated") == 2
-    assert mounts[-1] == "closed"
+    slot.on_data(env.data(*OUTSIDE))  # 运行期间开启条件照常评估、状态保持最新
+    assert slot.open_state == {"root": {"inside": False}}
+    slot.on_data(env.data(*INSIDE))  # hits=2（开启条件命中，但已有实例，不开新的）
+    assert slot.active is first
+    slot.on_data(env.data(*OUTSIDE))
+    slot.on_data(env.data(*INSIDE))  # hits=3 → 收敛关闭
+    assert first.is_closed and slot.active is None
+    assert env.log.calls == [("recorder", "created"), ("recorder", "closed")]
 
     record = env.instances.items[first.id]
-    assert record.close_reason == "converged"
-    assert record.status == {"hits": 2, "closed": True}
-    assert record.condition_state == {"enter": {"root": {"inside": True}}}
+    assert (record.close_reason, record.cycle) == ("converged", 2026)
 
-    # 下一条相关数据开新实例
-    parent.on_data(env.data(20, 20))
+    slot.on_data(env.data(*INSIDE))  # 仍在区域内：不算再次进入，不开新实例
+    assert slot.active is None
+    slot.on_data(env.data(*OUTSIDE))
+    slot.on_data(env.data(*INSIDE))  # 离开后再进入 → 下一个周期
     assert slot.active is not None and slot.active is not first
     assert len(slot.history()) == 2
 
 
-def test_irrelevant_data_does_not_open_instance(env: Env) -> None:
+def test_unsubscribed_data_ignored(env: Env) -> None:
     parent = make_parent(env)
-    parent.add_target("t2", "position", ["adsb"])
-    parent.on_data(env.data(5, 5, observable_id="t2:position"))
-    parent.on_data(env.data(5, 5, observable_id="t9:position"))
-    assert parent.slot("enter-zone").active is None
+    slot = parent.slot("enter-zone")
+    slot.on_data(env.data(*INSIDE, observable_id="t2:position"))
+    assert slot.active is None and slot.open_state == {}
 
 
 def test_status_hook_recursion_is_bounded(env: Env) -> None:
-    parent = make_parent(env, hooks=[mount("echo", "status_updated")])
-    parent.on_data(env.data(20, 20))
-    parent.on_data(env.data(5, 5))
-    active = parent.slot("enter-zone").active
+    parent = make_parent(env, threshold=5, hooks=[mount("echo", "status_updated")])
+    slot = parent.slot("enter-zone")
+    open_cycle(env, slot)
+    slot.on_data(env.data(*OUTSIDE))
+    slot.on_data(env.data(*INSIDE))
+    active = slot.active
     assert active is not None
-    assert active.status == {"hits": 1, "echoed": 1}
+    assert active.status == {"hits": 2, "echoed": 2}
 
 
 def test_suggestions_flow_to_sink(env: Env) -> None:
     parent = make_parent(env, hooks=[mount("spotter", "pre")])
-    parent.on_data(env.data(20, 20))
+    slot = parent.slot("enter-zone")
+    slot.on_data(env.data(*OUTSIDE))  # 未开启：实例级钩子不跑
+    assert env.sink.received == []
+    slot.on_data(env.data(*INSIDE))
     assert [s.reason for s in env.sink.received] == ["saw MU5101"]
-    assert env.sink.received[0].evidence == ["adsb#0"]
 
 
 def test_operator_failure_is_isolated(env: Env) -> None:
     parent = make_parent(env, hooks=[mount("boom", "pre"), mount("recorder", "pre")])
-    parent.on_data(env.data(20, 20))
+    open_cycle(env, parent.slot("enter-zone"))
     assert env.log.calls == [("recorder", "pre")]
 
 
-def test_replace_template_closes_current_instance(env: Env) -> None:
-    parent = make_parent(env)
-    parent.on_data(env.data(20, 20))
-    old = parent.slot("enter-zone").active
-    assert old is not None
+def test_manual_close(env: Env) -> None:
+    parent = make_parent(env, threshold=9)
+    slot = parent.slot("enter-zone")
+    open_cycle(env, slot)
+    instance = slot.active
+    assert instance is not None
+    slot.close_active("analyst_closed")
+    assert slot.active is None
+    assert env.instances.items[instance.id].close_reason == "analyst_closed"
 
-    parent.upsert_template(TemplateDef.model_validate(template(version=2, threshold=5)))
-    assert old.is_closed
-    assert env.instances.items[old.id].close_reason == "template_replaced"
+
+# ---------------------------------------------------------------- 换版本：下个周期生效
+
+
+def test_new_version_waits_for_current_cycle(env: Env) -> None:
+    parent = make_parent(env, threshold=3)
+    slot = parent.slot("enter-zone")
+    open_cycle(env, slot)
+    running = slot.active
+    assert running is not None
+
+    parent.upsert_template(TemplateDef.model_validate(template(version=2, upstreams=["radar"])))
+    assert slot.template.version == 1
+    assert slot.pending is not None and slot.pending.version == 2
+    assert env.parents.items["p1"].templates[0].pending_version == 2
+    assert not running.is_closed
+    with pytest.raises(TemplateVersionError):
+        parent.upsert_template(TemplateDef.model_validate(template(version=2)))
+
+    slot.close_active("season_over")  # 周期结束 → 切换到 v2、重新订阅、开启条件状态清空
+    assert (slot.template.version, slot.pending) == (2, None)
+    assert slot.open_state == {}
+    (obs,) = env.targets.active_observables()
+    assert obs.subscription(slot) == {"radar"}
+    ref = env.parents.items["p1"].templates[0]
+    assert (ref.version, ref.pending_version) == (2, None)
+
+
+def test_new_version_applies_immediately_when_idle(env: Env) -> None:
+    parent = make_parent(env)
+    parent.upsert_template(TemplateDef.model_validate(template(version=2)))
     assert parent.slot("enter-zone").template.version == 2
     assert env.templates.list_versions("enter-zone") == [1, 2]
 
-    with pytest.raises(InstanceClosedError):
-        old.process(env.data(5, 5))
+
+def test_remove_template_disposes_slot(env: Env) -> None:
+    parent = make_parent(env)
+    slot = parent.slot("enter-zone")
+    open_cycle(env, slot)
+    instance = slot.active
+    assert instance is not None
+
+    parent.remove_template("enter-zone")
+    assert env.instances.items[instance.id].close_reason == "template_removed"
+    assert env.targets.active_observables() == []
+    assert env.slot_states.get("p1", "enter-zone") is None
+    with pytest.raises(TemplateNotFoundError):
+        parent.remove_template("enter-zone")
 
 
 # ---------------------------------------------------------------- 重启恢复
 
 
-def test_restore_reacquires_targets_and_active_instances(env: Env) -> None:
-    parent = make_parent(env, threshold=3)
-    parent.on_data(env.data(20, 20))
-    parent.on_data(env.data(5, 5))
-    active = parent.slot("enter-zone").active
+def test_restore(env: Env) -> None:
+    parent = make_parent(env, threshold=9)
+    slot = parent.slot("enter-zone")
+    open_cycle(env, slot)
+    active = slot.active
     assert active is not None
+    parent.upsert_template(TemplateDef.model_validate(template(version=2)))  # 挂起
 
-    # 模拟重启：新的 TargetManager（订阅者集合为空）+ 同一批仓库
+    # 模拟重启：新的 TargetManager（订阅关系为空）+ 同一批仓库
     targets = env.make_targets()
     events = EventManager(env.make_runtime(targets))
-    assert targets.active_observables() == []
-
     assert events.restore() == []
-    restored = events.get("p1")
-    assert [o.id for o in targets.active_observables()] == ["t1:position"]
-    slot = restored.slot("enter-zone")
-    assert slot.active is not None and slot.active.id == active.id
-    assert slot.active.status == {"hits": 1}
 
-    # 条件状态也恢复了：还在区域内，不算再次进入
+    restored = events.get("p1").slot("enter-zone")
+    (obs,) = targets.active_observables()
+    assert obs.subscription(restored) == {"adsb"}
+    assert restored.template.version == 1
+    assert restored.pending is not None and restored.pending.version == 2
+    assert restored.active is not None and restored.active.id == active.id
+    assert restored.active.status == {"hits": 1}
+    assert restored.open_state == {"root": {"inside": True}}
+
+    # 规则的条件状态也恢复了：仍在区域内不算再次进入，hits 不变
+    # （若状态丢失，首次观测按 initial_as_enter=True 会误判为进入，hits 变成 2）
     restored.on_data(env.data(6, 6))
-    assert slot.active.status == {"hits": 1}
+    assert restored.active.status == {"hits": 1}
 
 
 def test_restore_failure_is_isolated(env: Env) -> None:
@@ -187,25 +265,3 @@ def test_restore_failure_is_isolated(env: Env) -> None:
     env.templates.items.clear()
     events = EventManager(env.runtime)
     assert events.restore() == ["p1"]
-
-
-def test_add_target_subscribes_chosen_upstreams(env: Env) -> None:
-    parent = env.events.create("p1", "x")
-    obs = parent.add_target("t1", "position", ["adsb"])
-    assert obs.subscription(parent) == {"adsb"}
-    assert env.parents.items["p1"].targets[0].upstreams == ["adsb"]
-
-    with pytest.raises(UnsupportedUpstreamError):
-        parent.add_target("t1", "position", ["radar"])
-    assert obs.subscription(parent) == {"adsb"}  # 失败不改变原订阅
-
-
-def test_restore_keeps_upstream_subscription(env: Env) -> None:
-    parent = env.events.create("p1", "x")
-    parent.add_target("t1", "position", ["adsb"])
-
-    targets = env.make_targets()
-    events = EventManager(env.make_runtime(targets))
-    assert events.restore() == []
-    (obs,) = targets.active_observables()
-    assert obs.subscription(events.get("p1")) == {"adsb"}
