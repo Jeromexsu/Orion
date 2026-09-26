@@ -20,13 +20,13 @@ class Collector:
     def __init__(
         self,
         targets: TargetManager,
-        adapters: AdapterRegistry,
+        adapter_registry: AdapterRegistry,
         cursors: CursorRepository,
         data: DynamicDataRepository,
         dispatcher: Dispatcher,
     ) -> None:
         self._targets = targets
-        self._adapters = adapters
+        self._adapter_registry = adapter_registry
         self._cursors = cursors
         self._data = data
         self._dispatcher = dispatcher
@@ -57,7 +57,7 @@ class Collector:
     def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list[DynamicData]:
         cursor = self._cursors.get(observable.id, upstream)
         spec = observable.query_spec(datetime.fromisoformat(cursor) if cursor else None)
-        records = self._adapters.get(upstream).fetch(spec)
+        records = self._adapter_registry.get(upstream).fetch(spec)
 
         new: list[DynamicData] = []
         for record in sorted(records, key=lambda r: r.occurred_at):

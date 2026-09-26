@@ -166,7 +166,7 @@ class Event:
         """按挂载顺序同步执行，每个算子单独隔离异常。
         TODO: 标记为异步的输出类算子改为入队（见设计文档第三节）。"""
         for mount in mounts:
-            operator = self._runtime.operators.get(mount.operator)
+            operator = self._runtime.operator_registry.get(mount.operator)
             ctx = build_context(
                 operator.category,
                 state=self._status,

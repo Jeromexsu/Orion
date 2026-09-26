@@ -17,7 +17,7 @@ class EventRuntime:
         self,
         targets: TargetManager,
         conditions: ConditionEngine,
-        operators: OperatorRegistry,
+        operator_registry: OperatorRegistry,
         suggestions: SuggestionSink,
         parents: ParentEventRepository,
         templates: TemplateRepository,
@@ -27,7 +27,7 @@ class EventRuntime:
     ) -> None:
         self.targets = targets
         self.conditions = conditions
-        self.operators = operators
+        self.operator_registry = operator_registry
         self.suggestions = suggestions
         self.parents = parents
         self.templates = templates

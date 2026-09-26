@@ -8,7 +8,7 @@ from tests.core.event.conftest import Env, enter, mount, template
 
 def compile_(env: Env, raw: dict[str, Any]) -> EventTemplate:
     return EventTemplate.compile(
-        TemplateDef.model_validate(raw), env.runtime.conditions, env.operators, env.targets
+        TemplateDef.model_validate(raw), env.runtime.conditions, env.operator_registry, env.targets
     )
 
 

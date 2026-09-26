@@ -126,9 +126,9 @@ class Env:
         self.log = Log()
         self.drafts = InMemoryDraftRepository()
         self.reports = ReportManager(self.drafts)
-        self.operators = OperatorRegistry()
+        self.operator_registry = OperatorRegistry()
         for op in (CountHits(), Recorder(self.log), Echo(), Spotter(), Boom(), CloseReport(self.reports)):
-            self.operators.register(op)
+            self.operator_registry.register(op)
 
         self.sink = RecordingSink()
         self.parents = InMemoryParentEventRepository()
@@ -155,7 +155,7 @@ class Env:
         return EventRuntime(
             targets=targets,
             conditions=ConditionEngine(evaluator_registry),
-            operators=self.operators,
+            operator_registry=self.operator_registry,
             suggestions=self.sink,
             parents=self.parents,
             templates=self.templates,

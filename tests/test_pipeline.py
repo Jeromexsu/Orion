@@ -15,10 +15,14 @@ from tests.core.event.conftest import Env, template
 def test_collect_drives_sub_event_to_close() -> None:
     env = Env()
     adsb = FakeAdapter("adsb", {("aircraft", "position")})
-    adapters = AdapterRegistry()
-    adapters.register(adsb)
+    adapter_registry = AdapterRegistry()
+    adapter_registry.register(adsb)
     collector = Collector(
-        env.targets, adapters, InMemoryCursorRepository(), InMemoryDynamicDataRepository(), Dispatcher()
+        env.targets,
+        adapter_registry,
+        InMemoryCursorRepository(),
+        InMemoryDynamicDataRepository(),
+        Dispatcher(),
     )
 
     parent = env.parent_events.create("p1", "东海方向")

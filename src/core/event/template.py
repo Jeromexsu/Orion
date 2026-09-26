@@ -41,7 +41,7 @@ class EventTemplate:
         cls,
         definition: TemplateDef,
         conditions: ConditionEngine,
-        operators: OperatorRegistry,
+        operator_registry: OperatorRegistry,
         targets: TargetManager,
     ) -> "EventTemplate":
         """编译并校验整个模板，所有错误一次收集进 TemplateCompileError。
@@ -92,7 +92,7 @@ class EventTemplate:
                 if mount.mount_point != "rule_hit":
                     errors.append(f"{where}: rule hooks must mount at 'rule_hit'")
                     continue
-                bound = _bind(mount, operators, where, errors)
+                bound = _bind(mount, operator_registry, where, errors)
                 if bound is not None:
                     hooks.append(bound)
             if tree is not None:
@@ -104,7 +104,7 @@ class EventTemplate:
             if mount.mount_point == "rule_hit":
                 errors.append(f"{where}: 'rule_hit' hooks belong on a rule")
                 continue
-            bound = _bind(mount, operators, where, errors)
+            bound = _bind(mount, operator_registry, where, errors)
             if bound is not None:
                 template_hooks.append(bound)
 
@@ -155,11 +155,13 @@ class EventTemplate:
 
 
 def _bind(
-    mount: OperatorMountDef, operators: OperatorRegistry, where: str, errors: list[str]
+    mount: OperatorMountDef, operator_registry: OperatorRegistry, where: str, errors: list[str]
 ) -> OperatorMountDef | None:
     """校验算子挂载，返回参数规范化后的挂载。"""
     try:
-        params = operators.validate_mount(mount.operator, "event", mount.mount_point, mount.params)
+        params = operator_registry.validate_mount(
+            mount.operator, "event", mount.mount_point, mount.params
+        )
     except OperatorError as e:
         errors.append(f"{where}: {e}")
         return None

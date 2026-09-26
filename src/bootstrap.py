@@ -69,19 +69,19 @@ class App:
     def __init__(
         self,
         targets: TargetManager,
-        adapters: AdapterRegistry,
+        adapter_registry: AdapterRegistry,
         collector: Collector,
         conditions: ConditionEngine,
-        operators: OperatorRegistry,
+        operator_registry: OperatorRegistry,
         parent_events: ParentEventManager,
         reports: ReportManager,
         hil: HilManager,
     ) -> None:
         self.targets = targets
-        self.adapters = adapters
+        self.adapter_registry = adapter_registry
         self.collector = collector
         self.conditions = conditions
-        self.operators = operators
+        self.operator_registry = operator_registry
         self.parent_events = parent_events
         self.reports = reports
         self.hil = hil
@@ -89,13 +89,15 @@ class App:
 
 def build_app(repos: Repositories) -> App:
     """装配并完成重启恢复。"""
-    adapters = AdapterRegistry()
-    # 在这里 adapters.register(...) 各上游 Adapter 插件
+    adapter_registry = AdapterRegistry()
+    # 在这里 adapter_registry.register(...) 各上游 Adapter 插件
 
-    targets = TargetManager(repos.targets, repos.observables, adapters)
+    targets = TargetManager(repos.targets, repos.observables, adapter_registry)
     targets.register_type(Aircraft)
 
-    collector = Collector(targets, adapters, repos.cursors, repos.dynamic_data, Dispatcher())
+    collector = Collector(
+        targets, adapter_registry, repos.cursors, repos.dynamic_data, Dispatcher()
+    )
 
     evaluator_registry = EvaluatorRegistry()
     evaluator_registry.register(OnEnter())
@@ -104,15 +106,15 @@ def build_app(repos: Repositories) -> App:
     reports = ReportManager(repos.drafts)
     hil = HilManager(repos.suggestions)
 
-    operators = OperatorRegistry()
-    operators.register(CountHits())
-    operators.register(CloseReport(reports))
+    operator_registry = OperatorRegistry()
+    operator_registry.register(CountHits())
+    operator_registry.register(CloseReport(reports))
 
     parent_events = ParentEventManager(
         EventRuntime(
             targets=targets,
             conditions=conditions,
-            operators=operators,
+            operator_registry=operator_registry,
             suggestions=hil,
             parents=repos.parents,
             templates=repos.templates,
@@ -130,10 +132,10 @@ def build_app(repos: Repositories) -> App:
 
     return App(
         targets=targets,
-        adapters=adapters,
+        adapter_registry=adapter_registry,
         collector=collector,
         conditions=conditions,
-        operators=operators,
+        operator_registry=operator_registry,
         parent_events=parent_events,
         reports=reports,
         hil=hil,

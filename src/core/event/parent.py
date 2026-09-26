@@ -93,7 +93,7 @@ class ParentEvent:
         template = EventTemplate.compile(
             definition,
             self._runtime.conditions,
-            self._runtime.operators,
+            self._runtime.operator_registry,
             self._runtime.targets,
         )
         template.validate(self._targets)
