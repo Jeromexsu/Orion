@@ -4,10 +4,10 @@ import pytest
 
 from core.event import (
     DuplicateParentEventError,
-    ParentEventManager,
-    ParentEvent,
-    ParentEventNotFoundError,
     EventRunner,
+    ParentEvent,
+    ParentEventManager,
+    ParentEventNotFoundError,
     TargetStillReferencedError,
     TemplateDef,
     TemplateNotFoundError,

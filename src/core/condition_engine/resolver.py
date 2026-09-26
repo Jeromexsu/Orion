@@ -14,7 +14,7 @@ class TargetResolver(Protocol):
 class Observation(Protocol):
     """一条观测：ConditionTree.evaluate 的输入，也原样（只读）交给 Evaluator。
 
-    core.contracts.DynamicData 结构化满足它。
+    core.target.DynamicData 结构化满足它。
     """
 
     @property

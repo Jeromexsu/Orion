@@ -1,4 +1,4 @@
-"""hil 契约。Suggestion 是“操作提案”而不是“发现”。"""
+"""Suggestion 是「操作提案」而不是「发现」。"""
 
 from typing import Any
 from uuid import uuid4

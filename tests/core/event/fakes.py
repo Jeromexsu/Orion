@@ -1,7 +1,7 @@
 from typing import Any
 
-from core.contracts import Suggestion
 from core.event import EventRecord, ParentEventRecord, TemplateDef
+from core.hil import Suggestion
 
 
 class InMemoryParentEventRepository:

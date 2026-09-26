@@ -6,9 +6,9 @@ from typing import Any, Literal
 
 from pydantic import BaseModel
 
-from core.contracts import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
 from core.condition_engine.evaluator import Evaluator
 from core.condition_engine.resolver import Observation
+from core.condition_engine.result import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
 
 
 class _ReadOnlyObservation:

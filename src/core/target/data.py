@@ -1,4 +1,4 @@
-"""采集数据相关契约：target 产出 QuerySpec，collector 产出 DynamicData，下游都消费。"""
+"""采集数据：ObservableTarget 产出 QuerySpec 交给 Adapter；collector 按 dynamic schema 校验后产出 DynamicData。"""
 
 from datetime import datetime
 from typing import Any

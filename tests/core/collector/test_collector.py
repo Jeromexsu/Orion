@@ -10,8 +10,7 @@ from core.collector import (
     FetchedRecord,
     UnknownAdapterError,
 )
-from core.contracts import DynamicData
-from core.target import ObservableTarget, TargetManager
+from core.target import DynamicData, ObservableTarget, TargetManager
 from plugins.target.aircraft import Aircraft
 from tests.core.collector.fakes import (
     FakeAdapter,

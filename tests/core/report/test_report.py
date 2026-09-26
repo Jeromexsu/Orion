@@ -1,7 +1,6 @@
 import pytest
 
-from core.contracts import DRAFT, EDITING, SENT
-from core.report import DraftLockedError, DraftNotFoundError, ReportManager
+from core.report import DRAFT, EDITING, SENT, DraftLockedError, DraftNotFoundError, ReportManager
 from tests.core.report.fakes import InMemoryDraftRepository
 
 

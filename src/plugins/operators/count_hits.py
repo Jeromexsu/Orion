@@ -2,9 +2,8 @@
 
 from pydantic import BaseModel, Field
 
-from core.contracts import Category, Level, MountPoint, Trigger
 from core.event import CLOSE_STATUS_KEY
-from core.operators import ProgressContext
+from core.operators import Category, Level, MountPoint, ProgressContext, Trigger
 
 
 class CountHitsParams(BaseModel):

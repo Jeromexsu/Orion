@@ -3,14 +3,13 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from core.condition_engine import apply_state_patch
-from core.contracts import HIT, DynamicData
+from core.condition_engine import HIT, apply_state_patch
 from core.event.errors import TemplateNotFoundError, TemplateVersionError
 from core.event.event import Event
 from core.event.records import EventRecord, TemplateRef
 from core.event.runtime import EventRuntime
 from core.event.template import EventTemplate
-from core.target import ObservableTarget, TargetManager, UnsupportedUpstreamError
+from core.target import DynamicData, ObservableTarget, TargetManager, UnsupportedUpstreamError
 
 logger = logging.getLogger(__name__)
 

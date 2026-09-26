@@ -48,7 +48,7 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
 2. 在组合层面引入跨叶子比较：新的节点类型，读取子叶子 `extracted` 出来的数值做比较；
 3. 派生可观测目标：在 collector / target 层把「两机距离」做成一个派生的关注点，条件照旧单目标。
 
-**影响范围**：`contracts/condition.py`（LeafDef）、`condition_engine/tree.py`（LeafNode）、判断方式插件接口；
+**影响范围**：`condition_engine/definitions.py`（LeafDef）、`condition_engine/tree.py`（LeafNode）、判断方式插件接口；
 方案 3 则主要在 target / collector。
 
 ### 5. 其他（随审阅推进逐条确认）
@@ -90,7 +90,10 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
   - 实例记录加周期标识 `cycle`（触发开启那条数据发生的年份）。
   - 业务背景：子事件是以年为周期重复发生的事情，实例可能持续数周到数月。
 
-- **契约放哪**：新建 `core/contracts`，跨模块数据契约集中于此（解决 operators「零依赖」自相矛盾）。
+- **数据定义放哪**：每个定义回到所属模块，不设公共 contracts 包（曾经设过，后撤销）。
+  `LeafDef` / `OpDef` / `ConditionDef` / `EvalResult` → condition_engine；`QuerySpec` / `DynamicData` → target；
+  `Trigger` / `Category` / `Level` / `MountPoint` → operators；`Suggestion` / `Proposal` → hil；`Draft` → report。
+  代价：operators 由设计文档的「零依赖」改为依赖 target / condition_engine / hil（均不反向依赖它，无环）。
 - **目标类型写法**：去掉 `TargetType`，每种目标类型继承 `Target` 基类；目标类型只由开发者通过代码定义。
 - **动态数据 schema 归属**：每个关注点下动态数据有哪些字段，由开发者在 `Target` 子类的 `focuses`
   里声明（关注点名 → Pydantic 模型）；`ObservableTarget` 构造时自己从 `type(target).focuses` 取，

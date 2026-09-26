@@ -8,7 +8,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.contracts import ConditionDef, MountPoint
+from core.condition_engine import ConditionDef
+from core.operators import MountPoint
 
 
 class OperatorMountDef(BaseModel):

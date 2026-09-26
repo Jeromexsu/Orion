@@ -1,12 +1,12 @@
 import logging
 
-from core.contracts import DRAFT, Draft
 from core.event.definitions import TemplateDef
 from core.event.errors import TargetStillReferencedError, TemplateNotFoundError
 from core.event.records import ParentEventRecord
-from core.event.runtime import EventRuntime
 from core.event.runner import EventRunner, check_observation_defs
+from core.event.runtime import EventRuntime
 from core.event.template import EventTemplate
+from core.report import DRAFT, Draft
 from core.target import TargetNotFoundError
 
 logger = logging.getLogger(__name__)

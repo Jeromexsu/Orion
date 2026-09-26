@@ -2,8 +2,8 @@
 
 from typing import Protocol
 
-from core.target.contracts import TargetRecord
 from core.target.observable import ObservableTarget
+from core.target.target import TargetRecord
 
 
 class TargetRepository(Protocol):

@@ -8,8 +8,17 @@ from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import BaseModel
 
-from core.condition_engine import ConditionEngine, EvaluatorRegistry, Evaluator, Observation
-from core.contracts import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
+from core.condition_engine import (
+    HIT,
+    MISS,
+    NOT_APPLICABLE,
+    ConditionEngine,
+    EvalResult,
+    Evaluator,
+    EvaluatorRegistry,
+    Observation,
+    Outcome,
+)
 from tests.core.condition_engine.conftest import compile_
 
 outcomes = st.sampled_from([HIT, MISS, NOT_APPLICABLE])

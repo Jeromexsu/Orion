@@ -2,9 +2,9 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from core.contracts import Level, MountPoint
 from core.operators.errors import DuplicateOperatorError, InvalidMountError, UnknownOperatorError
 from core.operators.operator import Operator
+from core.operators.trigger import Level, MountPoint
 
 
 class OperatorRegistry:

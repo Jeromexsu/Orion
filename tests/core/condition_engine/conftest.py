@@ -6,15 +6,17 @@ import pytest
 from pydantic import BaseModel, TypeAdapter
 
 from core.condition_engine import (
+    HIT,
+    MISS,
+    ConditionDef,
     ConditionEngine,
     ConditionTree,
-    EvaluatorRegistry,
+    EvalResult,
     Evaluator,
+    EvaluatorRegistry,
     Observation,
 )
-from core.contracts import HIT, MISS, ConditionDef, EvalResult
 from plugins.condition_engine.on_enter import OnEnter
-
 
 _condition_def: TypeAdapter[ConditionDef] = TypeAdapter(ConditionDef)
 

@@ -6,8 +6,7 @@ from pydantic import ValidationError
 from core.collector.dispatcher import Dispatcher
 from core.collector.registry import AdapterRegistry
 from core.collector.repository import CursorRepository, DynamicDataRepository
-from core.contracts import DynamicData
-from core.target import ObservableTarget, TargetManager
+from core.target import DynamicData, ObservableTarget, TargetManager
 
 logger = logging.getLogger(__name__)
 

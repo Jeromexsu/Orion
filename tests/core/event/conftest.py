@@ -6,11 +6,20 @@ import pytest
 from pydantic import BaseModel
 
 from core.condition_engine import ConditionEngine, EvaluatorRegistry
-from core.contracts import Category, DynamicData, Level, MountPoint, Proposal, Suggestion, Trigger
-from core.event import ParentEventManager, EventRuntime
-from core.operators import BaseContext, OperatorRegistry, ProgressContext, SuggestContext
+from core.event import EventRuntime, ParentEventManager
+from core.hil import Proposal, Suggestion
+from core.operators import (
+    BaseContext,
+    Category,
+    Level,
+    MountPoint,
+    OperatorRegistry,
+    ProgressContext,
+    SuggestContext,
+    Trigger,
+)
 from core.report import ReportManager
-from core.target import TargetManager
+from core.target import DynamicData, TargetManager
 from plugins.condition_engine.on_enter import OnEnter
 from plugins.operators.close_report import CloseReport
 from plugins.operators.count_hits import CountHits

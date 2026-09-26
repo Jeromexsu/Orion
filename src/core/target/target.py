@@ -1,4 +1,4 @@
-"""目标基类与持久化记录。跨模块契约在 core.contracts。"""
+"""目标基类与持久化记录。"""
 
 from collections.abc import Mapping
 from typing import Any, ClassVar

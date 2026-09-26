@@ -1,10 +1,14 @@
 from collections.abc import Set
 
-from core.condition_engine import ConditionCompileError, ConditionEngine, ConditionTree
-from core.contracts import ConditionDef, MountPoint
+from core.condition_engine import (
+    ConditionCompileError,
+    ConditionDef,
+    ConditionEngine,
+    ConditionTree,
+)
 from core.event.definitions import ObservationDef, OperatorMountDef, TemplateDef
 from core.event.errors import TemplateCompileError, TemplateScopeError
-from core.operators import OperatorError, OperatorRegistry
+from core.operators import MountPoint, OperatorError, OperatorRegistry
 
 
 class CompiledRule:

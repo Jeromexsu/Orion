@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from core.contracts import Draft
+from core.report.draft import Draft
 
 
 class DraftRepository(Protocol):

@@ -1,4 +1,4 @@
-"""人在回路：HilManager 接收、接受、拒绝 Suggestion。只依赖 contracts。"""
+"""人在回路：HilManager 接收、接受、拒绝 Suggestion。零依赖。"""
 
 from core.hil.errors import (
     ActionNotAllowedError,
@@ -8,6 +8,7 @@ from core.hil.errors import (
 )
 from core.hil.manager import Action, HilManager
 from core.hil.repository import SuggestionRepository
+from core.hil.suggestion import Proposal, Suggestion
 
 __all__ = [
     "Action",
@@ -15,6 +16,8 @@ __all__ = [
     "DuplicateActionError",
     "HilError",
     "HilManager",
+    "Proposal",
+    "Suggestion",
     "SuggestionNotFoundError",
     "SuggestionRepository",
 ]

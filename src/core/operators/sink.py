@@ -1,6 +1,6 @@
 from typing import Protocol
 
-from core.contracts import Suggestion
+from core.hil import Suggestion
 
 
 class SuggestionSink(Protocol):

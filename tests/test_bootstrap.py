@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 
 from bootstrap import App, Repositories, build_app
-from core.contracts import Proposal, Suggestion
+from core.hil import Proposal, Suggestion
 from core.target import TargetNotFoundError, type_name
 from plugins.target.aircraft import Aircraft
 from tests.core.collector.fakes import InMemoryCursorRepository, InMemoryDynamicDataRepository

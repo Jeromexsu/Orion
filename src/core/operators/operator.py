@@ -2,8 +2,8 @@ from typing import Protocol, TypeVar
 
 from pydantic import BaseModel
 
-from core.contracts import Category, Level, MountPoint, Trigger
 from core.operators.context import BaseContext
+from core.operators.trigger import Category, Level, MountPoint, Trigger
 
 C = TypeVar("C", bound=BaseContext, contravariant=True)
 

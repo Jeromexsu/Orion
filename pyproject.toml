@@ -31,7 +31,6 @@ pythonVersion = "3.11"
 typeCheckingMode = "standard"
 # 核心六个模块开 strict；report 的 strict 状态待定
 strict = [
-    "src/core/contracts",
     "src/core/target",
     "src/core/collector",
     "src/core/event",
@@ -61,17 +60,15 @@ name = "api 与 persistence 互不 import"
 type = "independence"
 modules = ["api", "persistence"]
 
-[[tool.importlinter.contracts]]
-name = "contracts 不依赖任何其他 core 模块"
-type = "forbidden"
-source_modules = ["core.contracts"]
-forbidden_modules = [
-    "core.target", "core.collector", "core.event", "core.condition_engine",
-    "core.operators", "core.hil", "core.report",
-]
+
+# ---- core 模块之间的依赖（接口定义在依赖方，数据定义在所属模块）
+#   最底层：target、condition_engine、hil、report —— 不依赖其他 core 模块
+#   collector → target
+#   operators → target、condition_engine、hil（Trigger 引用 DynamicData / EvalResult，SuggestContext 引用 Suggestion）
+#   event     → target、condition_engine、operators、report（不依赖 collector / hil）
 
 [[tool.importlinter.contracts]]
-name = "target 零依赖（contracts 除外）"
+name = "target 零依赖"
 type = "forbidden"
 source_modules = ["core.target"]
 forbidden_modules = [
@@ -80,22 +77,7 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "collector 只依赖 target（和 contracts）"
-type = "forbidden"
-source_modules = ["core.collector"]
-forbidden_modules = [
-    "core.event", "core.condition_engine",
-    "core.operators", "core.hil", "core.report",
-]
-
-[[tool.importlinter.contracts]]
-name = "event 不依赖 collector / hil（数据由 Dispatcher 推给它，建议经 SuggestionSink 流出）；可依赖 report（digest）"
-type = "forbidden"
-source_modules = ["core.event"]
-forbidden_modules = ["core.collector", "core.hil"]
-
-[[tool.importlinter.contracts]]
-name = "condition_engine 零依赖（contracts 除外）"
+name = "condition_engine 零依赖"
 type = "forbidden"
 source_modules = ["core.condition_engine"]
 forbidden_modules = [
@@ -104,16 +86,7 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "operators 零依赖（contracts 除外）"
-type = "forbidden"
-source_modules = ["core.operators"]
-forbidden_modules = [
-    "core.target", "core.collector", "core.event",
-    "core.condition_engine", "core.hil", "core.report",
-]
-
-[[tool.importlinter.contracts]]
-name = "hil 零依赖（contracts 除外；白名单动作由 bootstrap 注入）"
+name = "hil 零依赖（白名单动作由 bootstrap 注入）"
 type = "forbidden"
 source_modules = ["core.hil"]
 forbidden_modules = [
@@ -122,10 +95,33 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "report 零依赖（contracts 除外）"
+name = "report 零依赖"
 type = "forbidden"
 source_modules = ["core.report"]
 forbidden_modules = [
     "core.target", "core.collector", "core.event",
     "core.condition_engine", "core.operators", "core.hil",
 ]
+
+[[tool.importlinter.contracts]]
+name = "collector 只依赖 target"
+type = "forbidden"
+source_modules = ["core.collector"]
+forbidden_modules = [
+    "core.event", "core.condition_engine",
+    "core.operators", "core.hil", "core.report",
+]
+
+[[tool.importlinter.contracts]]
+name = "operators 只依赖 target / condition_engine / hil"
+type = "forbidden"
+source_modules = ["core.operators"]
+forbidden_modules = ["core.collector", "core.event", "core.report"]
+
+[[tool.importlinter.contracts]]
+name = "event 不直接依赖 collector / hil（数据由 Dispatcher 推给 runner，建议经 SuggestionSink 流出）"
+type = "forbidden"
+source_modules = ["core.event"]
+forbidden_modules = ["core.collector", "core.hil"]
+# 经 operators 间接到 hil（Suggestion 定义在 hil）是允许的；只禁止 event 直接 import
+allow_indirect_imports = "True"

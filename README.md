@@ -6,7 +6,6 @@
 
 ```
 src/
-  core/contracts/    # 跨模块数据契约（Pydantic），所有 core 模块共用，自身不依赖任何模块
   core/<module>/     # target, collector, event, condition_engine, operators, hil, report
   plugins/<module>/  # 具体的 Target 子类 / Adapter / Evaluator / Operator 实现
   api/               # Web API 层（暂缓）

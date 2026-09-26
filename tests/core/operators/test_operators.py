@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from core.contracts import Proposal, Suggestion, Trigger
+from core.hil import Proposal, Suggestion
 from core.operators import (
     BaseContext,
     DuplicateOperatorError,
@@ -12,6 +12,7 @@ from core.operators import (
     OperatorRegistry,
     ProgressContext,
     SuggestContext,
+    Trigger,
     UnknownOperatorError,
     build_context,
 )

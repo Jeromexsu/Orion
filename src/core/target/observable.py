@@ -4,9 +4,9 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
-from core.contracts import DynamicData, QuerySpec
-from core.target.contracts import Target
+from core.target.data import DynamicData, QuerySpec
 from core.target.errors import UnsupportedFocusError, UnsupportedUpstreamError
+from core.target.target import Target
 
 
 class Referencer(Protocol):

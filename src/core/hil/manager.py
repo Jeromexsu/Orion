@@ -1,9 +1,9 @@
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from core.contracts import Suggestion
 from core.hil.errors import ActionNotAllowedError, DuplicateActionError, SuggestionNotFoundError
 from core.hil.repository import SuggestionRepository
+from core.hil.suggestion import Suggestion
 
 # 白名单动作：(proposal.target, 合并后的 args) → 调用对应的核心公开方法
 Action = Callable[[str | None, dict[str, Any]], object]

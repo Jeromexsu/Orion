@@ -3,7 +3,6 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from core.target.contracts import Target, TargetRecord, type_name
 from core.target.errors import (
     DuplicateTargetTypeError,
     NoUpstreamError,
@@ -15,6 +14,7 @@ from core.target.errors import (
 )
 from core.target.observable import ObservableTarget, observable_key
 from core.target.repository import ObservableTargetRepository, TargetRepository
+from core.target.target import Target, TargetRecord, type_name
 from core.target.upstream import UpstreamCatalog
 
 

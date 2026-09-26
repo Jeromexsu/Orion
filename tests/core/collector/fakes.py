@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from core.collector import FetchedRecord
-from core.contracts import DynamicData, QuerySpec
+from core.target import DynamicData, QuerySpec
 
 
 class FakeAdapter:

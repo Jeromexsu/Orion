@@ -3,8 +3,8 @@
 from core.event.definitions import ObservationDef, OperatorMountDef, RuleDef, TemplateDef
 from core.event.errors import (
     DuplicateParentEventError,
-    EventError,
     EventClosedError,
+    EventError,
     ParentEventNotFoundError,
     TargetStillReferencedError,
     TemplateCompileError,
@@ -22,8 +22,8 @@ from core.event.repository import (
     RunnerStateRepository,
     TemplateRepository,
 )
-from core.event.runtime import EventRuntime
 from core.event.runner import EventRunner, check_observation_defs
+from core.event.runtime import EventRuntime
 from core.event.template import CompiledRule, EventTemplate
 
 __all__ = [

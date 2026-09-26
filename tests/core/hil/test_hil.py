@@ -2,11 +2,12 @@ from typing import Any
 
 import pytest
 
-from core.contracts import Proposal, Suggestion
 from core.hil import (
     ActionNotAllowedError,
     DuplicateActionError,
     HilManager,
+    Proposal,
+    Suggestion,
     SuggestionNotFoundError,
 )
 from tests.core.hil.fakes import InMemorySuggestionRepository

@@ -1,4 +1,4 @@
-from core.contracts import Draft
+from core.report import Draft
 
 
 class InMemoryDraftRepository:

@@ -1,4 +1,4 @@
-"""报告契约。"""
+"""报告草稿。"""
 
 from datetime import datetime
 from typing import Literal

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Protocol
 
-from core.contracts import DynamicData
+from core.target import DynamicData
 
 
 class CursorRepository(Protocol):

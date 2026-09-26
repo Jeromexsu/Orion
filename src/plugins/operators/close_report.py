@@ -5,8 +5,7 @@
 
 from pydantic import BaseModel
 
-from core.contracts import Category, Level, MountPoint, Trigger
-from core.operators import BaseContext
+from core.operators import BaseContext, Category, Level, MountPoint, Trigger
 from core.report import ReportManager
 
 

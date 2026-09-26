@@ -1,11 +1,11 @@
-"""算子相关契约。Trigger 可能随异步输出类算子进队列，所以是 Pydantic。"""
+"""算子的触发信息与分类。Trigger 可能随异步输出类算子进队列，所以是 Pydantic。"""
 
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from core.contracts.condition import EvalResult
-from core.contracts.data import DynamicData
+from core.condition_engine import EvalResult
+from core.target import DynamicData
 
 # 四类算子：推进（改状态）/ 输出（报告、通知）/ 发现（启发）/ 校正（校准）
 Category = Literal["progress", "output", "discover", "calibrate"]

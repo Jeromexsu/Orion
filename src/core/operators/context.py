@@ -6,7 +6,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
-from core.contracts import Category, Suggestion
+from core.hil import Suggestion
+from core.operators.trigger import Category
 
 
 class BaseContext(BaseModel):

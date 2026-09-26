@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from core.contracts import Suggestion
+from core.hil.suggestion import Suggestion
 
 
 class SuggestionRepository(Protocol):

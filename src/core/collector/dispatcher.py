@@ -1,7 +1,6 @@
 import logging
 
-from core.contracts import DynamicData
-from core.target import ObservableTarget
+from core.target import DynamicData, ObservableTarget
 
 logger = logging.getLogger(__name__)
 

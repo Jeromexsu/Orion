@@ -1,10 +1,10 @@
 from pydantic import ValidationError
 
+from core.condition_engine.definitions import ConditionDef, LeafDef, OpDef
 from core.condition_engine.errors import ConditionCompileError
 from core.condition_engine.registry import EvaluatorRegistry
 from core.condition_engine.resolver import TargetResolver
 from core.condition_engine.tree import ConditionNode, ConditionTree, LeafNode, OpNode
-from core.contracts import ConditionDef, LeafDef, OpDef
 
 
 class ConditionEngine:

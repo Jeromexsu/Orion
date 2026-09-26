@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from core.contracts import DRAFT, EDITING, SENT, Draft
+from core.report.draft import DRAFT, EDITING, SENT, Draft
 from core.report.errors import DraftLockedError, DraftNotFoundError
 from core.report.repository import DraftRepository
 
