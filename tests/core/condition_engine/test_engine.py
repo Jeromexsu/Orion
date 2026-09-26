@@ -161,9 +161,9 @@ class RecentCount(Evaluator[RecentParams]):
     params_model = RecentParams
 
     def evaluate(
-        self, params: RecentParams, obs: Observation, state: Mapping[str, Any]
+        self, params: RecentParams, observation: Observation, state: Mapping[str, Any]
     ) -> EvalResult:
-        now = obs.occurred_at
+        now = observation.occurred_at
         window = [*state.get("window", []), now.isoformat()]
         window = [t for t in window if datetime.fromisoformat(t) > now - timedelta(hours=params.hours)]
         return EvalResult(
@@ -181,10 +181,10 @@ class Spy(Evaluator[GtParams]):
     def __init__(self) -> None:
         self.seen: list[Observation] = []
 
-    def evaluate(self, params: GtParams, obs: Observation, state: Mapping[str, Any]) -> EvalResult:
-        self.seen.append(obs)
+    def evaluate(self, params: GtParams, observation: Observation, state: Mapping[str, Any]) -> EvalResult:
+        self.seen.append(observation)
         with pytest.raises(TypeError):
-            obs.fields["alt"] = 0  # type: ignore[index]
+            observation.fields["alt"] = 0  # type: ignore[index]
         return EvalResult(outcome=MISS)
 
 

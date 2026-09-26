@@ -38,9 +38,9 @@ class OnEnter(Evaluator[OnEnterParams]):
     params_model = OnEnterParams
 
     def evaluate(
-        self, params: OnEnterParams, obs: Observation, state: Mapping[str, Any]
+        self, params: OnEnterParams, observation: Observation, state: Mapping[str, Any]
     ) -> EvalResult:
-        position = (float(obs.fields["lat"]), float(obs.fields["lon"]))
+        position = (float(observation.fields["lat"]), float(observation.fields["lon"]))
         inside = point_in_polygon(position, params.area)
         was_inside: bool | None = state.get("inside")
 

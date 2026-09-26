@@ -14,10 +14,10 @@ from core.condition_engine.result import HIT, MISS, NOT_APPLICABLE, EvalResult, 
 class _ReadOnlyObservation:
     """交给判断方式的只读观测：fields 是只读视图，判断方式改不动原数据。"""
 
-    def __init__(self, obs: Observation) -> None:
-        self._observable_id = obs.observable_id
-        self._fields = MappingProxyType(dict(obs.fields))
-        self._occurred_at = obs.occurred_at
+    def __init__(self, observation: Observation) -> None:
+        self._observable_id = observation.observable_id
+        self._fields = MappingProxyType(dict(observation.fields))
+        self._occurred_at = observation.occurred_at
 
     @property
     def observable_id(self) -> str:
@@ -48,7 +48,7 @@ class ConditionNode(ABC):
         self.path = path
 
     @abstractmethod
-    def evaluate(self, data: Observation, state: TreeState) -> EvalResult: ...
+    def evaluate(self, observation: Observation, state: TreeState) -> EvalResult: ...
 
     @abstractmethod
     def targets(self) -> frozenset[str]: ...
@@ -63,21 +63,21 @@ class LeafNode(ConditionNode):
         self.evaluator = evaluator
         self.params = params
 
-    def evaluate(self, data: Observation, state: TreeState) -> EvalResult:
+    def evaluate(self, observation: Observation, state: TreeState) -> EvalResult:
         requires: Set[str] = self.evaluator.requires
-        if data.observable_id != self.target or not requires <= data.fields.keys():
+        if observation.observable_id != self.target or not requires <= observation.fields.keys():
             return EvalResult(outcome=NOT_APPLICABLE)
 
         leaf_state = MappingProxyType(dict(state.get(self.path, {})))
-        result = self.evaluator.evaluate(self.params, _ReadOnlyObservation(data), leaf_state)
+        result = self.evaluator.evaluate(self.params, _ReadOnlyObservation(observation), leaf_state)
 
         entry: dict[str, Any] = {
             "path": self.path,
             "type": self.evaluator.type,
             "target": self.target,
             "outcome": result.outcome,
-            "occurred_at": data.occurred_at.isoformat(),
-            "fields": {k: data.fields[k] for k in sorted(requires)},
+            "occurred_at": observation.occurred_at.isoformat(),
+            "fields": {k: observation.fields[k] for k in sorted(requires)},
         }
         patch = (
             {self.path: result.state_patch}
@@ -106,8 +106,8 @@ class OpNode(ConditionNode):
         self.op = op
         self.children = children
 
-    def evaluate(self, data: Observation, state: TreeState) -> EvalResult:
-        results = [child.evaluate(data, state) for child in self.children]
+    def evaluate(self, observation: Observation, state: TreeState) -> EvalResult:
+        results = [child.evaluate(observation, state) for child in self.children]
 
         patch: dict[str, Any] = {}
         trace: list[dict[str, Any]] = []
@@ -162,9 +162,9 @@ class ConditionTree:
     def __init__(self, root: ConditionNode) -> None:
         self._root = root
 
-    def evaluate(self, data: Observation, state: TreeState) -> EvalResult:
+    def evaluate(self, observation: Observation, state: TreeState) -> EvalResult:
         """纯函数：不改 state；新状态在结果的 state_patch 里，用 apply_state_patch 合并。"""
-        return self._root.evaluate(data, state)
+        return self._root.evaluate(observation, state)
 
     def targets(self) -> frozenset[str]:
         """树里引用的全部 ObservableTarget ID，供 EventTemplate.validate 做范围检查。"""

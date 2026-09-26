@@ -34,7 +34,7 @@ class Fixed(Evaluator[FixedParams]):
     params_model = FixedParams
 
     def evaluate(
-        self, params: FixedParams, obs: Observation, state: Mapping[str, Any]
+        self, params: FixedParams, observation: Observation, state: Mapping[str, Any]
     ) -> EvalResult:
         return EvalResult(outcome=params.outcome)
 

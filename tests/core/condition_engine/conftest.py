@@ -56,10 +56,10 @@ class Gt(Evaluator[GtParams]):
     requires = frozenset({"alt"})
     params_model = GtParams
 
-    def evaluate(self, params: GtParams, obs: Observation, state: Mapping[str, Any]) -> EvalResult:
-        hit = obs.fields[params.field] > params.value
+    def evaluate(self, params: GtParams, observation: Observation, state: Mapping[str, Any]) -> EvalResult:
+        hit = observation.fields[params.field] > params.value
         return EvalResult(
-            outcome=HIT if hit else MISS, extracted={"alt": obs.fields["alt"]} if hit else {}
+            outcome=HIT if hit else MISS, extracted={"alt": observation.fields["alt"]} if hit else {}
         )
 
 
