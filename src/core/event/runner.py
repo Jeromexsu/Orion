@@ -15,9 +15,9 @@ from core.target import ObservableTarget, TargetManager, UnsupportedUpstreamErro
 logger = logging.getLogger(__name__)
 
 
-def check_observations(template: EventTemplate, targets: TargetManager) -> None:
+def check_observation_defs(template: EventTemplate, targets: TargetManager) -> None:
     """装入模板前检查观测声明可订阅：目标与关注点存在、上游可用。不产生订阅。"""
-    for o in template.observations:
+    for o in template.observation_defs:
         observable = targets.get_observable(o.target_id, o.focus)
         unknown = set(o.upstreams) - set(observable.upstreams)
         if unknown:
@@ -65,7 +65,7 @@ class EventRunner:
         runtime: EventRuntime,
         on_change: Callable[[], None],
     ) -> "EventRunner":
-        """新装入模板：订阅并开始评估开启条件。调用前应已 check_observations。"""
+        """新装入模板：订阅并开始评估开启条件。调用前应已 check_observation_defs。"""
         runner = cls(parent_id, template, runtime, on_change)
         runner._subscribe()
         return runner
@@ -217,7 +217,7 @@ class EventRunner:
     def _subscribe(self) -> None:
         """按当前模板的观测声明订阅；不再需要的可观测目标 release。"""
         subscribed: dict[str, ObservableTarget] = {}
-        for o in self._template.observations:
+        for o in self._template.observation_defs:
             observable = self._runtime.targets.get_observable(o.target_id, o.focus)
             observable.acquire(self, o.upstreams)
             subscribed[observable.id] = observable

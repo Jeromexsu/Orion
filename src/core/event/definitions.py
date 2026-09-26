@@ -50,7 +50,7 @@ class TemplateDef(BaseModel):
     id: str
     version: int = Field(ge=1)
     name: str
-    observations: list[ObservationDef] = Field(min_length=1)
+    observation_defs: list[ObservationDef] = Field(min_length=1)
     # 开启条件：无活跃子事件时命中才开新子事件（runner 在运行期间也持续评估以保持状态最新）
     open_condition: ConditionDef
     rules: list[RuleDef] = Field(min_length=1)

@@ -23,7 +23,7 @@ from core.event.repository import (
     TemplateRepository,
 )
 from core.event.runtime import EventRuntime
-from core.event.runner import EventRunner, check_observations
+from core.event.runner import EventRunner, check_observation_defs
 from core.event.template import CompiledRule, EventTemplate
 
 __all__ = [
@@ -55,5 +55,5 @@ __all__ = [
     "TemplateRepository",
     "TemplateScopeError",
     "TemplateVersionError",
-    "check_observations",
+    "check_observation_defs",
 ]

@@ -5,7 +5,7 @@ from core.event.definitions import TemplateDef
 from core.event.errors import TargetStillReferencedError, TemplateNotFoundError
 from core.event.records import ParentEventRecord
 from core.event.runtime import EventRuntime
-from core.event.runner import EventRunner, check_observations
+from core.event.runner import EventRunner, check_observation_defs
 from core.event.template import EventTemplate
 from core.target import TargetNotFoundError
 
@@ -94,7 +94,7 @@ class ParentEvent:
             definition, self._runtime.conditions, self._runtime.operators
         )
         template.validate(self._targets)
-        check_observations(template, self._runtime.targets)
+        check_observation_defs(template, self._runtime.targets)
 
         runner = self._runners.get(template.id)
         if runner is not None:

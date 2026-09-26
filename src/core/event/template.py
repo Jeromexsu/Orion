@@ -36,10 +36,10 @@ class EventTemplate:
         errors: list[str] = []
         rules: list[CompiledRule] = []
 
-        declared = [o.observable_id for o in definition.observations]
+        declared = [o.observable_id for o in definition.observation_defs]
         dupes = sorted({o for o in declared if declared.count(o) > 1})
         if dupes:
-            errors.append(f"duplicate observations {dupes}")
+            errors.append(f"duplicate observation_defs {dupes}")
 
         def compile_tree(where: str, condition: ConditionDef) -> ConditionTree | None:
             try:
@@ -49,7 +49,7 @@ class EventTemplate:
                 return None
             undeclared = tree.targets() - set(declared)
             if undeclared:
-                errors.append(f"{where}: targets {sorted(undeclared)} not in observations")
+                errors.append(f"{where}: targets {sorted(undeclared)} not in observation_defs")
             return tree
 
         open_tree = compile_tree("open_condition", definition.open_condition)
@@ -100,8 +100,8 @@ class EventTemplate:
         return self._definition.version
 
     @property
-    def observations(self) -> tuple[ObservationDef, ...]:
-        return tuple(self._definition.observations)
+    def observation_defs(self) -> tuple[ObservationDef, ...]:
+        return tuple(self._definition.observation_defs)
 
     @property
     def open_tree(self) -> ConditionTree:
@@ -114,7 +114,7 @@ class EventTemplate:
     @property
     def target_ids(self) -> frozenset[str]:
         """观测声明里的静态目标 ID。"""
-        return frozenset(o.target_id for o in self._definition.observations)
+        return frozenset(o.target_id for o in self._definition.observation_defs)
 
     def hooks_at(self, mount_point: MountPoint) -> tuple[OperatorMount, ...]:
         return tuple(h for h in self._hooks if h.mount_point == mount_point)
