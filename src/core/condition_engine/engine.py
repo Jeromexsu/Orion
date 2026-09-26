@@ -26,7 +26,7 @@ class ConditionEngine:
             raise ConditionCompileError(errors)
         return ConditionTree(root)
 
-    def _compile(self, node: LeafDef | OpDef, path: str, errors: list[str]) -> ConditionNode | None:
+    def _compile(self, node: ConditionDef, path: str, errors: list[str]) -> ConditionNode | None:
         if isinstance(node, OpDef):
             return self._compile_op(node, path, errors)
         return self._compile_leaf(node, path, errors)
