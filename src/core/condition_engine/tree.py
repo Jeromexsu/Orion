@@ -7,7 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 from core.contracts import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
-from core.condition_engine.evaluator import LeafEvaluator
+from core.condition_engine.evaluator import Evaluator
 from core.condition_engine.resolver import Observation
 
 
@@ -56,7 +56,7 @@ class ConditionNode(ABC):
 
 class LeafNode(ConditionNode):
     def __init__(
-        self, path: str, target: str, evaluator: LeafEvaluator[Any], params: BaseModel
+        self, path: str, target: str, evaluator: Evaluator[Any], params: BaseModel
     ) -> None:
         super().__init__(path)
         self.target = target

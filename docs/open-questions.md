@@ -35,7 +35,7 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
 
 ### 4. 跨目标条件：单个叶子只能看一个目标的数据
 
-**发现于**：审阅 condition_engine 的 `LeafEvaluator` 时。**状态**：待讨论。
+**发现于**：审阅 condition_engine 的 `Evaluator` 时。**状态**：待讨论。
 
 每个叶子条件只绑定一个可观测目标，`evaluate(params, fields, state)` 每次只拿到一条数据的 `fields`；
 `LeafNode` 对不属于自己目标的数据直接返回「不适用」。因此需要同时比较多个目标数据的条件——
@@ -43,7 +43,7 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
 各叶子的三值结果，也拿不到对方的数值。
 
 可能的做法：
-1. 多目标判断方式：允许某种 `LeafEvaluator` 绑定多个目标，每来一条数据把该目标的最新值记进自己的
+1. 多目标判断方式：允许某种 `Evaluator` 绑定多个目标，每来一条数据把该目标的最新值记进自己的
    state，再用各目标的最新值判断（需要改 `LeafDef.target` 为多目标、`LeafNode` 的适用性判断）；
 2. 在组合层面引入跨叶子比较：新的节点类型，读取子叶子 `extracted` 出来的数值做比较；
 3. 派生可观测目标：在 collector / target 层把「两机距离」做成一个派生的关注点，条件照旧单目标。
@@ -76,6 +76,8 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
   `RunnerStateRepository`；`EventManager` → `ParentEventManager`（它管的是父事件）；算子层级 `Level`
   取值 `"instance"` → `"event"`，上下文 `instance_id` → `event_id`。下文历史条目里的 slot / 实例
   即 EventRunner / Event。
+- **判断方式命名**：设计文档的 `LeafConditionEvaluator` / `LeafEvaluator` → `Evaluator`（唯一的可扩展判断方式，
+  与 `EvaluatorRegistry` 对应；「挂在叶子上」由 `LeafNode` 表达）。
 
 - **子事件模型（原第 1 条，已实现）**：保留模板。
   - 父事件（静态）：静态目标命名空间（target_id 集合）+ 静态模板集合 + `digest()`；不订阅任何东西。

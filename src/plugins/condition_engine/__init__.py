@@ -1,1 +1,1 @@
-"""LeafEvaluator 插件。"""
+"""Evaluator 插件。"""

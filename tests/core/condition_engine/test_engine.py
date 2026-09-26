@@ -10,7 +10,7 @@ from core.condition_engine import (
     ConditionEngine,
     DuplicateEvaluatorError,
     EvaluatorRegistry,
-    LeafEvaluator,
+    Evaluator,
     Observation,
     apply_state_patch,
 )
@@ -151,7 +151,7 @@ class RecentParams(BaseModel):
     count: int
 
 
-class RecentCount(LeafEvaluator[RecentParams]):
+class RecentCount(Evaluator[RecentParams]):
     """示例：滑动窗口。最近 hours 小时内的观测达到 count 条即命中——状态记的是 N 轮，不只上一轮。"""
 
     type = "recentCount"
@@ -169,7 +169,7 @@ class RecentCount(LeafEvaluator[RecentParams]):
         )
 
 
-class Spy(LeafEvaluator[GtParams]):
+class Spy(Evaluator[GtParams]):
     """记录收到的观测，并尝试篡改它。"""
 
     type = "spy"

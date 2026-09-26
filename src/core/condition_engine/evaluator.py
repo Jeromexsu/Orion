@@ -11,7 +11,7 @@ from core.contracts import EvalResult
 P = TypeVar("P", bound=BaseModel)
 
 
-class LeafEvaluator(ABC, Generic[P]):
+class Evaluator(ABC, Generic[P]):
     """一种判断方式（叶子条件）。每种一个实现，放在 plugins/condition_engine/ 下。
 
     规则：

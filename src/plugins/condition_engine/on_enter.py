@@ -1,11 +1,11 @@
-"""示例 LeafEvaluator：进入区域。有状态的判断方式照这个写。"""
+"""示例 Evaluator：进入区域。有状态的判断方式照这个写。"""
 
 from collections.abc import Mapping
 from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.condition_engine import LeafEvaluator, Observation
+from core.condition_engine import Evaluator, Observation
 from core.contracts import HIT, MISS, EvalResult
 
 Point = tuple[float, float]                 # (lat, lon)
@@ -33,7 +33,7 @@ class OnEnterParams(BaseModel):
     initial_as_enter: bool = False   # 首次观测就在区域内是否算“进入”
 
 
-class OnEnter(LeafEvaluator[OnEnterParams]):
+class OnEnter(Evaluator[OnEnterParams]):
     type = "onEnter"
     requires = frozenset({"lat", "lon"})
     params_model = OnEnterParams

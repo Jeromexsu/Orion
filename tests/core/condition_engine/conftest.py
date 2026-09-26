@@ -9,7 +9,7 @@ from core.condition_engine import (
     ConditionEngine,
     ConditionTree,
     EvaluatorRegistry,
-    LeafEvaluator,
+    Evaluator,
     Observation,
 )
 from core.contracts import HIT, MISS, ConditionDef, EvalResult
@@ -45,7 +45,7 @@ class GtParams(BaseModel):
     value: float
 
 
-class Gt(LeafEvaluator[GtParams]):
+class Gt(Evaluator[GtParams]):
     """无状态测试用判断：fields[field] > value。"""
 
     type = "gt"

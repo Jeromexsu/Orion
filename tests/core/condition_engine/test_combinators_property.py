@@ -8,7 +8,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import BaseModel
 
-from core.condition_engine import ConditionEngine, EvaluatorRegistry, LeafEvaluator, Observation
+from core.condition_engine import ConditionEngine, EvaluatorRegistry, Evaluator, Observation
 from core.contracts import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
 from tests.core.condition_engine.conftest import compile_
 
@@ -19,7 +19,7 @@ class FixedParams(BaseModel):
     outcome: Literal["命中", "未命中", "不适用"]
 
 
-class Fixed(LeafEvaluator[FixedParams]):
+class Fixed(Evaluator[FixedParams]):
     type = "fixed"
     requires = frozenset[str]()
     params_model = FixedParams

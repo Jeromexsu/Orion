@@ -7,7 +7,7 @@ from core.condition_engine.errors import (
     DuplicateEvaluatorError,
     UnknownEvaluatorError,
 )
-from core.condition_engine.evaluator import LeafEvaluator
+from core.condition_engine.evaluator import Evaluator
 from core.condition_engine.registry import EvaluatorRegistry
 from core.condition_engine.resolver import Observation, TargetResolver
 from core.condition_engine.tree import ConditionTree, TreeState, apply_state_patch
@@ -19,7 +19,7 @@ __all__ = [
     "ConditionTree",
     "DuplicateEvaluatorError",
     "EvaluatorRegistry",
-    "LeafEvaluator",
+    "Evaluator",
     "Observation",
     "TargetResolver",
     "TreeState",
