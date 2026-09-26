@@ -1,0 +1,105 @@
+[project]
+name = "orion"
+version = "0.1.0"
+description = "信息监控系统"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "pyright>=1.1.380",
+    "import-linter>=2.1",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["src/core", "src/plugins", "src/api", "src/persistence", "src/bootstrap.py"]
+sources = ["src"]
+
+# ---------------------------------------------------------------- pyright
+[tool.pyright]
+include = ["src", "tests"]
+extraPaths = ["src"]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+# 核心六个模块开 strict；report 的 strict 状态待定
+strict = [
+    "src/core/target",
+    "src/core/collector",
+    "src/core/event",
+    "src/core/condition_engine",
+    "src/core/operators",
+    "src/core/hil",
+]
+
+# ---------------------------------------------------------------- pytest
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+# ---------------------------------------------------------------- import-linter
+[tool.importlinter]
+root_packages = ["core", "plugins", "api", "persistence"]
+include_external_packages = false
+
+[[tool.importlinter.contracts]]
+name = "core 不依赖外层（api / persistence / plugins）"
+type = "forbidden"
+source_modules = ["core"]
+forbidden_modules = ["api", "persistence", "plugins"]
+
+[[tool.importlinter.contracts]]
+name = "api 与 persistence 互不 import"
+type = "independence"
+modules = ["api", "persistence"]
+
+[[tool.importlinter.contracts]]
+name = "target 零依赖"
+type = "forbidden"
+source_modules = ["core.target"]
+forbidden_modules = [
+    "core.collector", "core.event", "core.condition_engine",
+    "core.operators", "core.hil", "core.report",
+]
+
+[[tool.importlinter.contracts]]
+name = "collector 只依赖 target"
+type = "forbidden"
+source_modules = ["core.collector"]
+forbidden_modules = [
+    "core.event", "core.condition_engine",
+    "core.operators", "core.hil", "core.report",
+]
+
+[[tool.importlinter.contracts]]
+name = "condition_engine 零依赖"
+type = "forbidden"
+source_modules = ["core.condition_engine"]
+forbidden_modules = [
+    "core.target", "core.collector", "core.event",
+    "core.operators", "core.hil", "core.report",
+]
+
+[[tool.importlinter.contracts]]
+name = "operators 零依赖"
+type = "forbidden"
+source_modules = ["core.operators"]
+forbidden_modules = [
+    "core.target", "core.collector", "core.event",
+    "core.condition_engine", "core.hil", "core.report",
+]
+
+[[tool.importlinter.contracts]]
+name = "report 零依赖"
+type = "forbidden"
+source_modules = ["core.report"]
+forbidden_modules = [
+    "core.target", "core.collector", "core.event",
+    "core.condition_engine", "core.operators", "core.hil",
+]
