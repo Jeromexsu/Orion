@@ -17,12 +17,12 @@ def test_compile(env: Env) -> None:
     assert t.target_ids == {"t1"}
     assert [o.observable_id for o in t.observation_defs] == ["t1:position"]
     assert t.open_tree.targets() == {"t1:position"}
-    assert t.rules[0].hooks[0].params == {"threshold": 3}
+    assert t.rules[0].hook_defs[0].params == {"threshold": 3}
 
 
 def test_open_condition_is_required(env: Env) -> None:
     raw = template()
-    del raw["open_condition"]
+    del raw["open_condition_def"]
     with pytest.raises(ValueError):
         compile_(env, raw)
 
@@ -30,15 +30,19 @@ def test_open_condition_is_required(env: Env) -> None:
 def test_compile_collects_errors(env: Env) -> None:
     raw = template(hooks=[mount("count_hits", "rule_hit"), mount("nope", "post")])
     raw["observation_defs"].append(dict(raw["observation_defs"][0]))
-    raw["open_condition"] = enter("t2:position")  # 未在观测声明里
-    raw["rules"].append(
-        {"name": "enter", "condition": enter("ghost:position"), "hooks": [mount("recorder", "post")]}
+    raw["open_condition_def"] = enter("t2:position")  # 未在观测声明里
+    raw["rule_defs"].append(
+        {
+            "name": "enter",
+            "condition_def": enter("ghost:position"),
+            "hook_defs": [mount("recorder", "post")],
+        }
     )
     with pytest.raises(TemplateCompileError) as info:
         compile_(env, raw)
     errors = info.value.errors
     assert any("duplicate observation_defs ['t1:position']" in e for e in errors)
-    assert any("open_condition: targets ['t2:position'] not in observation_defs" in e for e in errors)
+    assert any("open_condition_def: targets ['t2:position'] not in observation_defs" in e for e in errors)
     assert any("duplicate rule names ['enter']" in e for e in errors)
     assert any(e.startswith("rule 'enter': root: unknown target") for e in errors)
     assert any("rule hooks must mount at 'rule_hit'" in e for e in errors)

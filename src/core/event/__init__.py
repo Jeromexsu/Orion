@@ -1,6 +1,6 @@
 """事件：ParentEvent / EventRunner / EventTemplate / Event / ParentEventManager。"""
 
-from core.event.definitions import ObservationDef, OperatorMount, RuleDef, TemplateDef
+from core.event.definitions import ObservationDef, OperatorMountDef, RuleDef, TemplateDef
 from core.event.errors import (
     DuplicateParentEventError,
     EventError,
@@ -37,7 +37,7 @@ __all__ = [
     "EventRecord",
     "EventRepository",
     "ObservationDef",
-    "OperatorMount",
+    "OperatorMountDef",
     "ParentEvent",
     "ParentEventNotFoundError",
     "ParentEventRecord",

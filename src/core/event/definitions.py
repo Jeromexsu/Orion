@@ -1,4 +1,8 @@
-"""模板定义（纯数据，前端据此生成表单，存库也存它）。编译后的活对象见 template.py。"""
+"""模板定义（纯数据，前端据此生成表单，存库也存它）。编译后的活对象见 template.py。
+
+命名约定：纯数据定义的类型以 Def 结尾；装着 Def 的字段以 _def / _defs 结尾——
+与运行时对象（如 EventTemplate.open_tree、EventTemplate.rules）一眼能区分。
+"""
 
 from typing import Any
 
@@ -7,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from core.contracts import ConditionDef, MountPoint
 
 
-class OperatorMount(BaseModel):
+class OperatorMountDef(BaseModel):
     """在某个挂载点挂一个算子。"""
 
     model_config = ConfigDict(frozen=True)
@@ -35,8 +39,8 @@ class RuleDef(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     name: str                   # 模板内唯一，条件状态按它分组
-    condition: ConditionDef
-    hooks: list[OperatorMount] = Field(default_factory=list[OperatorMount])  # 只能挂 rule_hit
+    condition_def: ConditionDef
+    hook_defs: list[OperatorMountDef] = Field(default_factory=list[OperatorMountDef])  # 只能挂 rule_hit
 
 
 class TemplateDef(BaseModel):
@@ -52,7 +56,7 @@ class TemplateDef(BaseModel):
     name: str
     observation_defs: list[ObservationDef] = Field(min_length=1)
     # 开启条件：无活跃子事件时命中才开新子事件（runner 在运行期间也持续评估以保持状态最新）
-    open_condition: ConditionDef
-    rules: list[RuleDef] = Field(min_length=1)
+    open_condition_def: ConditionDef
+    rule_defs: list[RuleDef] = Field(min_length=1)
     # 子事件级钩子：created / closed / pre / status_updated / post（rule_hit 挂在规则上）
-    hooks: list[OperatorMount] = Field(default_factory=list[OperatorMount])
+    hook_defs: list[OperatorMountDef] = Field(default_factory=list[OperatorMountDef])

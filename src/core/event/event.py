@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from core.condition_engine import apply_state_patch
 from core.contracts import HIT, DynamicData, Trigger
-from core.event.definitions import OperatorMount
+from core.event.definitions import OperatorMountDef
 from core.event.errors import EventClosedError
 from core.event.records import EventRecord
 from core.event.runtime import EventRuntime
@@ -124,7 +124,7 @@ class Event:
                 self._condition_state[rule.name] = apply_state_patch(state, result.state_patch)
             if result.outcome == HIT:
                 self._run_hooks(
-                    rule.hooks, Trigger(mount_point="rule_hit", data=data, result=result)
+                    rule.hook_defs, Trigger(mount_point="rule_hit", data=data, result=result)
                 )
 
         self._run_hooks(self._template.hooks_at("post"), Trigger(mount_point="post", data=data))
@@ -162,7 +162,7 @@ class Event:
 
     # ------------------------------------------------------------ 内部
 
-    def _run_hooks(self, mounts: tuple[OperatorMount, ...], trigger: Trigger) -> None:
+    def _run_hooks(self, mounts: tuple[OperatorMountDef, ...], trigger: Trigger) -> None:
         """按挂载顺序同步执行，每个算子单独隔离异常。
         TODO: 标记为异步的输出类算子改为入队（见设计文档第三节）。"""
         for mount in mounts:

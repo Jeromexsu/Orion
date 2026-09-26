@@ -2,16 +2,18 @@ from collections.abc import Set
 
 from core.condition_engine import ConditionCompileError, ConditionEngine, ConditionTree
 from core.contracts import ConditionDef, MountPoint
-from core.event.definitions import ObservationDef, OperatorMount, TemplateDef
+from core.event.definitions import ObservationDef, OperatorMountDef, TemplateDef
 from core.event.errors import TemplateCompileError, TemplateScopeError
 from core.operators import OperatorError, OperatorRegistry
 
 
 class CompiledRule:
-    def __init__(self, name: str, tree: ConditionTree, hooks: tuple[OperatorMount, ...]) -> None:
+    def __init__(
+        self, name: str, tree: ConditionTree, hook_defs: tuple[OperatorMountDef, ...]
+    ) -> None:
         self.name = name
         self.tree = tree
-        self.hooks = hooks
+        self.hook_defs = hook_defs
 
 
 class EventTemplate:
@@ -22,7 +24,7 @@ class EventTemplate:
         definition: TemplateDef,
         open_tree: ConditionTree,
         rules: tuple[CompiledRule, ...],
-        hooks: tuple[OperatorMount, ...],
+        hooks: tuple[OperatorMountDef, ...],
     ) -> None:
         self._definition = definition
         self._open_tree = open_tree
@@ -52,17 +54,17 @@ class EventTemplate:
                 errors.append(f"{where}: targets {sorted(undeclared)} not in observation_defs")
             return tree
 
-        open_tree = compile_tree("open_condition", definition.open_condition)
+        open_tree = compile_tree("open_condition_def", definition.open_condition_def)
 
-        names = [r.name for r in definition.rules]
+        names = [r.name for r in definition.rule_defs]
         dupes = sorted({n for n in names if names.count(n) > 1})
         if dupes:
             errors.append(f"duplicate rule names {dupes}")
 
-        for rule in definition.rules:
-            tree = compile_tree(f"rule {rule.name!r}", rule.condition)
-            hooks: list[OperatorMount] = []
-            for i, mount in enumerate(rule.hooks):
+        for rule in definition.rule_defs:
+            tree = compile_tree(f"rule {rule.name!r}", rule.condition_def)
+            hooks: list[OperatorMountDef] = []
+            for i, mount in enumerate(rule.hook_defs):
                 where = f"rule {rule.name!r} hook {i}"
                 if mount.mount_point != "rule_hit":
                     errors.append(f"{where}: rule hooks must mount at 'rule_hit'")
@@ -73,8 +75,8 @@ class EventTemplate:
             if tree is not None:
                 rules.append(CompiledRule(rule.name, tree, tuple(hooks)))
 
-        template_hooks: list[OperatorMount] = []
-        for i, mount in enumerate(definition.hooks):
+        template_hooks: list[OperatorMountDef] = []
+        for i, mount in enumerate(definition.hook_defs):
             where = f"hook {i}"
             if mount.mount_point == "rule_hit":
                 errors.append(f"{where}: 'rule_hit' hooks belong on a rule")
@@ -116,7 +118,7 @@ class EventTemplate:
         """观测声明里的静态目标 ID。"""
         return frozenset(o.target_id for o in self._definition.observation_defs)
 
-    def hooks_at(self, mount_point: MountPoint) -> tuple[OperatorMount, ...]:
+    def hooks_at(self, mount_point: MountPoint) -> tuple[OperatorMountDef, ...]:
         return tuple(h for h in self._hooks if h.mount_point == mount_point)
 
     def validate(self, namespace: Set[str]) -> None:
@@ -130,8 +132,8 @@ class EventTemplate:
 
 
 def _bind(
-    mount: OperatorMount, operators: OperatorRegistry, where: str, errors: list[str]
-) -> OperatorMount | None:
+    mount: OperatorMountDef, operators: OperatorRegistry, where: str, errors: list[str]
+) -> OperatorMountDef | None:
     """校验算子挂载，返回参数规范化后的挂载。"""
     try:
         params = operators.validate_mount(mount.operator, "event", mount.mount_point, mount.params)

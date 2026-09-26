@@ -201,15 +201,15 @@ def template(
         "observation_defs": [
             {"target_id": target, "focus": "position", "upstreams": upstreams or ["adsb"]}
         ],
-        "open_condition": enter(observable),
-        "rules": [
+        "open_condition_def": enter(observable),
+        "rule_defs": [
             {
                 "name": "enter",
-                "condition": enter(observable, initial=True),
-                "hooks": [mount("count_hits", "rule_hit", threshold=threshold)],
+                "condition_def": enter(observable, initial=True),
+                "hook_defs": [mount("count_hits", "rule_hit", threshold=threshold)],
             }
         ],
-        "hooks": hooks or [],
+        "hook_defs": hooks or [],
     }
 
 
