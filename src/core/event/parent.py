@@ -1,7 +1,7 @@
 import logging
 from datetime import UTC, datetime
 
-from core.contracts import DynamicData
+from core.contracts import DRAFT, Draft, DynamicData
 from core.event.definitions import TemplateDef
 from core.event.errors import (
     TargetStillReferencedError,
@@ -140,6 +140,32 @@ class ParentEvent:
             raise TemplateNotFoundError(template_id)
         slot.close_active("template_removed")
         self._save()
+
+    # ------------------------------------------------------------ 报告
+
+    def digest(self) -> Draft:
+        """定时触发的汇总（原生方法，不是算子）：写进本父事件最近一份仍是“草稿”的报告，没有就新建。"""
+        drafts = [d for d in self._runtime.reports.list_by_parent(self._id) if d.status == DRAFT]
+        latest = max(drafts, key=lambda d: d.updated_at, default=None)
+        return self._runtime.reports.write(
+            self._id,
+            title=f"{self._name} 汇总",
+            content=self._digest_content(),
+            draft_id=latest.id if latest else None,
+        )
+
+    def _digest_content(self) -> str:
+        lines = [f"# {self._name}", "", "## 目标"]
+        lines += [f"- {obs.target.name}（{obs.focus}）" for obs in self._pool.values()] or ["- 无"]
+        lines += ["", "## 子事件"]
+        for slot in self._slots.values():
+            closed = sum(1 for r in slot.history() if r.closed_at is not None)
+            active = slot.active
+            state = f"进行中 {dict(active.status)}" if active else "无进行中实例"
+            lines.append(f"- {slot.template.definition.name}：已收敛 {closed} 次，{state}")
+        if not self._slots:
+            lines.append("- 无")
+        return "\n".join(lines)
 
     # ------------------------------------------------------------ Referencer
 

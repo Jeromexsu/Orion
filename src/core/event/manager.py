@@ -31,6 +31,17 @@ class EventManager:
     def parents(self) -> list[ParentEvent]:
         return list(self._parents.values())
 
+    def digest_all(self) -> list[str]:
+        """调度器定时调用。单个父事件失败只记日志。返回失败的父事件 ID。"""
+        failed: list[str] = []
+        for parent in self._parents.values():
+            try:
+                parent.digest()
+            except Exception:
+                logger.exception("digest failed for parent event %s", parent.id)
+                failed.append(parent.id)
+        return failed
+
     def restore(self) -> list[str]:
         """启动时调用：全量加载父事件并重新 acquire 目标（订阅者集合不持久化）。
 

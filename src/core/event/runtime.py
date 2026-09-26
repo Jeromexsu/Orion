@@ -1,6 +1,7 @@
 from core.condition_engine import ConditionEngine
 from core.event.repository import InstanceRepository, ParentEventRepository, TemplateRepository
 from core.operators import OperatorRegistry, SuggestionSink
+from core.report import ReportManager
 from core.target import TargetManager
 
 
@@ -16,6 +17,7 @@ class EventRuntime:
         parents: ParentEventRepository,
         templates: TemplateRepository,
         instances: InstanceRepository,
+        reports: ReportManager,
     ) -> None:
         self.targets = targets
         self.conditions = conditions
@@ -24,3 +26,4 @@ class EventRuntime:
         self.parents = parents
         self.templates = templates
         self.instances = instances
+        self.reports = reports

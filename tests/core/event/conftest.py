@@ -9,8 +9,10 @@ from core.condition_engine import ConditionEngine, EvaluatorRegistry
 from core.contracts import Category, DynamicData, Level, MountPoint, Proposal, Suggestion, Trigger
 from core.event import EventManager, EventRuntime
 from core.operators import BaseContext, OperatorRegistry, ProgressContext, SuggestContext
+from core.report import ReportManager
 from core.target import Target, TargetManager
 from plugins.condition_engine.on_enter import OnEnter
+from plugins.operators.close_report import CloseReport
 from plugins.operators.count_hits import CountHits
 from plugins.target.aircraft import AircraftType
 from tests.core.event.fakes import (
@@ -19,6 +21,7 @@ from tests.core.event.fakes import (
     InMemoryTemplateRepository,
     RecordingSink,
 )
+from tests.core.report.fakes import InMemoryDraftRepository
 from tests.core.target.fakes import (
     InMemoryObservableTargetRepository,
     InMemoryTargetRepository,
@@ -113,8 +116,10 @@ class Env:
             )
 
         self.log = Log()
+        self.drafts = InMemoryDraftRepository()
+        self.reports = ReportManager(self.drafts)
         self.operators = OperatorRegistry()
-        for op in (CountHits(), Recorder(self.log), Echo(), Spotter(), Boom()):
+        for op in (CountHits(), Recorder(self.log), Echo(), Spotter(), Boom(), CloseReport(self.reports)):
             self.operators.register(op)
 
         self.sink = RecordingSink()
@@ -146,6 +151,7 @@ class Env:
             parents=self.parents,
             templates=self.templates,
             instances=self.instances,
+            reports=self.reports,
         )
 
     def data(self, lat: float, lon: float, observable_id: str = "t1:position") -> DynamicData:

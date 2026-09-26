@@ -166,6 +166,8 @@ class SubEventInstance:
                 target_names=self._target_names(),
                 update_status=self.update_status,
                 suggest=self._runtime.suggestions.receive,
+                parent_id=self._parent_id,
+                instance_id=self._id,
             )
             try:
                 operator.run(trigger, ctx)

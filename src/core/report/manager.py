@@ -1,0 +1,77 @@
+from datetime import UTC, datetime
+from uuid import uuid4
+
+from core.contracts import DRAFT, EDITING, SENT, Draft
+from core.report.errors import DraftLockedError, DraftNotFoundError
+from core.report.repository import DraftRepository
+
+
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
+class ReportManager:
+    """报告草稿的生命周期：草稿 →（分析师接手）编辑中 →（发出）已发出。
+
+    write() 是机器入口：只能被报告类算子或 ParentEvent.digest() 调用，只写“草稿”状态。
+    edit() / send() 是分析师入口，由 API 层调用。
+    """
+
+    def __init__(self, drafts: DraftRepository) -> None:
+        self._drafts = drafts
+
+    def get(self, draft_id: str) -> Draft:
+        draft = self._drafts.get(draft_id)
+        if draft is None:
+            raise DraftNotFoundError(draft_id)
+        return draft
+
+    def list_by_parent(self, parent_id: str) -> list[Draft]:
+        return self._drafts.list_by_parent(parent_id)
+
+    def write(
+        self, parent_id: str, title: str, content: str, draft_id: str | None = None
+    ) -> Draft:
+        """机器写入。不给 draft_id 则新建；给了则覆盖内容，但只允许覆盖“草稿”状态。"""
+        if draft_id is None:
+            draft = Draft(
+                id=uuid4().hex,
+                parent_id=parent_id,
+                title=title,
+                content=content,
+                status=DRAFT,
+                version=1,
+                updated_at=_now(),
+            )
+        else:
+            current = self.get(draft_id)
+            if current.parent_id != parent_id:
+                raise DraftLockedError(f"{draft_id} belongs to {current.parent_id}")
+            if current.status != DRAFT:
+                raise DraftLockedError(f"{draft_id} is {current.status}; machine writes stop")
+            draft = self._bump(current, title=title, content=content)
+        self._drafts.upsert(draft)
+        return draft
+
+    def edit(self, draft_id: str, content: str, title: str | None = None) -> Draft:
+        """分析师编辑：进入“编辑中”，之后机器写入被拒绝。"""
+        current = self.get(draft_id)
+        if current.status == SENT:
+            raise DraftLockedError(f"{draft_id} was already sent")
+        draft = self._bump(current, title=title or current.title, content=content, status=EDITING)
+        self._drafts.upsert(draft)
+        return draft
+
+    def send(self, draft_id: str) -> Draft:
+        current = self.get(draft_id)
+        if current.status == SENT:
+            raise DraftLockedError(f"{draft_id} was already sent")
+        draft = current.model_copy(update={"status": SENT, "updated_at": _now()})
+        self._drafts.upsert(draft)
+        return draft
+
+    @staticmethod
+    def _bump(current: Draft, **update: object) -> Draft:
+        return current.model_copy(
+            update={**update, "version": current.version + 1, "updated_at": _now()}
+        )

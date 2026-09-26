@@ -6,6 +6,7 @@ from tests.core.event.fakes import (
     InMemoryTemplateRepository,
     RecordingSink,
 )
+from tests.core.report.fakes import InMemoryDraftRepository
 from tests.core.target.fakes import InMemoryObservableTargetRepository, InMemoryTargetRepository
 
 
@@ -19,9 +20,10 @@ def test_build_app_wires_everything() -> None:
             parents=InMemoryParentEventRepository(),
             templates=InMemoryTemplateRepository(),
             instances=InMemoryInstanceRepository(),
+            drafts=InMemoryDraftRepository(),
         ),
         suggestions=RecordingSink(),
     )
     assert [t.name for t in app.targets.types()] == ["aircraft"]
-    assert [o.name for o in app.operators.operators()] == ["count_hits"]
+    assert [o.name for o in app.operators.operators()] == ["count_hits", "close_report"]
     assert app.events.parents() == []

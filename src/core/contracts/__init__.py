@@ -17,13 +17,19 @@ from core.contracts.condition import (
 from core.contracts.data import DynamicData, QuerySpec
 from core.contracts.hil import Proposal, Suggestion
 from core.contracts.operators import Category, Level, MountPoint, Trigger
+from core.contracts.report import DRAFT, EDITING, SENT, Draft, DraftStatus
 
 __all__ = [
+    "DRAFT",
+    "EDITING",
     "HIT",
     "MISS",
     "NOT_APPLICABLE",
+    "SENT",
     "Category",
     "ConditionDef",
+    "Draft",
+    "DraftStatus",
     "DynamicData",
     "EvalResult",
     "LeafDef",

@@ -21,8 +21,10 @@ from core.event import (
     TemplateRepository,
 )
 from core.operators import OperatorRegistry, SuggestionSink
+from core.report import DraftRepository, ReportManager
 from core.target import ObservableTargetRepository, TargetManager, TargetRepository
 from plugins.condition_engine.on_enter import OnEnter
+from plugins.operators.close_report import CloseReport
 from plugins.operators.count_hits import CountHits
 from plugins.target.aircraft import AircraftType
 
@@ -41,6 +43,7 @@ class Repositories:
         parents: ParentEventRepository,
         templates: TemplateRepository,
         instances: InstanceRepository,
+        drafts: DraftRepository,
     ) -> None:
         self.targets = targets
         self.observables = observables
@@ -49,6 +52,7 @@ class Repositories:
         self.parents = parents
         self.templates = templates
         self.instances = instances
+        self.drafts = drafts
 
 
 class App:
@@ -62,6 +66,7 @@ class App:
         conditions: ConditionEngine,
         operators: OperatorRegistry,
         events: EventManager,
+        reports: ReportManager,
     ) -> None:
         self.targets = targets
         self.adapters = adapters
@@ -69,6 +74,7 @@ class App:
         self.conditions = conditions
         self.operators = operators
         self.events = events
+        self.reports = reports
 
 
 def build_app(repos: Repositories, suggestions: SuggestionSink) -> App:
@@ -85,8 +91,11 @@ def build_app(repos: Repositories, suggestions: SuggestionSink) -> App:
     evaluators.register(OnEnter())
     conditions = ConditionEngine(evaluators, resolver=targets)
 
+    reports = ReportManager(repos.drafts)
+
     operators = OperatorRegistry()
     operators.register(CountHits())
+    operators.register(CloseReport(reports))
 
     events = EventManager(
         EventRuntime(
@@ -97,6 +106,7 @@ def build_app(repos: Repositories, suggestions: SuggestionSink) -> App:
             parents=repos.parents,
             templates=repos.templates,
             instances=repos.instances,
+            reports=reports,
         )
     )
     # 所有插件注册完之后再恢复：模板重新编译要用到它们
@@ -111,4 +121,5 @@ def build_app(repos: Repositories, suggestions: SuggestionSink) -> App:
         conditions=conditions,
         operators=operators,
         events=events,
+        reports=reports,
     )
