@@ -1,8 +1,6 @@
 from collections.abc import Mapping
 from typing import Any
 
-from pydantic import BaseModel
-
 from core.target.errors import (
     DuplicateTargetTypeError,
     NoUpstreamError,
@@ -19,10 +17,7 @@ from core.target.upstream import UpstreamCatalog
 
 
 class TargetManager:
-    """target 模块唯一入口。保证每个 (target, focus) 只有一个 ObservableTarget 实例。
-
-    同时结构化地实现 condition engine 的 TargetResolver（见 dynamic_schema）。
-    """
+    """target 模块唯一入口。保证每个 (target, focus) 只有一个 ObservableTarget 实例。"""
 
     def __init__(
         self,
@@ -132,21 +127,6 @@ class TargetManager:
     def active_observables(self) -> list[ObservableTarget]:
         """referencers() 非空的 ObservableTarget，collector 只采集这些。"""
         return [o for o in self._live.values() if o.is_active]
-
-    # ------------------------------------------------------------ TargetResolver
-
-    def dynamic_schema(self, observable_id: str) -> type[BaseModel] | None:
-        """供 condition engine 查字段 schema；ObservableTarget 尚未创建也能解析。"""
-        live = self._live.get(observable_id)
-        if live is not None:
-            return live.dynamic_schema
-        target_id, sep, focus = observable_id.rpartition(":")
-        if not sep:
-            return None
-        record = self._targets.get(target_id)
-        if record is None or record.type not in self._types:
-            return None
-        return self._types[record.type].focuses.get(focus)
 
     # ------------------------------------------------------------ 内部
 

@@ -9,6 +9,7 @@ from core.condition_engine import (
 from core.event.definitions import ObservationDef, OperatorMountDef, TemplateDef
 from core.event.errors import TemplateCompileError, TemplateScopeError
 from core.operators import MountPoint, OperatorError, OperatorRegistry
+from core.target import TargetError, TargetManager
 
 
 class CompiledRule:
@@ -37,26 +38,44 @@ class EventTemplate:
 
     @classmethod
     def compile(
-        cls, definition: TemplateDef, conditions: ConditionEngine, operators: OperatorRegistry
+        cls,
+        definition: TemplateDef,
+        conditions: ConditionEngine,
+        operators: OperatorRegistry,
+        targets: TargetManager,
     ) -> "EventTemplate":
+        """编译并校验整个模板，所有错误一次收集进 TemplateCompileError。
+
+        观测声明按 TargetManager 解析：目标与关注点存在、上游可用；解析出的动态数据字段交给条件引擎，
+        因此条件只能引用已声明的观测，且判断方式需要的字段必须存在。
+        """
         errors: list[str] = []
         rules: list[CompiledRule] = []
 
-        declared = [o.observable_id for o in definition.observation_defs]
-        dupes = sorted({o for o in declared if declared.count(o) > 1})
-        if dupes:
-            errors.append(f"duplicate observation_defs {dupes}")
+        fields: dict[str, set[str]] = {}
+        for o in definition.observation_defs:
+            where = f"observation_def {o.observable_id!r}"
+            if o.observable_id in fields:
+                errors.append(f"{where}: duplicate")
+                continue
+            try:
+                observable = targets.get_observable(o.target_id, o.focus)
+            except TargetError as e:
+                errors.append(f"{where}: {e}")
+                continue
+            unavailable = sorted(set(o.upstreams) - set(observable.upstreams))
+            if unavailable:
+                errors.append(
+                    f"{where}: upstreams {unavailable} not in available {list(observable.upstreams)}"
+                )
+            fields[observable.id] = set(observable.dynamic_schema.model_fields)
 
         def compile_tree(where: str, condition: ConditionDef) -> ConditionTree | None:
             try:
-                tree = conditions.compile(condition)
+                return conditions.compile(condition, fields)
             except ConditionCompileError as e:
                 errors.extend(f"{where}: {msg}" for msg in e.errors)
                 return None
-            undeclared = tree.targets() - set(declared)
-            if undeclared:
-                errors.append(f"{where}: targets {sorted(undeclared)} not in observation_defs")
-            return tree
 
         open_tree = compile_tree("open_condition_def", definition.open_condition_def)
 

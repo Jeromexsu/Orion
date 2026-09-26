@@ -7,7 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 from core.condition_engine.evaluator import Evaluator
-from core.condition_engine.resolver import Observation
+from core.condition_engine.observation import Observation
 from core.condition_engine.result import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
 
 

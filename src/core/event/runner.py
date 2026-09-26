@@ -9,21 +9,9 @@ from core.event.event import Event
 from core.event.records import EventRecord, TemplateRef
 from core.event.runtime import EventRuntime
 from core.event.template import EventTemplate
-from core.target import DynamicData, ObservableTarget, TargetManager, UnsupportedUpstreamError
+from core.target import DynamicData, ObservableTarget
 
 logger = logging.getLogger(__name__)
-
-
-def check_observation_defs(template: EventTemplate, targets: TargetManager) -> None:
-    """装入模板前检查观测声明可订阅：目标与关注点存在、上游可用。不产生订阅。"""
-    for o in template.observation_defs:
-        observable = targets.get_observable(o.target_id, o.focus)
-        unknown = set(o.upstreams) - set(observable.upstreams)
-        if unknown:
-            raise UnsupportedUpstreamError(
-                f"{observable.id}: {sorted(unknown)} not in available upstreams "
-                f"{list(observable.upstreams)}"
-            )
 
 
 class EventRunner:
@@ -64,7 +52,7 @@ class EventRunner:
         runtime: EventRuntime,
         on_change: Callable[[], None],
     ) -> "EventRunner":
-        """新装入模板：订阅并开始评估开启条件。调用前应已 check_observation_defs。"""
+        """新装入模板：订阅并开始评估开启条件。模板须已编译通过（观测声明已校验）。"""
         runner = cls(parent_id, template, runtime, on_change)
         runner._subscribe()
         return runner
@@ -245,4 +233,6 @@ def _load(runtime: EventRuntime, template_id: str, version: int) -> EventTemplat
     definition = runtime.templates.get(template_id, version)
     if definition is None:
         raise TemplateNotFoundError(f"{template_id} v{version}")
-    return EventTemplate.compile(definition, runtime.conditions, runtime.operators)
+    return EventTemplate.compile(
+        definition, runtime.conditions, runtime.operators, runtime.targets
+    )

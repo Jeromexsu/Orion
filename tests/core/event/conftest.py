@@ -154,7 +154,7 @@ class Env:
         evaluators.register(OnEnter())
         return EventRuntime(
             targets=targets,
-            conditions=ConditionEngine(evaluators, targets),
+            conditions=ConditionEngine(evaluators),
             operators=self.operators,
             suggestions=self.sink,
             parents=self.parents,

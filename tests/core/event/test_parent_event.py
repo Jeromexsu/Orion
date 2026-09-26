@@ -9,12 +9,13 @@ from core.event import (
     ParentEventManager,
     ParentEventNotFoundError,
     TargetStillReferencedError,
+    TemplateCompileError,
     TemplateDef,
     TemplateNotFoundError,
     TemplateScopeError,
     TemplateVersionError,
 )
-from core.target import TargetNotFoundError, UnsupportedUpstreamError
+from core.target import TargetNotFoundError
 from tests.core.event.conftest import Env, mount, template
 
 INSIDE, OUTSIDE = (5, 5), (20, 20)
@@ -65,7 +66,7 @@ def test_template_must_observe_namespace_targets(env: Env) -> None:
 def test_unavailable_upstream_rejected_at_upsert(env: Env) -> None:
     parent = env.parent_events.create("p1", "x")
     parent.add_target("t1")
-    with pytest.raises(UnsupportedUpstreamError):
+    with pytest.raises(TemplateCompileError):
         parent.upsert_template(TemplateDef.model_validate(template(upstreams=["satellite"])))
     with pytest.raises(TemplateNotFoundError):
         parent.runner("enter-zone")

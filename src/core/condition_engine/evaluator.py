@@ -5,7 +5,7 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
-from core.condition_engine.resolver import Observation
+from core.condition_engine.observation import Observation
 from core.condition_engine.result import EvalResult
 
 P = TypeVar("P", bound=BaseModel)

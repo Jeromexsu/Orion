@@ -26,8 +26,10 @@ def parse(raw: dict[str, Any]) -> ConditionDef:
     return _condition_def.validate_python(raw)
 
 
-def compile_(engine: ConditionEngine, raw: dict[str, Any]) -> ConditionTree:
-    return engine.compile(parse(raw))
+def compile_(
+    engine: ConditionEngine, raw: dict[str, Any], fields: dict[str, set[str]] | None = None
+) -> ConditionTree:
+    return engine.compile(parse(raw), FIELDS if fields is None else fields)
 
 
 T0 = datetime(2026, 9, 26, tzinfo=UTC)
@@ -61,23 +63,8 @@ class Gt(Evaluator[GtParams]):
         )
 
 
-class StaticResolver:
-    """t1:position 有 lat/lon/alt；t2:position 只有 lat/lon。"""
-
-    def __init__(self) -> None:
-        class Full(BaseModel):
-            lat: float
-            lon: float
-            alt: float
-
-        class Flat(BaseModel):
-            lat: float
-            lon: float
-
-        self.schemas: dict[str, type[BaseModel]] = {"t1:position": Full, "t2:position": Flat}
-
-    def dynamic_schema(self, observable_id: str) -> type[BaseModel] | None:
-        return self.schemas.get(observable_id)
+# 可用目标及其字段：t1:position 有 lat/lon/alt；t2:position 只有 lat/lon
+FIELDS: dict[str, set[str]] = {"t1:position": {"lat", "lon", "alt"}, "t2:position": {"lat", "lon"}}
 
 
 SQUARE = [(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0)]
@@ -88,4 +75,4 @@ def engine() -> ConditionEngine:
     registry = EvaluatorRegistry()
     registry.register(OnEnter())
     registry.register(Gt())
-    return ConditionEngine(registry, StaticResolver())
+    return ConditionEngine(registry)

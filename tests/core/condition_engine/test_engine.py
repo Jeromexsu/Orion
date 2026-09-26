@@ -24,7 +24,6 @@ from tests.core.condition_engine.conftest import (
     T0,
     GtParams,
     Obs,
-    StaticResolver,
     compile_,
     parse,
 )
@@ -193,7 +192,7 @@ def test_evaluator_gets_read_only_observation_with_time() -> None:
     spy = Spy()
     registry = EvaluatorRegistry()
     registry.register(spy)
-    engine = ConditionEngine(registry, StaticResolver())
+    engine = ConditionEngine(registry)
     data = Obs("t1:position", at=3, lat=1, lon=1, alt=100)
 
     result = compile_(engine, {"kind": "leaf", "target": "t1:position", "type": "spy",
@@ -207,7 +206,7 @@ def test_evaluator_gets_read_only_observation_with_time() -> None:
 def test_state_can_hold_a_sliding_window() -> None:
     registry = EvaluatorRegistry()
     registry.register(RecentCount())
-    engine = ConditionEngine(registry, StaticResolver())
+    engine = ConditionEngine(registry)
     tree = compile_(engine, {"kind": "leaf", "target": "t1:position", "type": "recentCount",
                              "params": {"hours": 24, "count": 3}})
 

@@ -64,6 +64,11 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
 
 ## 已决
 
+- **条件引擎不再查询 target**：去掉设计文档的 `TargetResolver`。`ConditionEngine.compile(definition, fields)`
+  由调用方传入「可观测目标 ID → 动态数据字段名」；`EventTemplate.compile()` 按观测声明向 `TargetManager`
+  解析（目标、关注点存在，上游可用）并提取字段，所以条件只能引用已声明的观测、判断方式需要的字段必须存在。
+  文档时代模板没有观测声明，条件引擎只能自己去问 target；有了观测声明，调用方手里已有这份信息。
+
 - **静态定义与运行时对象的命名约定**：纯数据定义的类型以 `Def` 结尾（`TemplateDef`、`RuleDef`、
   `ObservationDef`、`OperatorMountDef`）；装着 `Def` 的字段以 `_def` / `_defs` 结尾（`observation_defs`、
   `open_condition_def`、`rule_defs`、`hook_defs`、`condition_def`）；运行时对象不带后缀（如

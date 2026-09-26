@@ -8,7 +8,7 @@ from tests.core.event.conftest import Env, enter, mount, template
 
 def compile_(env: Env, raw: dict[str, Any]) -> EventTemplate:
     return EventTemplate.compile(
-        TemplateDef.model_validate(raw), env.runtime.conditions, env.operators
+        TemplateDef.model_validate(raw), env.runtime.conditions, env.operators, env.targets
     )
 
 
@@ -41,8 +41,9 @@ def test_compile_collects_errors(env: Env) -> None:
     with pytest.raises(TemplateCompileError) as info:
         compile_(env, raw)
     errors = info.value.errors
-    assert any("duplicate observation_defs ['t1:position']" in e for e in errors)
-    assert any("open_condition_def: targets ['t2:position'] not in observation_defs" in e for e in errors)
+    assert any("observation_def 't1:position': duplicate" in e for e in errors)
+    # 条件只能引用已声明的观测：t2 未声明，对条件引擎来说就是未知目标
+    assert any(e.startswith("open_condition_def: root: unknown target 't2:position'") for e in errors)
     assert any("duplicate rule names ['enter']" in e for e in errors)
     assert any(e.startswith("rule 'enter': root: unknown target") for e in errors)
     assert any("rule hooks must mount at 'rule_hit'" in e for e in errors)
@@ -53,6 +54,18 @@ def test_compile_collects_errors(env: Env) -> None:
 def test_invalid_operator_params(env: Env) -> None:
     with pytest.raises(TemplateCompileError):
         compile_(env, template(threshold=0))
+
+
+def test_observation_defs_are_resolved(env: Env) -> None:
+    raw = template(upstreams=["adsb", "satellite"])
+    raw["observation_defs"].append({"target_id": "ghost", "focus": "position", "upstreams": ["adsb"]})
+    raw["observation_defs"].append({"target_id": "t2", "focus": "fuel", "upstreams": ["adsb"]})
+    with pytest.raises(TemplateCompileError) as info:
+        compile_(env, raw)
+    errors = info.value.errors
+    assert any("observation_def 't1:position': upstreams ['satellite'] not in available" in e for e in errors)
+    assert any(e.startswith("observation_def 'ghost:position': ") for e in errors)
+    assert any(e.startswith("observation_def 't2:fuel': ") for e in errors)
 
 
 def test_validate_namespace(env: Env) -> None:

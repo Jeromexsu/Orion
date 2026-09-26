@@ -99,7 +99,7 @@ def build_app(repos: Repositories) -> App:
 
     evaluators = EvaluatorRegistry()
     evaluators.register(OnEnter())
-    conditions = ConditionEngine(evaluators, resolver=targets)
+    conditions = ConditionEngine(evaluators)
 
     reports = ReportManager(repos.drafts)
     hil = HilManager(repos.suggestions)

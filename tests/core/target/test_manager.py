@@ -16,7 +16,7 @@ from core.target import (
     UnsupportedFocusError,
     type_name,
 )
-from plugins.target.aircraft import Aircraft, AircraftPosition
+from plugins.target.aircraft import Aircraft
 from tests.core.target.conftest import Subscriber
 from tests.core.target.fakes import (
     InMemoryObservableTargetRepository,
@@ -166,12 +166,3 @@ def test_remove_target_clears_observables(
     assert plane.id not in targets.items
     assert obs.id not in observables.items
     assert manager.find_observable(obs.id) is None
-
-
-def test_dynamic_schema_resolves_without_live_observable(
-    manager: TargetManager, plane: Target
-) -> None:
-    assert manager.dynamic_schema("t1:position") is AircraftPosition
-    assert manager.dynamic_schema("t1:fuel") is None
-    assert manager.dynamic_schema("missing:position") is None
-    assert manager.dynamic_schema("no-separator") is None

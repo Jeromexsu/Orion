@@ -3,7 +3,7 @@ import logging
 from core.event.definitions import TemplateDef
 from core.event.errors import TargetStillReferencedError, TemplateNotFoundError
 from core.event.records import ParentEventRecord
-from core.event.runner import EventRunner, check_observation_defs
+from core.event.runner import EventRunner
 from core.event.runtime import EventRuntime
 from core.event.template import EventTemplate
 from core.report import DRAFT, Draft
@@ -89,12 +89,14 @@ class ParentEvent:
     # ------------------------------------------------------------ 模板
 
     def upsert_template(self, definition: TemplateDef) -> EventTemplate:
-        """编译 → 校验命名空间与观测声明 → 保存新版本 → 装入（已有则按「下个周期生效」挂起或切换）。"""
+        """编译（含观测声明校验）→ 校验命名空间 → 保存新版本 → 装入（已有则按「下个周期生效」挂起或切换）。"""
         template = EventTemplate.compile(
-            definition, self._runtime.conditions, self._runtime.operators
+            definition,
+            self._runtime.conditions,
+            self._runtime.operators,
+            self._runtime.targets,
         )
         template.validate(self._targets)
-        check_observation_defs(template, self._runtime.targets)
 
         runner = self._runners.get(template.id)
         if runner is not None:

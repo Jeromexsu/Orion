@@ -2,14 +2,6 @@ from collections.abc import Mapping
 from datetime import datetime
 from typing import Any, Protocol
 
-from pydantic import BaseModel
-
-
-class TargetResolver(Protocol):
-    """查 ObservableTarget 的动态数据 schema。由 target 的 TargetManager 结构化实现。"""
-
-    def dynamic_schema(self, observable_id: str) -> type[BaseModel] | None: ...
-
 
 class Observation(Protocol):
     """一条观测：ConditionTree.evaluate 的输入，也原样（只读）交给 Evaluator。

@@ -39,11 +39,6 @@ class Fixed(Evaluator[FixedParams]):
         return EvalResult(outcome=params.outcome)
 
 
-class AnyTarget:
-    def dynamic_schema(self, observable_id: str) -> type[BaseModel] | None:
-        return BaseModel
-
-
 class Obs:
     observable_id = "t"
     fields: dict[str, Any] = {}
@@ -52,7 +47,7 @@ class Obs:
 
 registry = EvaluatorRegistry()
 registry.register(Fixed())
-engine = ConditionEngine(registry, AnyTarget())
+engine = ConditionEngine(registry)
 
 
 def leaf(o: Outcome) -> dict[str, Any]:
@@ -60,7 +55,7 @@ def leaf(o: Outcome) -> dict[str, Any]:
 
 
 def run(definition: dict[str, Any]) -> Outcome:
-    return compile_(engine, definition).evaluate(Obs(), {}).outcome
+    return compile_(engine, definition, {"t": set()}).evaluate(Obs(), {}).outcome
 
 
 @given(outcomes)
