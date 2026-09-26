@@ -1,0 +1,73 @@
+"""三种上下文，按最小权限给算子：运行时拿到的对象真的没有越权的方法。"""
+
+from collections.abc import Callable, Mapping
+from copy import deepcopy
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+
+from core.contracts import Category, Suggestion
+
+
+class BaseContext(BaseModel):
+    """只读上下文，输出类用。可随异步算子序列化进队列。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    state: dict[str, Any]       # 实例状态的副本，改了也不影响实例
+    params: dict[str, Any]      # 挂载时的参数
+    target_names: dict[str, str] = Field(default_factory=dict[str, str])
+
+    def target_name(self, observable_id: str) -> str:
+        """目标展示名，报告类算子用。未知时退回 ID。"""
+        return self.target_names.get(observable_id, observable_id)
+
+
+class ProgressContext(BaseContext):
+    """+update_status，推进（收敛）类用。必须同步执行：它改的是内存里的活对象。"""
+
+    _update_status: Callable[[dict[str, Any]], None] = PrivateAttr()
+
+    def __init__(self, *, update_status: Callable[[dict[str, Any]], None], **data: Any) -> None:
+        super().__init__(**data)
+        self._update_status = update_status
+
+    def update_status(self, patch: dict[str, Any]) -> None:
+        self._update_status(patch)
+
+
+class SuggestContext(BaseContext):
+    """+suggest，发现/校正类用。"""
+
+    _suggest: Callable[[Suggestion], None] = PrivateAttr()
+
+    def __init__(self, *, suggest: Callable[[Suggestion], None], **data: Any) -> None:
+        super().__init__(**data)
+        self._suggest = suggest
+
+    def suggest(self, item: Suggestion) -> None:
+        self._suggest(item)
+
+
+def build_context(
+    category: Category,
+    *,
+    state: Mapping[str, Any],
+    params: Mapping[str, Any],
+    target_names: Mapping[str, str],
+    update_status: Callable[[dict[str, Any]], None],
+    suggest: Callable[[Suggestion], None],
+) -> BaseContext:
+    """event 侧按算子类别构造对应的上下文：ctx = build_context(op.category, ...); op.run(trigger, ctx)。"""
+    common: dict[str, Any] = {
+        "state": deepcopy(dict(state)),
+        "params": deepcopy(dict(params)),
+        "target_names": dict(target_names),
+    }
+    match category:
+        case "progress":
+            return ProgressContext(update_status=update_status, **common)
+        case "discover" | "calibrate":
+            return SuggestContext(suggest=suggest, **common)
+        case "output":
+            return BaseContext(**common)

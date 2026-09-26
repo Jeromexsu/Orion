@@ -11,8 +11,10 @@ from core.collector import (
     DynamicDataRepository,
 )
 from core.condition_engine import ConditionEngine, EvaluatorRegistry
+from core.operators import OperatorRegistry
 from core.target import ObservableTargetRepository, TargetManager, TargetRepository
 from plugins.condition_engine.on_enter import OnEnter
+from plugins.operators.count_hits import CountHits
 from plugins.target.aircraft import AircraftType
 
 
@@ -41,11 +43,13 @@ class App:
         adapters: AdapterRegistry,
         collector: Collector,
         conditions: ConditionEngine,
+        operators: OperatorRegistry,
     ) -> None:
         self.targets = targets
         self.adapters = adapters
         self.collector = collector
         self.conditions = conditions
+        self.operators = operators
 
 
 def build_app(repos: Repositories) -> App:
@@ -61,4 +65,13 @@ def build_app(repos: Repositories) -> App:
     evaluators.register(OnEnter())
     conditions = ConditionEngine(evaluators, resolver=targets)
 
-    return App(targets=targets, adapters=adapters, collector=collector, conditions=conditions)
+    operators = OperatorRegistry()
+    operators.register(CountHits())
+
+    return App(
+        targets=targets,
+        adapters=adapters,
+        collector=collector,
+        conditions=conditions,
+        operators=operators,
+    )

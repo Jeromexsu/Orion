@@ -15,16 +15,24 @@ from core.contracts.condition import (
     Outcome,
 )
 from core.contracts.data import DynamicData, QuerySpec
+from core.contracts.hil import Proposal, Suggestion
+from core.contracts.operators import Category, Level, MountPoint, Trigger
 
 __all__ = [
     "HIT",
     "MISS",
     "NOT_APPLICABLE",
+    "Category",
     "ConditionDef",
     "DynamicData",
     "EvalResult",
     "LeafDef",
+    "Level",
+    "MountPoint",
     "OpDef",
     "Outcome",
+    "Proposal",
     "QuerySpec",
+    "Suggestion",
+    "Trigger",
 ]
