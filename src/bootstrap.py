@@ -3,6 +3,8 @@
 API 进程和异步 worker 进程共用这里的装配逻辑。
 """
 
+import logging
+
 from core.collector import (
     AdapterRegistry,
     Collector,
@@ -11,11 +13,20 @@ from core.collector import (
     DynamicDataRepository,
 )
 from core.condition_engine import ConditionEngine, EvaluatorRegistry
-from core.operators import OperatorRegistry
+from core.event import (
+    EventManager,
+    EventRuntime,
+    InstanceRepository,
+    ParentEventRepository,
+    TemplateRepository,
+)
+from core.operators import OperatorRegistry, SuggestionSink
 from core.target import ObservableTargetRepository, TargetManager, TargetRepository
 from plugins.condition_engine.on_enter import OnEnter
 from plugins.operators.count_hits import CountHits
 from plugins.target.aircraft import AircraftType
+
+logger = logging.getLogger(__name__)
 
 
 class Repositories:
@@ -27,11 +38,17 @@ class Repositories:
         observables: ObservableTargetRepository,
         cursors: CursorRepository,
         dynamic_data: DynamicDataRepository,
+        parents: ParentEventRepository,
+        templates: TemplateRepository,
+        instances: InstanceRepository,
     ) -> None:
         self.targets = targets
         self.observables = observables
         self.cursors = cursors
         self.dynamic_data = dynamic_data
+        self.parents = parents
+        self.templates = templates
+        self.instances = instances
 
 
 class App:
@@ -44,15 +61,18 @@ class App:
         collector: Collector,
         conditions: ConditionEngine,
         operators: OperatorRegistry,
+        events: EventManager,
     ) -> None:
         self.targets = targets
         self.adapters = adapters
         self.collector = collector
         self.conditions = conditions
         self.operators = operators
+        self.events = events
 
 
-def build_app(repos: Repositories) -> App:
+def build_app(repos: Repositories, suggestions: SuggestionSink) -> App:
+    """装配并完成重启恢复。suggestions 暂由调用方提供，hil 模块就绪后在这里构造。"""
     adapters = AdapterRegistry()
     # 在这里 adapters.register(...) 各上游 Adapter 插件
 
@@ -68,10 +88,27 @@ def build_app(repos: Repositories) -> App:
     operators = OperatorRegistry()
     operators.register(CountHits())
 
+    events = EventManager(
+        EventRuntime(
+            targets=targets,
+            conditions=conditions,
+            operators=operators,
+            suggestions=suggestions,
+            parents=repos.parents,
+            templates=repos.templates,
+            instances=repos.instances,
+        )
+    )
+    # 所有插件注册完之后再恢复：模板重新编译要用到它们
+    failed = events.restore()
+    if failed:
+        logger.error("failed to restore parent events: %s", failed)
+
     return App(
         targets=targets,
         adapters=adapters,
         collector=collector,
         conditions=conditions,
         operators=operators,
+        events=events,
     )

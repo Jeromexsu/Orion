@@ -1,8 +1,9 @@
-"""示例推进类算子：规则命中时累加计数，达到阈值时标记收敛。"""
+"""示例推进类算子：规则命中时累加计数，达到阈值时标记收敛（实例随之关闭）。"""
 
 from pydantic import BaseModel, Field
 
 from core.contracts import Category, Level, MountPoint, Trigger
+from core.event import CLOSE_STATUS_KEY
 from core.operators import ProgressContext
 
 
@@ -23,5 +24,5 @@ class CountHits:
         hits = int(ctx.state.get("hits", 0)) + 1
         patch: dict[str, object] = {"hits": hits}
         if hits >= params.threshold:
-            patch["converged"] = True
+            patch[CLOSE_STATUS_KEY] = True
         ctx.update_status(patch)

@@ -134,7 +134,7 @@ def test_count_hits_runs_through_built_context(registry: OperatorRegistry) -> No
 
     op.run(trigger, ctx_for(op.category, rec, {"hits": 0}, threshold=2))
     op.run(trigger, ctx_for(op.category, rec, {"hits": 1}, threshold=2))
-    assert rec.patches == [{"hits": 1}, {"hits": 2, "converged": True}]
+    assert rec.patches == [{"hits": 1}, {"hits": 2, "closed": True}]
 
 
 def test_plugin_satisfies_operator_protocol() -> None:

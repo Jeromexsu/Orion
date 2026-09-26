@@ -89,6 +89,12 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "event 不依赖 collector / hil（数据由 Dispatcher 推给它，建议经 SuggestionSink 流出）"
+type = "forbidden"
+source_modules = ["core.event"]
+forbidden_modules = ["core.collector", "core.hil"]
+
+[[tool.importlinter.contracts]]
 name = "condition_engine 零依赖（contracts 除外）"
 type = "forbidden"
 source_modules = ["core.condition_engine"]
