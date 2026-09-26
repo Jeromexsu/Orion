@@ -1,4 +1,21 @@
-"""采集：Adapter / AdapterRegistry / Collector / Dispatcher。只依赖 target。
+"""采集：Adapter / AdapterRegistry / Collector / Dispatcher。只依赖 target。"""
 
-（待实现）
-"""
+from core.collector.adapter import Adapter, FetchedRecord
+from core.collector.collector import Collector
+from core.collector.dispatcher import Dispatcher
+from core.collector.errors import CollectorError, DuplicateAdapterError, UnknownAdapterError
+from core.collector.registry import AdapterRegistry
+from core.collector.repository import CursorRepository, DynamicDataRepository
+
+__all__ = [
+    "Adapter",
+    "AdapterRegistry",
+    "Collector",
+    "CollectorError",
+    "CursorRepository",
+    "Dispatcher",
+    "DuplicateAdapterError",
+    "DynamicDataRepository",
+    "FetchedRecord",
+    "UnknownAdapterError",
+]

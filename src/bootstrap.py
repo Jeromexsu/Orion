@@ -3,16 +3,48 @@
 API 进程和异步 worker 进程共用这里的装配逻辑。
 """
 
-from core.target import ObservableTargetRepository, TargetManager, TargetRepository, UpstreamCatalog
+from core.collector import (
+    AdapterRegistry,
+    Collector,
+    CursorRepository,
+    Dispatcher,
+    DynamicDataRepository,
+)
+from core.target import ObservableTargetRepository, TargetManager, TargetRepository
 from plugins.target.aircraft import AircraftType
 
 
-def build_target_manager(
-    targets: TargetRepository,
-    observables: ObservableTargetRepository,
-    upstreams: UpstreamCatalog,
-) -> TargetManager:
-    # TODO: persistence 层就绪后在这里构造仓库实现；upstreams 由 collector 的 AdapterRegistry 提供
-    manager = TargetManager(targets, observables, upstreams)
-    manager.register_type(AircraftType())
-    return manager
+class Repositories:
+    """持久化实现的集合。TODO: persistence 层就绪后在这里构造具体实现。"""
+
+    def __init__(
+        self,
+        targets: TargetRepository,
+        observables: ObservableTargetRepository,
+        cursors: CursorRepository,
+        dynamic_data: DynamicDataRepository,
+    ) -> None:
+        self.targets = targets
+        self.observables = observables
+        self.cursors = cursors
+        self.dynamic_data = dynamic_data
+
+
+class App:
+    """装配好的核心对象。"""
+
+    def __init__(self, targets: TargetManager, adapters: AdapterRegistry, collector: Collector) -> None:
+        self.targets = targets
+        self.adapters = adapters
+        self.collector = collector
+
+
+def build_app(repos: Repositories) -> App:
+    adapters = AdapterRegistry()
+    # 在这里 adapters.register(...) 各上游 Adapter 插件
+
+    targets = TargetManager(repos.targets, repos.observables, adapters)
+    targets.register_type(AircraftType())
+
+    collector = Collector(targets, adapters, repos.cursors, repos.dynamic_data, Dispatcher())
+    return App(targets=targets, adapters=adapters, collector=collector)
