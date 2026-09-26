@@ -42,7 +42,25 @@ hil 白名单动作、bootstrap、相关测试。
 从未读取——重启恢复靠 event 模块重新 acquire。选项：保留 / 改为存纯数据记录 / 去掉。
 **状态**：等审阅到 `core/target/repository.py` 和 `manager.py` 时决定。
 
-### 3. 其他（随审阅推进逐条确认）
+### 3. Adapter 与 Target 子类的对应关系只靠约定
+
+**状态**：理顺 collector 时处理。
+
+Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, 关注点)、`spec.attributes` 里的属性字段、
+返回的 `FetchedRecord.fields` 要符合该关注点的 schema。现在全是字符串和 dict：`serves` 拼错不报错
+（Adapter 永远不被选中）；`spec.attributes["..."]` 无静态检查；`fields` 不合 schema 要到 collector
+校验才发现，且只记警告、丢弃记录。
+
+**建议**（插件之间可以互相 import）：
+1. `serves` 直接写类，如 `{(Aircraft, "position")}`，注册 Adapter 时校验关注点存在；
+2. 提供辅助函数把 `spec` 还原成 `Aircraft` 实例，Adapter 里写 `target.registration` 有静态检查；
+3. `fields` 用 schema 类构造，如 `AircraftPosition(lat=..., lon=...)`；
+4. Adapter 契约测试基类：检查 `serves` 合法、`fields` 通过 schema、`source_id` 不重复。
+
+**背景**：target 与 collector 耦合较紧。core 层面是单向的（collector 依赖 target；target 只通过
+`UpstreamCatalog` Protocol 知道「上游」这个概念），但插件层面 Adapter 与 Target 子类是成套开发的。
+
+### 4. 其他（随审阅推进逐条确认）
 
 - 模板 ID 全局还是按父事件区分（若第 1 条去掉模板则不再适用）。
 - 实例关闭条件用 `status["closed"]` 约定，还是显式声明关闭条件（第 1 条定后再看）。
