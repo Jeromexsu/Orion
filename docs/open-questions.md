@@ -58,5 +58,8 @@ hil 白名单动作、bootstrap、相关测试。
 
 - **契约放哪**：新建 `core/contracts`，跨模块数据契约集中于此（解决 operators「零依赖」自相矛盾）。
 - **目标类型写法**：去掉 `TargetType`，每种目标类型继承 `Target` 基类；目标类型只由开发者通过代码定义。
+- **动态数据 schema 归属**：每个关注点下动态数据有哪些字段，由开发者在 `Target` 子类的 `focuses`
+  里声明（关注点名 → Pydantic 模型）；`ObservableTarget` 构造时自己从 `type(target).focuses` 取，
+  不由外部传入。target 模块的扩展点全部集中在写 `Target` 子类上。
 - **上游归属**：可观测目标的上游列表由 `TargetManager` 问 `UpstreamCatalog` 得到，不由外部传入；
   订阅者 acquire 时指定要哪些上游，可观测目标内部按上游路由。
