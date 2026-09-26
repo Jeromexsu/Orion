@@ -51,7 +51,22 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
 **影响范围**：`condition_engine/definitions.py`（LeafDef）、`condition_engine/tree.py`（LeafNode）、判断方式插件接口；
 方案 3 则主要在 target / collector。
 
-### 5. 其他（随审阅推进逐条确认）
+### 5. 条件引擎依赖 target 的前提（观察项）
+
+**状态**：暂维持现状，满足触发条件时重新评估。
+
+条件引擎依赖 target，只依赖一个数据类型 `Observation`（不碰 `TargetManager`、`ObservableTarget`）。维持的理由：
+`LeafDef.target` 本就是可观测目标 ID，条件在概念上就是「对可观测目标的观测做判断」，原 Protocol 只是把
+这层关联藏了起来；target 是最底层、最稳定的模块，无环；回退只需在条件引擎内重新引入输入 Protocol。
+
+代价：条件引擎与「观测」的形状绑定；判断方式能看到 `upstream` / `source_id` / `raw`（靠约定不依赖）；
+`Observation` 的变更会波及条件引擎和判断方式插件；与设计文档「条件引擎零依赖」不一致。
+
+**触发重新评估的条件**：出现要判断「非观测类输入」的需求（如一段新闻文本、一条人工录入的线索，
+设计文档 `EvalResult.extracted` 提到的「命中的关键词、地点」可能属于此类）。届时条件引擎应改回
+定义自己的输入 Protocol，依赖不再指向 target。
+
+### 6. 其他（随审阅推进逐条确认）
 
 - 模板 ID 全局还是按父事件区分（现为全局：`TemplateRepository` 只按 template_id 存取）。
 - `EvalResult.outcome`、`Draft.status` 的中文字面值是否对外改为英文枚举。
