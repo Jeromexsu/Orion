@@ -1,0 +1,45 @@
+# 术语表
+
+代码与讨论中统一使用的叫法。新定下的术语在这里补充；有歧义时以这里为准。
+
+## 目标与数据（target / collector）
+
+| 术语 | 代码 | 含义 |
+|---|---|---|
+| 目标类型 | `Target` 的子类（如 `Aircraft`） | 一类静态目标，如飞机。由开发者用代码定义：类型名（`type` 的 Literal 默认值）、属性字段、关注点及其动态数据 schema（`focuses`） |
+| 目标 | `Target` 子类的实例 | 一个具体的静态目标，如注册号 B-2447 的那架飞机 |
+| 关注点 | `focus` | 对一个目标关注的方面，如 `position`；每个关注点有自己的动态数据 schema |
+| 上游 | `upstream` | 数据来源，如 `adsb`；由 collector 的一个 Adapter 实现 |
+| 可观测目标（obs） | `ObservableTarget` | 封装好的「具体目标 + 一个关注点」，ID 形如 `t1:position`；持有全部可用上游和订阅关系，全局唯一，由 `TargetManager` 创建 |
+| 订阅 | `ObservableTarget.acquire(订阅者, 上游集合)` | 订阅者指定要哪些上游；可观测目标按上游把数据路由给订阅者 |
+| 动态数据 | `DynamicData` | collector 采集、按 dynamic schema 校验后的一条数据：`observable_id`、`upstream`、`fields`、`occurred_at`、`source_id`、`raw` |
+| 观测（observation） | `Observation` | 一次观测的结果，动态数据的子集：`observable_id`、`fields`、`occurred_at`；条件判断的输入 |
+
+注意区分 **obs**（可观测目标，长期存在的对象）与 **observation**（观测，一条结果）。
+
+## 事件（event）
+
+| 术语 | 代码 | 含义 |
+|---|---|---|
+| 父事件 | `ParentEvent` | 静态：目标命名空间（target_id 集合）+ 模板集合 + `digest()`；自己不订阅 |
+| 模板 | `EventTemplate`（定义为 `TemplateDef`） | 静态、不可变、带版本：观测声明、开启条件、规则、算子挂载 |
+| 观测声明 | `ObservationDef` | 模板要观测的 (target_id, focus) 及订阅哪些上游 |
+| runner | `EventRunner` | 运行中的模板：按观测声明订阅，评估开启条件，管理子事件生命周期（开启、换版本、存档） |
+| 子事件 | `Event` | 模板的一次运行（一个周期）；同一模板同时最多一个 |
+| 周期 | `cycle` | 子事件的周期标识：触发开启的那条数据发生的年份。子事件是以年为周期重复发生的事情 |
+| 开启条件 | `open_condition_def` / `EventTemplate.open_tree` | 无活跃子事件时命中才开新子事件 |
+| 规则 | `RuleDef` / `CompiledRule` | 子事件运行期间逐条评估的条件，命中时触发挂在它上面的算子 |
+
+## 条件（condition_engine）
+
+| 术语 | 代码 | 含义 |
+|---|---|---|
+| 条件定义 | `ConditionDef`（`LeafDef` / `OpDef`） | 纯数据，可任意嵌套 |
+| 条件树 | `ConditionTree`（`LeafNode` / `OpNode`） | 编译后的条件；`evaluate(observation, state)` 是纯函数，状态由调用方保管 |
+| 判断方式 | `Evaluator` | 唯一的扩展点；声明 `type`、`requires`、`params_model`，实现 `evaluate(params, observation, state)` |
+| 节点路径 | `path`（如 `root/1/0`） | 节点在树中的地址；用于定位编译错误、按叶子分组状态、审计追溯 |
+
+## 命名约定
+
+- 纯数据定义的类型以 `Def` 结尾；装着 `Def` 的字段 / 参数以 `_def` / `_defs` 结尾；运行时对象不带后缀。
+- 注册表类型的依赖叫 `*_registry`（只有一个注册表依赖的类内部简写 `registry`），不用复数。

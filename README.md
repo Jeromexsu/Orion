@@ -2,6 +2,9 @@
 
 设计文档：信息监控系统 · 核心骨架搭建指南
 
+- 术语表：[docs/glossary.md](docs/glossary.md)
+- 待决设计问题：[docs/open-questions.md](docs/open-questions.md)
+
 ## 目录
 
 ```
