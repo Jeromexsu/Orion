@@ -18,8 +18,8 @@ class ConditionEngine:
     target 模块。校验：判断方式存在、引用的目标在 fields 里、目标有判断方式需要的字段、参数合法。
     """
 
-    def __init__(self, evaluators: EvaluatorRegistry) -> None:
-        self._evaluators = evaluators
+    def __init__(self, registry: EvaluatorRegistry) -> None:
+        self._registry = registry
 
     def compile(self, definition: ConditionDef, fields: Mapping[str, Set[str]]) -> ConditionTree:
         errors: list[str] = []
@@ -54,10 +54,10 @@ class ConditionEngine:
     def _compile_leaf(
         self, node: LeafDef, path: str, fields: Mapping[str, Set[str]], errors: list[str]
     ) -> ConditionNode | None:
-        if not self._evaluators.has(node.type):
+        if not self._registry.has(node.type):
             errors.append(f"{path}: unknown condition type {node.type!r}")
             return None
-        evaluator = self._evaluators.get(node.type)
+        evaluator = self._registry.get(node.type)
 
         ok = True
         available = fields.get(node.target)

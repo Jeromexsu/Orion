@@ -150,11 +150,11 @@ class Env:
         return targets
 
     def make_runtime(self, targets: TargetManager) -> EventRuntime:
-        evaluators = EvaluatorRegistry()
-        evaluators.register(OnEnter())
+        evaluator_registry = EvaluatorRegistry()
+        evaluator_registry.register(OnEnter())
         return EventRuntime(
             targets=targets,
-            conditions=ConditionEngine(evaluators),
+            conditions=ConditionEngine(evaluator_registry),
             operators=self.operators,
             suggestions=self.sink,
             parents=self.parents,

@@ -97,9 +97,9 @@ def build_app(repos: Repositories) -> App:
 
     collector = Collector(targets, adapters, repos.cursors, repos.dynamic_data, Dispatcher())
 
-    evaluators = EvaluatorRegistry()
-    evaluators.register(OnEnter())
-    conditions = ConditionEngine(evaluators)
+    evaluator_registry = EvaluatorRegistry()
+    evaluator_registry.register(OnEnter())
+    conditions = ConditionEngine(evaluator_registry)
 
     reports = ReportManager(repos.drafts)
     hil = HilManager(repos.suggestions)
