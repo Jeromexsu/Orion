@@ -10,7 +10,9 @@ from core.collector import (
     Dispatcher,
     DynamicDataRepository,
 )
+from core.condition_engine import ConditionEngine, EvaluatorRegistry
 from core.target import ObservableTargetRepository, TargetManager, TargetRepository
+from plugins.condition_engine.on_enter import OnEnter
 from plugins.target.aircraft import AircraftType
 
 
@@ -33,10 +35,17 @@ class Repositories:
 class App:
     """装配好的核心对象。"""
 
-    def __init__(self, targets: TargetManager, adapters: AdapterRegistry, collector: Collector) -> None:
+    def __init__(
+        self,
+        targets: TargetManager,
+        adapters: AdapterRegistry,
+        collector: Collector,
+        conditions: ConditionEngine,
+    ) -> None:
         self.targets = targets
         self.adapters = adapters
         self.collector = collector
+        self.conditions = conditions
 
 
 def build_app(repos: Repositories) -> App:
@@ -47,4 +56,9 @@ def build_app(repos: Repositories) -> App:
     targets.register_type(AircraftType())
 
     collector = Collector(targets, adapters, repos.cursors, repos.dynamic_data, Dispatcher())
-    return App(targets=targets, adapters=adapters, collector=collector)
+
+    evaluators = EvaluatorRegistry()
+    evaluators.register(OnEnter())
+    conditions = ConditionEngine(evaluators, resolver=targets)
+
+    return App(targets=targets, adapters=adapters, collector=collector, conditions=conditions)

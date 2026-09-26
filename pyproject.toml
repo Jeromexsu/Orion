@@ -12,6 +12,7 @@ dev = [
     "pytest>=8",
     "pyright>=1.1.380",
     "import-linter>=2.1",
+    "hypothesis>=6.100",
 ]
 
 [build-system]
