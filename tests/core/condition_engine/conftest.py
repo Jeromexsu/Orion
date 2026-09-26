@@ -2,11 +2,24 @@ from collections.abc import Mapping
 from typing import Any
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, TypeAdapter
 
 from core.condition_engine import ConditionEngine, EvaluatorRegistry, LeafEvaluator
-from core.contracts import HIT, MISS, EvalResult
+from core.condition_engine import ConditionTree
+from core.contracts import HIT, MISS, ConditionDef, EvalResult
 from plugins.condition_engine.on_enter import OnEnter
+
+
+_condition_def: TypeAdapter[ConditionDef] = TypeAdapter(ConditionDef)
+
+
+def parse(raw: dict[str, Any]) -> ConditionDef:
+    """测试辅助：dict → ConditionDef（生产代码里这一步在 API / 持久化边界完成）。"""
+    return _condition_def.validate_python(raw)
+
+
+def compile_(engine: ConditionEngine, raw: dict[str, Any]) -> ConditionTree:
+    return engine.compile(parse(raw))
 
 
 class Obs:

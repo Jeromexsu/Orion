@@ -1,36 +1,25 @@
-from collections.abc import Mapping
-from typing import Any
+from pydantic import ValidationError
 
-from pydantic import TypeAdapter, ValidationError
-
-from core.contracts import ConditionDef, LeafDef, OpDef
 from core.condition_engine.errors import ConditionCompileError
 from core.condition_engine.registry import EvaluatorRegistry
 from core.condition_engine.resolver import TargetResolver
 from core.condition_engine.tree import ConditionNode, ConditionTree, LeafNode, OpNode
-
-_condition_adapter: TypeAdapter[LeafDef | OpDef] = TypeAdapter(ConditionDef)
+from core.contracts import ConditionDef, LeafDef, OpDef
 
 
 class ConditionEngine:
-    """把条件定义编译成 ConditionTree。
+    """把条件定义（ConditionDef）编译成 ConditionTree。
 
-    只做条件自身的合法性校验（判断方式存在、目标存在且有需要的字段、参数合法）；
-    “目标是否在模板允许范围内”由 EventTemplate.validate() 负责。
+    输入必须是已解析好的静态定义；JSON → ConditionDef 属于边界（API 层 / 持久化层）的职责，
+    由 Pydantic 完成。这里只做条件自身的合法性校验：判断方式存在、目标存在且有需要的字段、参数合法。
+    「引用的目标是否在允许范围内」由调用方负责（EventTemplate.compile 检查都在观测声明里）。
     """
 
     def __init__(self, evaluators: EvaluatorRegistry, resolver: TargetResolver) -> None:
         self._evaluators = evaluators
         self._resolver = resolver
 
-    @staticmethod
-    def parse(raw: Mapping[str, Any]) -> LeafDef | OpDef:
-        """结构校验：JSON → ConditionDef。失败抛 pydantic.ValidationError。"""
-        return _condition_adapter.validate_python(raw)
-
-    def compile(self, definition: LeafDef | OpDef | Mapping[str, Any]) -> ConditionTree:
-        if not isinstance(definition, LeafDef | OpDef):
-            definition = self.parse(definition)
+    def compile(self, definition: ConditionDef) -> ConditionTree:
         errors: list[str] = []
         root = self._compile(definition, "root", errors)
         if errors or root is None:

@@ -12,7 +12,7 @@ from core.condition_engine import (
 )
 from core.contracts import HIT, MISS, NOT_APPLICABLE
 from plugins.condition_engine.on_enter import OnEnter
-from tests.core.condition_engine.conftest import SQUARE, Obs
+from tests.core.condition_engine.conftest import SQUARE, Obs, compile_, parse
 
 
 def enter(target: str = "t1:position", **params: Any) -> dict[str, Any]:
@@ -37,11 +37,11 @@ def test_registry_rejects_duplicates() -> None:
         registry.register(OnEnter())
 
 
-def test_structure_errors_are_pydantic(engine: ConditionEngine) -> None:
+def test_structure_errors_are_pydantic() -> None:
     with pytest.raises(ValidationError):
-        engine.compile({"kind": "op", "op": "and", "children": []})
+        parse({"kind": "op", "op": "and", "children": []})
     with pytest.raises(ValidationError):
-        engine.compile({"kind": "leaf", "type": "gt"})
+        parse({"kind": "leaf", "type": "gt"})
 
 
 def test_semantic_errors_are_collected_with_paths(engine: ConditionEngine) -> None:
@@ -54,7 +54,7 @@ def test_semantic_errors_are_collected_with_paths(engine: ConditionEngine) -> No
         op("not", gt(1), gt(2)),
     )
     with pytest.raises(ConditionCompileError) as info:
-        engine.compile(definition)
+        compile_(engine, definition)
     errors = info.value.errors
     assert any(e.startswith("root/0: unknown condition type") for e in errors)
     assert any(e.startswith("root/1: unknown target") for e in errors)
@@ -65,11 +65,11 @@ def test_semantic_errors_are_collected_with_paths(engine: ConditionEngine) -> No
 
 def test_empty_combinator_rejected(engine: ConditionEngine) -> None:
     with pytest.raises(ConditionCompileError):
-        engine.compile(op("any"))
+        compile_(engine, op("any"))
 
 
 def test_targets(engine: ConditionEngine) -> None:
-    tree = engine.compile(op("any", enter(), enter(target="t2:position")))
+    tree = compile_(engine, op("any", enter(), enter(target="t2:position")))
     assert tree.targets() == {"t1:position", "t2:position"}
 
 
@@ -77,14 +77,14 @@ def test_targets(engine: ConditionEngine) -> None:
 
 
 def test_irrelevant_data_is_not_applicable(engine: ConditionEngine) -> None:
-    tree = engine.compile(op("not", gt(100)))
+    tree = compile_(engine, op("not", gt(100)))
     assert tree.evaluate(Obs("t2:position", lat=1, lon=1), {}).outcome == NOT_APPLICABLE
     # 字段不全也是不适用
     assert tree.evaluate(Obs("t1:position", lat=1, lon=1), {}).outcome == NOT_APPLICABLE
 
 
 def test_stateful_leaf_through_state_patch(engine: ConditionEngine) -> None:
-    tree = engine.compile(enter())
+    tree = compile_(engine, enter())
     state: dict[str, dict[str, Any]] = {}
 
     outside = tree.evaluate(Obs("t1:position", lat=20, lon=20), state)
@@ -103,13 +103,13 @@ def test_stateful_leaf_through_state_patch(engine: ConditionEngine) -> None:
 
 
 def test_initial_as_enter(engine: ConditionEngine) -> None:
-    tree = engine.compile(enter(initial_as_enter=True))
+    tree = compile_(engine, enter(initial_as_enter=True))
     assert tree.evaluate(Obs("t1:position", lat=5, lon=5), {}).outcome == HIT
 
 
 def test_combinators_never_short_circuit(engine: ConditionEngine) -> None:
     # any 的第一个子节点已命中，第二个有状态叶子仍然要更新
-    tree = engine.compile(op("any", gt(0), enter()))
+    tree = compile_(engine, op("any", gt(0), enter()))
     result = tree.evaluate(Obs("t1:position", lat=5, lon=5, alt=100), {})
     assert result.outcome == HIT
     assert result.state_patch == {"root/1": {"inside": True}}
@@ -117,7 +117,7 @@ def test_combinators_never_short_circuit(engine: ConditionEngine) -> None:
 
 
 def test_not_applicable_is_neutral_in_all(engine: ConditionEngine) -> None:
-    tree = engine.compile(op("all", gt(10), enter(target="t2:position")))
+    tree = compile_(engine, op("all", gt(10), enter(target="t2:position")))
     # 只有 t1 的数据：t2 的叶子不适用，不拖累 all
     result = tree.evaluate(Obs("t1:position", lat=50, lon=50, alt=100), {})
     assert result.outcome == HIT
@@ -125,7 +125,7 @@ def test_not_applicable_is_neutral_in_all(engine: ConditionEngine) -> None:
 
 
 def test_evaluate_does_not_mutate_state(engine: ConditionEngine) -> None:
-    tree = engine.compile(enter())
+    tree = compile_(engine, enter())
     state = {"root": {"inside": False}}
     tree.evaluate(Obs("t1:position", lat=5, lon=5), state)
     assert state == {"root": {"inside": False}}

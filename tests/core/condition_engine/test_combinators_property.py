@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from core.condition_engine import ConditionEngine, EvaluatorRegistry, LeafEvaluator
 from core.contracts import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
+from tests.core.condition_engine.conftest import compile_
 
 outcomes = st.sampled_from([HIT, MISS, NOT_APPLICABLE])
 
@@ -48,7 +49,7 @@ def leaf(o: Outcome) -> dict[str, Any]:
 
 
 def run(definition: dict[str, Any]) -> Outcome:
-    return engine.compile(definition).evaluate(Obs(), {}).outcome
+    return compile_(engine, definition).evaluate(Obs(), {}).outcome
 
 
 @given(outcomes)
