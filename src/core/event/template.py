@@ -26,12 +26,12 @@ class EventTemplate:
 
     def __init__(
         self,
-        definition: TemplateDef,
+        template_def: TemplateDef,
         open_tree: ConditionTree,
         rules: tuple[CompiledRule, ...],
         hooks: tuple[OperatorMountDef, ...],
     ) -> None:
-        self._definition = definition
+        self._template_def = template_def
         self._open_tree = open_tree
         self._rules = rules
         self._hooks = hooks
@@ -39,7 +39,7 @@ class EventTemplate:
     @classmethod
     def compile(
         cls,
-        definition: TemplateDef,
+        template_def: TemplateDef,
         conditions: ConditionEngine,
         operator_registry: OperatorRegistry,
         targets: TargetManager,
@@ -52,10 +52,10 @@ class EventTemplate:
         errors: list[str] = []
         rules: list[CompiledRule] = []
 
-        fields: dict[str, set[str]] = {}
-        for o in definition.observation_defs:
+        fields_by_observable: dict[str, set[str]] = {}
+        for o in template_def.observation_defs:
             where = f"observation_def {o.observable_id!r}"
-            if o.observable_id in fields:
+            if o.observable_id in fields_by_observable:
                 errors.append(f"{where}: duplicate")
                 continue
             try:
@@ -68,23 +68,23 @@ class EventTemplate:
                 errors.append(
                     f"{where}: upstreams {unavailable} not in available {list(observable.upstreams)}"
                 )
-            fields[observable.id] = set(observable.dynamic_schema.model_fields)
+            fields_by_observable[observable.id] = set(observable.dynamic_schema.model_fields)
 
-        def compile_tree(where: str, condition: ConditionDef) -> ConditionTree | None:
+        def compile_tree(where: str, condition_def: ConditionDef) -> ConditionTree | None:
             try:
-                return conditions.compile(condition, fields)
+                return conditions.compile(condition_def, fields_by_observable)
             except ConditionCompileError as e:
                 errors.extend(f"{where}: {msg}" for msg in e.errors)
                 return None
 
-        open_tree = compile_tree("open_condition_def", definition.open_condition_def)
+        open_tree = compile_tree("open_condition_def", template_def.open_condition_def)
 
-        names = [r.name for r in definition.rule_defs]
+        names = [r.name for r in template_def.rule_defs]
         dupes = sorted({n for n in names if names.count(n) > 1})
         if dupes:
             errors.append(f"duplicate rule names {dupes}")
 
-        for rule in definition.rule_defs:
+        for rule in template_def.rule_defs:
             tree = compile_tree(f"rule {rule.name!r}", rule.condition_def)
             hooks: list[OperatorMountDef] = []
             for i, mount in enumerate(rule.hook_defs):
@@ -99,7 +99,7 @@ class EventTemplate:
                 rules.append(CompiledRule(rule.name, tree, tuple(hooks)))
 
         template_hooks: list[OperatorMountDef] = []
-        for i, mount in enumerate(definition.hook_defs):
+        for i, mount in enumerate(template_def.hook_defs):
             where = f"hook {i}"
             if mount.mount_point == "rule_hit":
                 errors.append(f"{where}: 'rule_hit' hooks belong on a rule")
@@ -110,23 +110,23 @@ class EventTemplate:
 
         if errors or open_tree is None:
             raise TemplateCompileError(errors)
-        return cls(definition, open_tree, tuple(rules), tuple(template_hooks))
+        return cls(template_def, open_tree, tuple(rules), tuple(template_hooks))
 
     @property
-    def definition(self) -> TemplateDef:
-        return self._definition
+    def template_def(self) -> TemplateDef:
+        return self._template_def
 
     @property
     def id(self) -> str:
-        return self._definition.id
+        return self._template_def.id
 
     @property
     def version(self) -> int:
-        return self._definition.version
+        return self._template_def.version
 
     @property
     def observation_defs(self) -> tuple[ObservationDef, ...]:
-        return tuple(self._definition.observation_defs)
+        return tuple(self._template_def.observation_defs)
 
     @property
     def open_tree(self) -> ConditionTree:
@@ -139,7 +139,7 @@ class EventTemplate:
     @property
     def target_ids(self) -> frozenset[str]:
         """观测声明里的静态目标 ID。"""
-        return frozenset(o.target_id for o in self._definition.observation_defs)
+        return frozenset(o.target_id for o in self._template_def.observation_defs)
 
     def hooks_at(self, mount_point: MountPoint) -> tuple[OperatorMountDef, ...]:
         return tuple(h for h in self._hooks if h.mount_point == mount_point)

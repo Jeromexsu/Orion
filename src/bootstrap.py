@@ -152,8 +152,8 @@ def _allow_actions(hil: HilManager, parent_events: ParentEventManager) -> None:
         return parent_events.get(_required(parent_id)).remove_target(args["target_id"])
 
     def upsert_template(parent_id: str | None, args: dict[str, Any]) -> object:
-        definition = TemplateDef.model_validate(args["definition"])
-        return parent_events.get(_required(parent_id)).upsert_template(definition)
+        template_def = TemplateDef.model_validate(args["template_def"])
+        return parent_events.get(_required(parent_id)).upsert_template(template_def)
 
     hil.allow("add_target", add_target)
     hil.allow("remove_target", remove_target)

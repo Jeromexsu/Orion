@@ -1,7 +1,7 @@
 """条件引擎：EvaluatorRegistry / ConditionEngine / ConditionTree。零依赖。"""
 
 from core.condition_engine.definitions import ConditionDef, LeafDef, OpDef
-from core.condition_engine.engine import ConditionEngine
+from core.condition_engine.engine import ConditionEngine, FieldsByObservable
 from core.condition_engine.errors import (
     ConditionCompileError,
     ConditionEngineError,
@@ -24,6 +24,7 @@ __all__ = [
     "EvalResult",
     "Evaluator",
     "EvaluatorRegistry",
+    "FieldsByObservable",
     "HIT",
     "LeafDef",
     "MISS",

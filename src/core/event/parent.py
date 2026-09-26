@@ -88,10 +88,10 @@ class ParentEvent:
 
     # ------------------------------------------------------------ 模板
 
-    def upsert_template(self, definition: TemplateDef) -> EventTemplate:
+    def upsert_template(self, template_def: TemplateDef) -> EventTemplate:
         """编译（含观测声明校验）→ 校验命名空间 → 保存新版本 → 装入（已有则按「下个周期生效」挂起或切换）。"""
         template = EventTemplate.compile(
-            definition,
+            template_def,
             self._runtime.conditions,
             self._runtime.operator_registry,
             self._runtime.targets,
@@ -102,7 +102,7 @@ class ParentEvent:
         if runner is not None:
             runner.check_version(template)
 
-        self._runtime.templates.upsert(definition)
+        self._runtime.templates.upsert(template_def)
         if runner is None:
             self._runners[template.id] = EventRunner.start(
                 self._id, template, self._runtime, self._save
@@ -144,7 +144,7 @@ class ParentEvent:
             )
             pending = f"（v{runner.pending.version} 待下个周期生效）" if runner.pending else ""
             lines.append(
-                f"- {runner.template.definition.name} v{runner.template.version}{pending}："
+                f"- {runner.template.template_def.name} v{runner.template.version}{pending}："
                 f"已结束 {closed} 个周期，{state}"
             )
         if not self._runners:
