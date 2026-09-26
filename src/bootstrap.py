@@ -4,6 +4,7 @@ API 进程和异步 worker 进程共用这里的装配逻辑。
 """
 
 import logging
+from typing import Any
 
 from core.collector import (
     AdapterRegistry,
@@ -15,12 +16,14 @@ from core.collector import (
 from core.condition_engine import ConditionEngine, EvaluatorRegistry
 from core.event import (
     EventManager,
+    TemplateDef,
     EventRuntime,
     InstanceRepository,
     ParentEventRepository,
     TemplateRepository,
 )
-from core.operators import OperatorRegistry, SuggestionSink
+from core.hil import HilManager, SuggestionRepository
+from core.operators import OperatorRegistry
 from core.report import DraftRepository, ReportManager
 from core.target import ObservableTargetRepository, TargetManager, TargetRepository
 from plugins.condition_engine.on_enter import OnEnter
@@ -44,6 +47,7 @@ class Repositories:
         templates: TemplateRepository,
         instances: InstanceRepository,
         drafts: DraftRepository,
+        suggestions: SuggestionRepository,
     ) -> None:
         self.targets = targets
         self.observables = observables
@@ -53,6 +57,7 @@ class Repositories:
         self.templates = templates
         self.instances = instances
         self.drafts = drafts
+        self.suggestions = suggestions
 
 
 class App:
@@ -67,6 +72,7 @@ class App:
         operators: OperatorRegistry,
         events: EventManager,
         reports: ReportManager,
+        hil: HilManager,
     ) -> None:
         self.targets = targets
         self.adapters = adapters
@@ -75,10 +81,11 @@ class App:
         self.operators = operators
         self.events = events
         self.reports = reports
+        self.hil = hil
 
 
-def build_app(repos: Repositories, suggestions: SuggestionSink) -> App:
-    """装配并完成重启恢复。suggestions 暂由调用方提供，hil 模块就绪后在这里构造。"""
+def build_app(repos: Repositories) -> App:
+    """装配并完成重启恢复。"""
     adapters = AdapterRegistry()
     # 在这里 adapters.register(...) 各上游 Adapter 插件
 
@@ -92,6 +99,7 @@ def build_app(repos: Repositories, suggestions: SuggestionSink) -> App:
     conditions = ConditionEngine(evaluators, resolver=targets)
 
     reports = ReportManager(repos.drafts)
+    hil = HilManager(repos.suggestions)
 
     operators = OperatorRegistry()
     operators.register(CountHits())
@@ -102,13 +110,15 @@ def build_app(repos: Repositories, suggestions: SuggestionSink) -> App:
             targets=targets,
             conditions=conditions,
             operators=operators,
-            suggestions=suggestions,
+            suggestions=hil,
             parents=repos.parents,
             templates=repos.templates,
             instances=repos.instances,
             reports=reports,
         )
     )
+    _allow_actions(hil, events)
+
     # 所有插件注册完之后再恢复：模板重新编译要用到它们
     failed = events.restore()
     if failed:
@@ -122,4 +132,29 @@ def build_app(repos: Repositories, suggestions: SuggestionSink) -> App:
         operators=operators,
         events=events,
         reports=reports,
+        hil=hil,
     )
+
+
+def _allow_actions(hil: HilManager, events: EventManager) -> None:
+    """hil 白名单：建议能触发的核心公开方法。proposal.target 是父事件 ID。"""
+
+    def add_target(parent_id: str | None, args: dict[str, Any]) -> object:
+        return events.get(_required(parent_id)).add_target(args["target_id"], args["focus"])
+
+    def remove_target(parent_id: str | None, args: dict[str, Any]) -> object:
+        return events.get(_required(parent_id)).remove_target(args["observable_id"])
+
+    def upsert_template(parent_id: str | None, args: dict[str, Any]) -> object:
+        definition = TemplateDef.model_validate(args["definition"])
+        return events.get(_required(parent_id)).upsert_template(definition)
+
+    hil.allow("add_target", add_target)
+    hil.allow("remove_target", remove_target)
+    hil.allow("upsert_template", upsert_template)
+
+
+def _required(parent_id: str | None) -> str:
+    if parent_id is None:
+        raise ValueError("proposal.target (parent event id) is required")
+    return parent_id

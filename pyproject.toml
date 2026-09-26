@@ -113,6 +113,15 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "hil 零依赖（contracts 除外；白名单动作由 bootstrap 注入）"
+type = "forbidden"
+source_modules = ["core.hil"]
+forbidden_modules = [
+    "core.target", "core.collector", "core.event",
+    "core.condition_engine", "core.operators", "core.report",
+]
+
+[[tool.importlinter.contracts]]
 name = "report 零依赖（contracts 除外）"
 type = "forbidden"
 source_modules = ["core.report"]
