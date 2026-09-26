@@ -15,11 +15,11 @@ from core.collector import (
 )
 from core.condition_engine import ConditionEngine, EvaluatorRegistry
 from core.event import (
-    EventManager,
+    ParentEventManager,
     EventRuntime,
-    InstanceRepository,
+    EventRepository,
     ParentEventRepository,
-    SlotStateRepository,
+    RunnerStateRepository,
     TemplateDef,
     TemplateRepository,
 )
@@ -46,8 +46,8 @@ class Repositories:
         dynamic_data: DynamicDataRepository,
         parents: ParentEventRepository,
         templates: TemplateRepository,
-        instances: InstanceRepository,
-        slot_states: SlotStateRepository,
+        events: EventRepository,
+        runner_states: RunnerStateRepository,
         drafts: DraftRepository,
         suggestions: SuggestionRepository,
     ) -> None:
@@ -57,8 +57,8 @@ class Repositories:
         self.dynamic_data = dynamic_data
         self.parents = parents
         self.templates = templates
-        self.instances = instances
-        self.slot_states = slot_states
+        self.events = events
+        self.runner_states = runner_states
         self.drafts = drafts
         self.suggestions = suggestions
 
@@ -73,7 +73,7 @@ class App:
         collector: Collector,
         conditions: ConditionEngine,
         operators: OperatorRegistry,
-        events: EventManager,
+        parent_events: ParentEventManager,
         reports: ReportManager,
         hil: HilManager,
     ) -> None:
@@ -82,7 +82,7 @@ class App:
         self.collector = collector
         self.conditions = conditions
         self.operators = operators
-        self.events = events
+        self.parent_events = parent_events
         self.reports = reports
         self.hil = hil
 
@@ -108,7 +108,7 @@ def build_app(repos: Repositories) -> App:
     operators.register(CountHits())
     operators.register(CloseReport(reports))
 
-    events = EventManager(
+    parent_events = ParentEventManager(
         EventRuntime(
             targets=targets,
             conditions=conditions,
@@ -116,15 +116,15 @@ def build_app(repos: Repositories) -> App:
             suggestions=hil,
             parents=repos.parents,
             templates=repos.templates,
-            instances=repos.instances,
-            slot_states=repos.slot_states,
+            events=repos.events,
+            runner_states=repos.runner_states,
             reports=reports,
         )
     )
-    _allow_actions(hil, events)
+    _allow_actions(hil, parent_events)
 
     # 所有插件注册完之后再恢复：模板重新编译要用到它们
-    failed = events.restore()
+    failed = parent_events.restore()
     if failed:
         logger.error("failed to restore parent events: %s", failed)
 
@@ -134,24 +134,24 @@ def build_app(repos: Repositories) -> App:
         collector=collector,
         conditions=conditions,
         operators=operators,
-        events=events,
+        parent_events=parent_events,
         reports=reports,
         hil=hil,
     )
 
 
-def _allow_actions(hil: HilManager, events: EventManager) -> None:
+def _allow_actions(hil: HilManager, parent_events: ParentEventManager) -> None:
     """hil 白名单：建议能触发的核心公开方法。proposal.target 是父事件 ID。"""
 
     def add_target(parent_id: str | None, args: dict[str, Any]) -> object:
-        return events.get(_required(parent_id)).add_target(args["target_id"])
+        return parent_events.get(_required(parent_id)).add_target(args["target_id"])
 
     def remove_target(parent_id: str | None, args: dict[str, Any]) -> object:
-        return events.get(_required(parent_id)).remove_target(args["target_id"])
+        return parent_events.get(_required(parent_id)).remove_target(args["target_id"])
 
     def upsert_template(parent_id: str | None, args: dict[str, Any]) -> object:
         definition = TemplateDef.model_validate(args["definition"])
-        return events.get(_required(parent_id)).upsert_template(definition)
+        return parent_events.get(_required(parent_id)).upsert_template(definition)
 
     hil.allow("add_target", add_target)
     hil.allow("remove_target", remove_target)

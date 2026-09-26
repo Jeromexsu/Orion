@@ -10,8 +10,8 @@ from core.contracts.data import DynamicData
 # 四类算子：推进（改状态）/ 输出（报告、通知）/ 发现（启发）/ 校正（校准）
 Category = Literal["progress", "output", "discover", "calibrate"]
 
-# 可挂的层级：父事件级、实例级
-Level = Literal["parent", "instance"]
+# 可挂的层级：父事件级、子事件级
+Level = Literal["parent", "event"]
 
 # 挂载点是核心结构事实，固定这几个：
 #   生命周期 created / closed · 数据进入 pre（不算条件，启发算子专用）

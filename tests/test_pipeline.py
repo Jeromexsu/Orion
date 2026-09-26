@@ -1,4 +1,4 @@
-"""端到端：collector 采集 → Dispatcher → slot（开启条件）→ 实例（规则 → 推进算子）→ 收敛。"""
+"""端到端：collector 采集 → Dispatcher → runner（开启条件）→ 实例（规则 → 推进算子）→ 收敛。"""
 
 from datetime import UTC, datetime
 
@@ -21,7 +21,7 @@ def test_collect_drives_sub_event_to_close() -> None:
         env.targets, adapters, InMemoryCursorRepository(), InMemoryDynamicDataRepository(), Dispatcher()
     )
 
-    parent = env.events.create("p1", "东海方向")
+    parent = env.parent_events.create("p1", "东海方向")
     parent.add_target("t1")
     parent.upsert_template(TemplateDef.model_validate(template(threshold=2)))
 
@@ -35,7 +35,7 @@ def test_collect_drives_sub_event_to_close() -> None:
     ]
     assert len(collector.collect()) == 4
 
-    (record,) = env.instances.history("p1", "enter-zone")
+    (record,) = env.events.history("p1", "enter-zone")
     assert record.close_reason == "converged"
     assert record.status == {"hits": 2, "closed": True}
     assert record.cycle == 2026

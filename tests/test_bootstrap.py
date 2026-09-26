@@ -8,9 +8,9 @@ from core.target import TargetNotFoundError, type_name
 from plugins.target.aircraft import Aircraft
 from tests.core.collector.fakes import InMemoryCursorRepository, InMemoryDynamicDataRepository
 from tests.core.event.fakes import (
-    InMemoryInstanceRepository,
+    InMemoryEventRepository,
     InMemoryParentEventRepository,
-    InMemorySlotStateRepository,
+    InMemoryRunnerStateRepository,
     InMemoryTemplateRepository,
 )
 from tests.core.hil.fakes import InMemorySuggestionRepository
@@ -27,8 +27,8 @@ def build() -> App:
             dynamic_data=InMemoryDynamicDataRepository(),
             parents=InMemoryParentEventRepository(),
             templates=InMemoryTemplateRepository(),
-            instances=InMemoryInstanceRepository(),
-            slot_states=InMemorySlotStateRepository(),
+            events=InMemoryEventRepository(),
+            runner_states=InMemoryRunnerStateRepository(),
             drafts=InMemoryDraftRepository(),
             suggestions=InMemorySuggestionRepository(),
         )
@@ -40,13 +40,13 @@ def test_build_app_wires_everything() -> None:
     assert [type_name(t) for t in app.targets.types()] == ["aircraft"]
     assert [o.name for o in app.operators.operators()] == ["count_hits", "close_report"]
     assert app.hil.allowed_actions() == ["add_target", "remove_target", "upsert_template"]
-    assert app.events.parents() == []
+    assert app.parent_events.parents() == []
 
 
 def test_accepted_suggestion_goes_through_public_method() -> None:
     app = build()
     app.targets.upsert_target(Aircraft(id="t1", name="MU5101", registration="B-2447"))
-    app.events.create("p1", "东海方向")
+    app.parent_events.create("p1", "东海方向")
 
     def propose(**args: Any) -> Suggestion:
         s = Suggestion(
@@ -65,4 +65,4 @@ def test_accepted_suggestion_goes_through_public_method() -> None:
 
     good = propose(target_id="t1")
     app.hil.accept(good.id)
-    assert app.events.get("p1").target_ids() == {"t1"}
+    assert app.parent_events.get("p1").target_ids() == {"t1"}

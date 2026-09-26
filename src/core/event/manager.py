@@ -7,7 +7,7 @@ from core.event.runtime import EventRuntime
 logger = logging.getLogger(__name__)
 
 
-class EventManager:
+class ParentEventManager:
     """event 模块入口：创建、查找父事件，以及启动时的重启恢复。"""
 
     def __init__(self, runtime: EventRuntime) -> None:
@@ -43,7 +43,7 @@ class EventManager:
         return failed
 
     def restore(self) -> list[str]:
-        """启动时调用：全量加载父事件，各 slot 重新订阅（订阅关系不持久化）。
+        """启动时调用：全量加载父事件，各 runner 重新订阅（订阅关系不持久化）。
 
         单个父事件恢复失败只记日志，不影响其他。返回恢复失败的父事件 ID。
         """

@@ -42,7 +42,7 @@ class RuleDef(BaseModel):
 class TemplateDef(BaseModel):
     """子事件模板定义。不可变：改模板 = 发一个 version 更大的新定义。
 
-    新版本只对下一个周期生效：当前实例按旧版本跑完，关闭后才切换。
+    新版本只对下一个周期生效：当前子事件按旧版本跑完，关闭后才切换。
     """
 
     model_config = ConfigDict(frozen=True)
@@ -51,8 +51,8 @@ class TemplateDef(BaseModel):
     version: int = Field(ge=1)
     name: str
     observations: list[ObservationDef] = Field(min_length=1)
-    # 开启条件：无活跃实例时命中才开新实例（slot 在运行期间也持续评估以保持状态最新）
+    # 开启条件：无活跃子事件时命中才开新子事件（runner 在运行期间也持续评估以保持状态最新）
     open_condition: ConditionDef
     rules: list[RuleDef] = Field(min_length=1)
-    # 实例级钩子：created / closed / pre / status_updated / post（rule_hit 挂在规则上）
+    # 子事件级钩子：created / closed / pre / status_updated / post（rule_hit 挂在规则上）
     hooks: list[OperatorMount] = Field(default_factory=list[OperatorMount])

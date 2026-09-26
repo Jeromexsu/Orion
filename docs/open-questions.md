@@ -8,7 +8,6 @@
 
 第 1 条主体已决并实现（见「已决」），剩余：
 - 关闭条件是否在模板里显式声明（现沿用 `status["closed"]` 约定；年度事件「何时算结束」是关键问题）。
-- `SubEventSlot` 是否改名（如 `SubEventRunner` / `TemplateRunner`）。
 
 ### 2. `ObservableTargetRepository` 是否保留
 
@@ -46,6 +45,13 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
 - 设计文档第八、九节与代码同步。
 
 ## 已决
+
+- **event 模块命名**：`ParentEvent` 不变；`SubEventSlot` → `EventRunner`，`SubEventTemplate` →
+  `EventTemplate`，`SubEventInstance` → `Event`（子事件）。随之：`InstanceRecord` / `InstanceRepository` /
+  `InstanceClosedError` → `EventRecord` / `EventRepository` / `EventClosedError`；`SlotStateRepository` →
+  `RunnerStateRepository`；`EventManager` → `ParentEventManager`（它管的是父事件）；算子层级 `Level`
+  取值 `"instance"` → `"event"`，上下文 `instance_id` → `event_id`。下文历史条目里的 slot / 实例
+  即 EventRunner / Event。
 
 - **子事件模型（原第 1 条，已实现）**：保留模板。
   - 父事件（静态）：静态目标命名空间（target_id 集合）+ 静态模板集合 + `digest()`；不订阅任何东西。

@@ -7,10 +7,10 @@ from uuid import uuid4
 from core.condition_engine import apply_state_patch
 from core.contracts import HIT, DynamicData, Trigger
 from core.event.definitions import OperatorMount
-from core.event.errors import InstanceClosedError
-from core.event.records import InstanceRecord
+from core.event.errors import EventClosedError
+from core.event.records import EventRecord
 from core.event.runtime import EventRuntime
-from core.event.template import SubEventTemplate
+from core.event.template import EventTemplate
 from core.operators import build_context
 
 logger = logging.getLogger(__name__)
@@ -23,13 +23,13 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
-class SubEventInstance:
-    """子事件实例。状态变更的唯一入口是 update_status，只由实例自己（经 ProgressContext）调用。"""
+class Event:
+    """子事件：模板的一次运行（一个周期）。状态变更的唯一入口是 update_status，只由它自己（经 ProgressContext）调用。"""
 
     def __init__(
         self,
-        record: InstanceRecord,
-        template: SubEventTemplate,
+        record: EventRecord,
+        template: EventTemplate,
         runtime: EventRuntime,
         target_names: Callable[[], Mapping[str, str]],
     ) -> None:
@@ -52,13 +52,13 @@ class SubEventInstance:
     def open(
         cls,
         parent_id: str,
-        template: SubEventTemplate,
+        template: EventTemplate,
         runtime: EventRuntime,
         target_names: Callable[[], Mapping[str, str]],
         cycle: int,
-    ) -> "SubEventInstance":
-        """新建实例并跑 created 钩子。"""
-        record = InstanceRecord(
+    ) -> "Event":
+        """新建子事件并跑 created 钩子。"""
+        record = EventRecord(
             id=uuid4().hex,
             parent_id=parent_id,
             template_id=template.id,
@@ -79,7 +79,7 @@ class SubEventInstance:
         return self._id
 
     @property
-    def template(self) -> SubEventTemplate:
+    def template(self) -> EventTemplate:
         return self._template
 
     @property
@@ -94,8 +94,8 @@ class SubEventInstance:
     def is_closed(self) -> bool:
         return self._closed_at is not None
 
-    def to_record(self) -> InstanceRecord:
-        return InstanceRecord(
+    def to_record(self) -> EventRecord:
+        return EventRecord(
             id=self._id,
             parent_id=self._parent_id,
             template_id=self._template.id,
@@ -113,7 +113,7 @@ class SubEventInstance:
     def process(self, data: DynamicData) -> None:
         """前置钩子 → 逐条规则跑条件树 → 合并 state_patch → 命中则跑规则钩子 → 后置钩子 → shouldClose。"""
         if self.is_closed:
-            raise InstanceClosedError(self._id)
+            raise EventClosedError(self._id)
 
         self._run_hooks(self._template.hooks_at("pre"), Trigger(mount_point="pre", data=data))
 
@@ -136,7 +136,7 @@ class SubEventInstance:
         """状态变更的唯一入口。之后跑 status_updated 钩子；
         钩子里再调 update_status 只合并、不再触发钩子，避免无限递归。"""
         if self.is_closed:
-            raise InstanceClosedError(self._id)
+            raise EventClosedError(self._id)
         self._status.update(patch)
         if self._in_status_hooks:
             return
@@ -175,7 +175,7 @@ class SubEventInstance:
                 update_status=self.update_status,
                 suggest=self._runtime.suggestions.receive,
                 parent_id=self._parent_id,
-                instance_id=self._id,
+                event_id=self._id,
             )
             try:
                 operator.run(trigger, ctx)

@@ -3,7 +3,7 @@ from tests.core.event.conftest import Env, mount, template
 
 
 def test_digest_rolls_one_machine_draft(env: Env) -> None:
-    parent = env.events.create("p1", "东海方向")
+    parent = env.parent_events.create("p1", "东海方向")
     parent.add_target("t1")
     parent.upsert_template(TemplateDef.model_validate(template(threshold=9)))
 
@@ -12,8 +12,8 @@ def test_digest_rolls_one_machine_draft(env: Env) -> None:
     assert "- MU5101" in first.content
     assert "- 进入区域 v1：已结束 0 个周期，未开启" in first.content
 
-    parent.slot("enter-zone").on_data(env.data(20, 20))
-    parent.slot("enter-zone").on_data(env.data(5, 5))
+    parent.runner("enter-zone").on_data(env.data(20, 20))
+    parent.runner("enter-zone").on_data(env.data(5, 5))
     second = parent.digest()
     assert (second.id, second.version) == (first.id, 2)
     assert "2026 周期进行中 {'hits': 1}" in second.content
@@ -27,22 +27,22 @@ def test_digest_rolls_one_machine_draft(env: Env) -> None:
 
 
 def test_digest_all_isolates_failures(env: Env) -> None:
-    env.events.create("p1", "a")
-    env.events.create("p2", "b")
-    assert env.events.digest_all() == []
+    env.parent_events.create("p1", "a")
+    env.parent_events.create("p2", "b")
+    assert env.parent_events.digest_all() == []
     assert len(env.drafts.items) == 2
 
 
 def test_close_report_operator_writes_draft(env: Env) -> None:
-    parent = env.events.create("p1", "东海方向")
+    parent = env.parent_events.create("p1", "东海方向")
     parent.add_target("t1")
     parent.upsert_template(
         TemplateDef.model_validate(
             template(threshold=1, hooks=[mount("close_report", "closed", title="进入告警")])
         )
     )
-    parent.slot("enter-zone").on_data(env.data(20, 20))
-    parent.slot("enter-zone").on_data(env.data(5, 5))
+    parent.runner("enter-zone").on_data(env.data(20, 20))
+    parent.runner("enter-zone").on_data(env.data(5, 5))
 
     (draft,) = env.reports.list_by_parent("p1")
     assert draft.title == "进入告警"

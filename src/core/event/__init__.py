@@ -1,10 +1,10 @@
-"""事件：ParentEvent / SubEventSlot / SubEventTemplate / SubEventInstance / EventManager。"""
+"""事件：ParentEvent / EventRunner / EventTemplate / Event / ParentEventManager。"""
 
 from core.event.definitions import ObservationDef, OperatorMount, RuleDef, TemplateDef
 from core.event.errors import (
     DuplicateParentEventError,
     EventError,
-    InstanceClosedError,
+    EventClosedError,
     ParentEventNotFoundError,
     TargetStillReferencedError,
     TemplateCompileError,
@@ -12,30 +12,30 @@ from core.event.errors import (
     TemplateScopeError,
     TemplateVersionError,
 )
-from core.event.instance import CLOSE_STATUS_KEY, SubEventInstance
-from core.event.manager import EventManager
+from core.event.event import CLOSE_STATUS_KEY, Event
+from core.event.manager import ParentEventManager
 from core.event.parent import ParentEvent
-from core.event.records import InstanceRecord, ParentEventRecord, TemplateRef
+from core.event.records import EventRecord, ParentEventRecord, TemplateRef
 from core.event.repository import (
-    InstanceRepository,
+    EventRepository,
     ParentEventRepository,
-    SlotStateRepository,
+    RunnerStateRepository,
     TemplateRepository,
 )
 from core.event.runtime import EventRuntime
-from core.event.slot import SubEventSlot, check_observations
-from core.event.template import CompiledRule, SubEventTemplate
+from core.event.runner import EventRunner, check_observations
+from core.event.template import CompiledRule, EventTemplate
 
 __all__ = [
     "CLOSE_STATUS_KEY",
     "CompiledRule",
     "DuplicateParentEventError",
     "EventError",
-    "EventManager",
+    "ParentEventManager",
     "EventRuntime",
-    "InstanceClosedError",
-    "InstanceRecord",
-    "InstanceRepository",
+    "EventClosedError",
+    "EventRecord",
+    "EventRepository",
     "ObservationDef",
     "OperatorMount",
     "ParentEvent",
@@ -43,10 +43,10 @@ __all__ = [
     "ParentEventRecord",
     "ParentEventRepository",
     "RuleDef",
-    "SlotStateRepository",
-    "SubEventInstance",
-    "SubEventSlot",
-    "SubEventTemplate",
+    "RunnerStateRepository",
+    "Event",
+    "EventRunner",
+    "EventTemplate",
     "TargetStillReferencedError",
     "TemplateCompileError",
     "TemplateDef",

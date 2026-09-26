@@ -1,4 +1,4 @@
-"""示例推进类算子：规则命中时累加计数，达到阈值时标记收敛（实例随之关闭）。"""
+"""示例推进类算子：规则命中时累加计数，达到阈值时标记收敛（子事件随之关闭）。"""
 
 from pydantic import BaseModel, Field
 
@@ -15,7 +15,7 @@ class CountHits:
     # Literal 类型的属性要显式标注，否则 pyright 推断成 str，不满足 Operator 协议
     name = "count_hits"
     category: Category = "progress"
-    levels: frozenset[Level] = frozenset({"instance"})
+    levels: frozenset[Level] = frozenset({"event"})
     mount_points: frozenset[MountPoint] = frozenset({"rule_hit"})
     params_model = CountHitsParams
 

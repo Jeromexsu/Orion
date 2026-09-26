@@ -14,11 +14,11 @@ class BaseContext(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    state: dict[str, Any]       # 实例状态的副本，改了也不影响实例
+    state: dict[str, Any]       # 子事件状态的副本，改了也不影响子事件
     params: dict[str, Any]      # 挂载时的参数
     target_names: dict[str, str] = Field(default_factory=dict[str, str])
-    parent_id: str | None = None        # 算子挂在哪个父事件 / 实例上，报告类算子写草稿时用
-    instance_id: str | None = None
+    parent_id: str | None = None        # 算子挂在哪个父事件 / 子事件上，报告类算子写草稿时用
+    event_id: str | None = None
 
     def target_name(self, observable_id: str) -> str:
         """目标展示名，报告类算子用。未知时退回 ID。"""
@@ -60,7 +60,7 @@ def build_context(
     update_status: Callable[[dict[str, Any]], None],
     suggest: Callable[[Suggestion], None],
     parent_id: str | None = None,
-    instance_id: str | None = None,
+    event_id: str | None = None,
 ) -> BaseContext:
     """event 侧按算子类别构造对应的上下文：ctx = build_context(op.category, ...); op.run(trigger, ctx)。"""
     common: dict[str, Any] = {
@@ -68,7 +68,7 @@ def build_context(
         "params": deepcopy(dict(params)),
         "target_names": dict(target_names),
         "parent_id": parent_id,
-        "instance_id": instance_id,
+        "event_id": event_id,
     }
     match category:
         case "progress":

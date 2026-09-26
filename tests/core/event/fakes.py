@@ -1,7 +1,7 @@
 from typing import Any
 
 from core.contracts import Suggestion
-from core.event import InstanceRecord, ParentEventRecord, TemplateDef
+from core.event import EventRecord, ParentEventRecord, TemplateDef
 
 
 class InMemoryParentEventRepository:
@@ -40,11 +40,11 @@ class InMemoryTemplateRepository:
         return sorted(v for (tid, v) in self.items if tid == template_id)
 
 
-class InMemoryInstanceRepository:
+class InMemoryEventRepository:
     def __init__(self) -> None:
-        self.items: dict[str, InstanceRecord] = {}
+        self.items: dict[str, EventRecord] = {}
 
-    def find_active(self, parent_id: str, template_id: str) -> InstanceRecord | None:
+    def find_active(self, parent_id: str, template_id: str) -> EventRecord | None:
         return next(
             (
                 r
@@ -54,10 +54,10 @@ class InMemoryInstanceRepository:
             None,
         )
 
-    def save(self, instance: InstanceRecord) -> None:
+    def save(self, instance: EventRecord) -> None:
         self.items[instance.id] = instance
 
-    def history(self, parent_id: str, template_id: str) -> list[InstanceRecord]:
+    def history(self, parent_id: str, template_id: str) -> list[EventRecord]:
         return sorted(
             (r for r in self.items.values() if r.parent_id == parent_id and r.template_id == template_id),
             key=lambda r: r.opened_at,
@@ -72,7 +72,7 @@ class RecordingSink:
         self.received.append(suggestion)
 
 
-class InMemorySlotStateRepository:
+class InMemoryRunnerStateRepository:
     def __init__(self) -> None:
         self.items: dict[tuple[str, str], dict[str, Any]] = {}
 

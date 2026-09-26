@@ -7,7 +7,7 @@
 from typing import Any, Protocol
 
 from core.event.definitions import TemplateDef
-from core.event.records import InstanceRecord, ParentEventRecord
+from core.event.records import EventRecord, ParentEventRecord
 
 
 class ParentEventRepository(Protocol):
@@ -22,14 +22,14 @@ class TemplateRepository(Protocol):
     def list_versions(self, template_id: str) -> list[int]: ...
 
 
-class InstanceRepository(Protocol):
-    def find_active(self, parent_id: str, template_id: str) -> InstanceRecord | None: ...
-    def save(self, instance: InstanceRecord) -> None: ...
-    def history(self, parent_id: str, template_id: str) -> list[InstanceRecord]: ...
+class EventRepository(Protocol):
+    def find_active(self, parent_id: str, template_id: str) -> EventRecord | None: ...
+    def save(self, instance: EventRecord) -> None: ...
+    def history(self, parent_id: str, template_id: str) -> list[EventRecord]: ...
 
 
-class SlotStateRepository(Protocol):
-    """slot 的开启条件状态。年度事件跨越多次重启，必须持久化。"""
+class RunnerStateRepository(Protocol):
+    """runner 的开启条件状态。年度事件跨越多次重启，必须持久化。"""
 
     def get(self, parent_id: str, template_id: str) -> dict[str, Any] | None: ...
     def save(self, parent_id: str, template_id: str, state: dict[str, Any]) -> None: ...

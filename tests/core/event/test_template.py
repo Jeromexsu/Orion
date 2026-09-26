@@ -2,12 +2,12 @@ from typing import Any
 
 import pytest
 
-from core.event import SubEventTemplate, TemplateCompileError, TemplateDef, TemplateScopeError
+from core.event import EventTemplate, TemplateCompileError, TemplateDef, TemplateScopeError
 from tests.core.event.conftest import Env, enter, mount, template
 
 
-def compile_(env: Env, raw: dict[str, Any]) -> SubEventTemplate:
-    return SubEventTemplate.compile(
+def compile_(env: Env, raw: dict[str, Any]) -> EventTemplate:
+    return EventTemplate.compile(
         TemplateDef.model_validate(raw), env.runtime.conditions, env.operators
     )
 

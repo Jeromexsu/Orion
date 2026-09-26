@@ -35,5 +35,5 @@ class EvalResult(BaseModel):
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)  # 规则类恒为 1.0
     extracted: dict[str, Any] = Field(default_factory=dict[str, Any])  # 命中的关键词、地点、时间窗口
     trace: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # 审计/报告引用
-    # 只给发起调用的子事件实例保存。树的结果里按节点路径分组：{"root/0": {...}}
+    # 只给发起调用的子事件保存。树的结果里按节点路径分组：{"root/0": {...}}
     state_patch: dict[str, Any] = Field(default_factory=dict[str, Any])

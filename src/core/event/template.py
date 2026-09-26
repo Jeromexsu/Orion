@@ -14,7 +14,7 @@ class CompiledRule:
         self.hooks = hooks
 
 
-class SubEventTemplate:
+class EventTemplate:
     """编译好的模板：不可变、带版本，持有开启条件树和每条规则的条件树。只通过 compile 构造。"""
 
     def __init__(
@@ -32,7 +32,7 @@ class SubEventTemplate:
     @classmethod
     def compile(
         cls, definition: TemplateDef, conditions: ConditionEngine, operators: OperatorRegistry
-    ) -> "SubEventTemplate":
+    ) -> "EventTemplate":
         errors: list[str] = []
         rules: list[CompiledRule] = []
 
@@ -134,7 +134,7 @@ def _bind(
 ) -> OperatorMount | None:
     """校验算子挂载，返回参数规范化后的挂载。"""
     try:
-        params = operators.validate_mount(mount.operator, "instance", mount.mount_point, mount.params)
+        params = operators.validate_mount(mount.operator, "event", mount.mount_point, mount.params)
     except OperatorError as e:
         errors.append(f"{where}: {e}")
         return None

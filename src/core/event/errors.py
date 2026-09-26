@@ -34,5 +34,5 @@ class DuplicateParentEventError(EventError):
     pass
 
 
-class InstanceClosedError(EventError):
+class EventClosedError(EventError):
     pass

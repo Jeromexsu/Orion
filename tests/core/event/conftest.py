@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from core.condition_engine import ConditionEngine, EvaluatorRegistry
 from core.contracts import Category, DynamicData, Level, MountPoint, Proposal, Suggestion, Trigger
-from core.event import EventManager, EventRuntime
+from core.event import ParentEventManager, EventRuntime
 from core.operators import BaseContext, OperatorRegistry, ProgressContext, SuggestContext
 from core.report import ReportManager
 from core.target import TargetManager
@@ -16,9 +16,9 @@ from plugins.operators.close_report import CloseReport
 from plugins.operators.count_hits import CountHits
 from plugins.target.aircraft import Aircraft
 from tests.core.event.fakes import (
-    InMemoryInstanceRepository,
+    InMemoryEventRepository,
     InMemoryParentEventRepository,
-    InMemorySlotStateRepository,
+    InMemoryRunnerStateRepository,
     InMemoryTemplateRepository,
     RecordingSink,
 )
@@ -51,7 +51,7 @@ class Recorder:
 
     name = "recorder"
     category: Category = "output"
-    levels: frozenset[Level] = frozenset({"instance"})
+    levels: frozenset[Level] = frozenset({"event"})
     mount_points = ALL_MOUNTS
     params_model = NoParams
 
@@ -67,7 +67,7 @@ class Echo:
 
     name = "echo"
     category: Category = "progress"
-    levels: frozenset[Level] = frozenset({"instance"})
+    levels: frozenset[Level] = frozenset({"event"})
     mount_points: frozenset[MountPoint] = frozenset({"status_updated"})
     params_model = NoParams
 
@@ -80,7 +80,7 @@ class Spotter:
 
     name = "spotter"
     category: Category = "discover"
-    levels: frozenset[Level] = frozenset({"instance"})
+    levels: frozenset[Level] = frozenset({"event"})
     mount_points: frozenset[MountPoint] = frozenset({"pre"})
     params_model = NoParams
 
@@ -99,7 +99,7 @@ class Spotter:
 class Boom:
     name = "boom"
     category: Category = "output"
-    levels: frozenset[Level] = frozenset({"instance"})
+    levels: frozenset[Level] = frozenset({"event"})
     mount_points = ALL_MOUNTS
     params_model = NoParams
 
@@ -124,10 +124,10 @@ class Env:
         self.sink = RecordingSink()
         self.parents = InMemoryParentEventRepository()
         self.templates = InMemoryTemplateRepository()
-        self.instances = InMemoryInstanceRepository()
-        self.slot_states = InMemorySlotStateRepository()
+        self.events = InMemoryEventRepository()
+        self.runner_states = InMemoryRunnerStateRepository()
         self.runtime = self.make_runtime(self.targets)
-        self.events = EventManager(self.runtime)
+        self.parent_events = ParentEventManager(self.runtime)
         self._seq = count()
 
     def make_targets(self) -> TargetManager:
@@ -150,8 +150,8 @@ class Env:
             suggestions=self.sink,
             parents=self.parents,
             templates=self.templates,
-            instances=self.instances,
-            slot_states=self.slot_states,
+            events=self.events,
+            runner_states=self.runner_states,
             reports=self.reports,
         )
 

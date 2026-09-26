@@ -1,8 +1,8 @@
 from core.condition_engine import ConditionEngine
 from core.event.repository import (
-    InstanceRepository,
+    EventRepository,
     ParentEventRepository,
-    SlotStateRepository,
+    RunnerStateRepository,
     TemplateRepository,
 )
 from core.operators import OperatorRegistry, SuggestionSink
@@ -21,8 +21,8 @@ class EventRuntime:
         suggestions: SuggestionSink,
         parents: ParentEventRepository,
         templates: TemplateRepository,
-        instances: InstanceRepository,
-        slot_states: SlotStateRepository,
+        events: EventRepository,
+        runner_states: RunnerStateRepository,
         reports: ReportManager,
     ) -> None:
         self.targets = targets
@@ -31,6 +31,6 @@ class EventRuntime:
         self.suggestions = suggestions
         self.parents = parents
         self.templates = templates
-        self.instances = instances
-        self.slot_states = slot_states
+        self.events = events
+        self.runner_states = runner_states
         self.reports = reports

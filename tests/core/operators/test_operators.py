@@ -114,14 +114,14 @@ def test_register_and_get(registry: OperatorRegistry) -> None:
 
 
 def test_validate_mount(registry: OperatorRegistry) -> None:
-    params = registry.validate_mount("count_hits", "instance", "rule_hit", {"threshold": 3})
+    params = registry.validate_mount("count_hits", "event", "rule_hit", {"threshold": 3})
     assert params.model_dump() == {"threshold": 3}
     with pytest.raises(InvalidMountError):
         registry.validate_mount("count_hits", "parent", "rule_hit", {})
     with pytest.raises(InvalidMountError):
-        registry.validate_mount("count_hits", "instance", "pre", {})
+        registry.validate_mount("count_hits", "event", "pre", {})
     with pytest.raises(InvalidMountError):
-        registry.validate_mount("count_hits", "instance", "rule_hit", {"threshold": 0})
+        registry.validate_mount("count_hits", "event", "rule_hit", {"threshold": 0})
 
 
 # ---------------------------------------------------------------- 示例算子

@@ -16,7 +16,7 @@ class ConditionEngine:
     """把条件定义编译成 ConditionTree。
 
     只做条件自身的合法性校验（判断方式存在、目标存在且有需要的字段、参数合法）；
-    “目标是否在模板允许范围内”由 SubEventTemplate.validate() 负责。
+    “目标是否在模板允许范围内”由 EventTemplate.validate() 负责。
     """
 
     def __init__(self, evaluators: EvaluatorRegistry, resolver: TargetResolver) -> None:

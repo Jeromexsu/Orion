@@ -144,5 +144,5 @@ class ConditionTree:
         return self._root.evaluate(data, state)
 
     def targets(self) -> frozenset[str]:
-        """树里引用的全部 ObservableTarget ID，供 SubEventTemplate.validate 做范围检查。"""
+        """树里引用的全部 ObservableTarget ID，供 EventTemplate.validate 做范围检查。"""
         return self._root.targets()

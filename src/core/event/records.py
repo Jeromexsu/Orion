@@ -1,4 +1,4 @@
-"""event 的持久化记录（纯数据）。活对象由 EventManager 从这些记录重建。"""
+"""event 的持久化记录（纯数据）。活对象由 ParentEventManager 从这些记录重建。"""
 
 from datetime import datetime
 from typing import Any
@@ -11,7 +11,7 @@ class TemplateRef(BaseModel):
 
     template_id: str
     version: int                        # 当前运行的版本
-    pending_version: int | None = None  # 已发布、等当前实例关闭后生效的新版本
+    pending_version: int | None = None  # 已发布、等当前子事件关闭后生效的新版本
 
 
 class ParentEventRecord(BaseModel):
@@ -25,7 +25,7 @@ class ParentEventRecord(BaseModel):
     templates: list[TemplateRef] = Field(default_factory=list[TemplateRef])
 
 
-class InstanceRecord(BaseModel):
+class EventRecord(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: str
