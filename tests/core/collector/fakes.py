@@ -24,13 +24,13 @@ class FakeAdapter:
 
 class InMemoryCursorRepository:
     def __init__(self) -> None:
-        self.items: dict[str, str] = {}
+        self.items: dict[tuple[str, str], str] = {}
 
-    def get(self, observable_id: str) -> str | None:
-        return self.items.get(observable_id)
+    def get(self, observable_id: str, upstream: str) -> str | None:
+        return self.items.get((observable_id, upstream))
 
-    def set(self, observable_id: str, cursor: str) -> None:
-        self.items[observable_id] = cursor
+    def set(self, observable_id: str, upstream: str, cursor: str) -> None:
+        self.items[(observable_id, upstream)] = cursor
 
 
 class InMemoryDynamicDataRepository:

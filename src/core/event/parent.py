@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Iterable
 from datetime import UTC, datetime
 
 from core.contracts import DRAFT, Draft, DynamicData
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 class ParentEvent:
     """父事件：命名空间，持有目标池和一组子事件模板（每个模板一个 SubEventSlot）。
 
-    它是 ObservableTarget 的引用者（Referencer）：加入目标池即 acquire，移出即 release。
+    它是 ObservableTarget 的订阅者（Referencer）：加入目标池即按指定上游 acquire，移出即 release。
     所有变更方法都会立即持久化自己的记录。通过 EventManager 创建和恢复。
     """
 
@@ -37,7 +38,7 @@ class ParentEvent:
         """重启恢复：重新 acquire 目标、重新编译模板、接回活跃实例。不写库。"""
         parent = cls(record.id, record.name, runtime)
         for ref in record.targets:
-            parent._attach(runtime.targets.get_observable(ref.target_id, ref.focus))
+            parent._attach(runtime.targets.get_observable(ref.target_id, ref.focus), ref.upstreams)
         for ref in record.templates:
             definition = runtime.templates.get(ref.template_id, ref.version)
             if definition is None:
@@ -82,7 +83,14 @@ class ParentEvent:
         return ParentEventRecord(
             id=self._id,
             name=self._name,
-            targets=[TargetRef(target_id=o.target.id, focus=o.focus) for o in self._pool.values()],
+            targets=[
+                TargetRef(
+                    target_id=o.target.id,
+                    focus=o.focus,
+                    upstreams=sorted(o.subscription(self)),
+                )
+                for o in self._pool.values()
+            ],
             templates=[
                 TemplateRef(template_id=s.template.id, version=s.template.version)
                 for s in self._slots.values()
@@ -91,10 +99,12 @@ class ParentEvent:
 
     # ------------------------------------------------------------ 目标池
 
-    def add_target(self, target_id: str, focus: str) -> ObservableTarget:
+    def add_target(self, target_id: str, focus: str, upstreams: Iterable[str]) -> ObservableTarget:
+        """把目标加入目标池并订阅指定上游；已在池中则改为订阅新的上游集合。"""
         observable = self._runtime.targets.get_observable(target_id, focus)
-        if observable.id not in self._pool:
-            self._attach(observable)
+        wanted = frozenset(upstreams)
+        if observable.id not in self._pool or observable.subscription(self) != wanted:
+            self._attach(observable, wanted)
             self._save()
         return observable
 
@@ -183,8 +193,8 @@ class ParentEvent:
 
     # ------------------------------------------------------------ 内部
 
-    def _attach(self, observable: ObservableTarget) -> None:
-        observable.acquire(self)
+    def _attach(self, observable: ObservableTarget, upstreams: Iterable[str]) -> None:
+        observable.acquire(self, upstreams)
         self._pool[observable.id] = observable
 
     def _save(self) -> None:

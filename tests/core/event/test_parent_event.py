@@ -1,9 +1,12 @@
+from typing import Any
+
 import pytest
 
 from core.event import (
     DuplicateParentEventError,
     EventManager,
     InstanceClosedError,
+    ParentEvent,
     ParentEventNotFoundError,
     TargetStillReferencedError,
     TemplateDef,
@@ -11,9 +14,7 @@ from core.event import (
     TemplateScopeError,
     TemplateVersionError,
 )
-from typing import Any
-
-from core.event import ParentEvent
+from core.target import UnsupportedUpstreamError
 from tests.core.event.conftest import Env, mount, template
 
 
@@ -21,7 +22,7 @@ def make_parent(
     env: Env, hooks: list[dict[str, Any]] | None = None, threshold: int = 2
 ) -> ParentEvent:
     parent = env.events.create("p1", "东海方向")
-    parent.add_target("t1", "position")
+    parent.add_target("t1", "position", ["adsb"])
     parent.upsert_template(TemplateDef.model_validate(template(threshold=threshold, hooks=hooks)))
     return parent
 
@@ -41,7 +42,7 @@ def test_create_and_get(env: Env) -> None:
 
 def test_add_target_acquires_and_persists(env: Env) -> None:
     parent = env.events.create("p1", "x")
-    obs = parent.add_target("t1", "position")
+    obs = parent.add_target("t1", "position", ["adsb"])
     assert parent in obs.referencers()
     assert env.targets.active_observables() == [obs]
     assert [r.target_id for r in env.parents.items["p1"].targets] == ["t1"]
@@ -110,7 +111,7 @@ def test_pipeline_opens_processes_and_closes(env: Env) -> None:
 
 def test_irrelevant_data_does_not_open_instance(env: Env) -> None:
     parent = make_parent(env)
-    parent.add_target("t2", "position")
+    parent.add_target("t2", "position", ["adsb"])
     parent.on_data(env.data(5, 5, observable_id="t2:position"))
     parent.on_data(env.data(5, 5, observable_id="t9:position"))
     assert parent.slot("enter-zone").active is None
@@ -186,3 +187,25 @@ def test_restore_failure_is_isolated(env: Env) -> None:
     env.templates.items.clear()
     events = EventManager(env.runtime)
     assert events.restore() == ["p1"]
+
+
+def test_add_target_subscribes_chosen_upstreams(env: Env) -> None:
+    parent = env.events.create("p1", "x")
+    obs = parent.add_target("t1", "position", ["adsb"])
+    assert obs.subscription(parent) == {"adsb"}
+    assert env.parents.items["p1"].targets[0].upstreams == ["adsb"]
+
+    with pytest.raises(UnsupportedUpstreamError):
+        parent.add_target("t1", "position", ["radar"])
+    assert obs.subscription(parent) == {"adsb"}  # 失败不改变原订阅
+
+
+def test_restore_keeps_upstream_subscription(env: Env) -> None:
+    parent = env.events.create("p1", "x")
+    parent.add_target("t1", "position", ["adsb"])
+
+    targets = env.make_targets()
+    events = EventManager(env.make_runtime(targets))
+    assert events.restore() == []
+    (obs,) = targets.active_observables()
+    assert obs.subscription(events.get("p1")) == {"adsb"}

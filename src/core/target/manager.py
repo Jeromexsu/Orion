@@ -104,21 +104,23 @@ class TargetManager:
     # ------------------------------------------------------------ 可观测目标
 
     def get_observable(self, target_id: str, focus: str) -> ObservableTarget:
-        """取（必要时创建）唯一的 ObservableTarget。调用方随后自行 acquire()。"""
+        """取（必要时创建）唯一的 ObservableTarget。上游列表由这里问 UpstreamCatalog 得到。
+
+        调用方随后自行 acquire(referencer, upstreams) 订阅需要的上游。
+        """
         key = observable_key(target_id, focus)
         live = self._live.get(key)
         if live is not None:
             return live
 
         target = self.get_target(target_id)
-        schema = type(target).focuses.get(focus)
-        if schema is None:
+        if focus not in type(target).focuses:
             raise UnsupportedFocusError(f"{target.type} has no focus {focus!r}")
         upstreams = self._upstreams.upstreams_for(target.type, focus)
         if not upstreams:
             raise NoUpstreamError(f"no upstream serves ({target.type}, {focus})")
 
-        observable = ObservableTarget(target, focus, upstreams, schema)
+        observable = ObservableTarget(target, focus, upstreams)
         self._live[key] = observable
         self._observables.upsert(observable)
         return observable

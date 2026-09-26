@@ -56,7 +56,7 @@ def test_accepted_suggestion_goes_through_public_method() -> None:
         return s
 
     # 没有上游能服务 → 公开方法的校验照常生效，建议保持待审
-    bad = propose(target_id="t1", focus="position")
+    bad = propose(target_id="t1", focus="position", upstreams=["adsb"])
     with pytest.raises(NoUpstreamError):
         app.hil.accept(bad.id)
     assert app.hil.pending() == [bad]

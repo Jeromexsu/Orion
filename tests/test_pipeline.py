@@ -22,7 +22,7 @@ def test_collect_drives_sub_event_to_close() -> None:
     )
 
     parent = env.events.create("p1", "东海方向")
-    parent.add_target("t1", "position")
+    parent.add_target("t1", "position", ["adsb"])
     parent.upsert_template(TemplateDef.model_validate(template(threshold=1)))
 
     adsb.records = [

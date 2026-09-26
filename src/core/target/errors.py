@@ -22,6 +22,10 @@ class NoUpstreamError(TargetError):
     """没有任何上游能服务这个 (type, focus) 组合。"""
 
 
+class UnsupportedUpstreamError(TargetError):
+    """订阅了 ObservableTarget 上游列表之外的上游，或没指定任何上游。"""
+
+
 class TargetInUseError(TargetError):
     """目标仍被某个 ObservableTarget 的订阅者引用，不能删除。"""
 

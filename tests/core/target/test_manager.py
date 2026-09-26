@@ -135,7 +135,7 @@ def test_active_observables_follow_referencers(manager: TargetManager, plane: Ta
     assert manager.active_observables() == []
 
     sub = Subscriber()
-    obs.acquire(sub)
+    obs.acquire(sub, ["adsb"])
     assert manager.active_observables() == [obs]
 
     obs.release(sub)
@@ -150,7 +150,7 @@ def test_upsert_target_rebinds_live_observable(manager: TargetManager, plane: Ta
 
 def test_remove_target_in_use_rejected(manager: TargetManager, plane: Target) -> None:
     obs = manager.get_observable(plane.id, "position")
-    obs.acquire(Subscriber())
+    obs.acquire(Subscriber(), ["adsb"])
     with pytest.raises(TargetInUseError):
         manager.remove_target(plane.id)
 

@@ -43,41 +43,44 @@ class Collector:
         return collected
 
     def collect_one(self, observable: ObservableTarget) -> list[DynamicData]:
-        cursor = self._cursors.get(observable.id)
-        spec = observable.query_spec(datetime.fromisoformat(cursor) if cursor else None)
-
+        """只拉有人订阅的上游，每个上游用自己的游标。"""
         new: list[DynamicData] = []
-        latest: datetime | None = None
-        for upstream in observable.upstreams:
+        for upstream in observable.active_upstreams():
             try:
-                records = self._adapters.get(upstream).fetch(spec)
+                new.extend(self._collect_upstream(observable, upstream))
             except Exception:
                 logger.exception("upstream %s failed for %s", upstream, observable.id)
-                continue
 
-            for record in sorted(records, key=lambda r: r.occurred_at):
-                if self._data.exists(record.source_id):
-                    continue
-                try:
-                    fields = observable.validate_fields(record.fields)
-                except ValidationError:
-                    logger.warning("invalid record %s for %s", record.source_id, observable.id)
-                    continue
-                data = DynamicData(
-                    observable_id=observable.id,
-                    fields=fields,
-                    occurred_at=record.occurred_at,
-                    source_id=record.source_id,
-                    raw=record.raw,
-                )
-                self._data.append(data)
-                new.append(data)
-                if latest is None or data.occurred_at > latest:
-                    latest = data.occurred_at
-
-        # 先推进游标再分发：订阅者失败不应导致重复采集
-        if latest is not None:
-            self._cursors.set(observable.id, latest.isoformat())
         for data in sorted(new, key=lambda d: d.occurred_at):
             self._dispatcher.dispatch(observable, data)
+        return new
+
+    def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list[DynamicData]:
+        cursor = self._cursors.get(observable.id, upstream)
+        spec = observable.query_spec(datetime.fromisoformat(cursor) if cursor else None)
+        records = self._adapters.get(upstream).fetch(spec)
+
+        new: list[DynamicData] = []
+        for record in sorted(records, key=lambda r: r.occurred_at):
+            if self._data.exists(record.source_id):
+                continue
+            try:
+                fields = observable.validate_fields(record.fields)
+            except ValidationError:
+                logger.warning("invalid record %s for %s", record.source_id, observable.id)
+                continue
+            data = DynamicData(
+                observable_id=observable.id,
+                upstream=upstream,
+                fields=fields,
+                occurred_at=record.occurred_at,
+                source_id=record.source_id,
+                raw=record.raw,
+            )
+            self._data.append(data)
+            new.append(data)
+
+        # 先推进游标再分发：订阅者失败不应导致重复采集
+        if new:
+            self._cursors.set(observable.id, upstream, max(d.occurred_at for d in new).isoformat())
         return new

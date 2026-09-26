@@ -4,7 +4,7 @@ from tests.core.event.conftest import Env, mount, template
 
 def test_digest_rolls_one_machine_draft(env: Env) -> None:
     parent = env.events.create("p1", "东海方向")
-    parent.add_target("t1", "position")
+    parent.add_target("t1", "position", ["adsb"])
     parent.upsert_template(TemplateDef.model_validate(template()))
     parent.on_data(env.data(20, 20))
 
@@ -33,7 +33,7 @@ def test_digest_all_isolates_failures(env: Env) -> None:
 
 def test_close_report_operator_writes_draft(env: Env) -> None:
     parent = env.events.create("p1", "东海方向")
-    parent.add_target("t1", "position")
+    parent.add_target("t1", "position", ["adsb"])
     parent.upsert_template(
         TemplateDef.model_validate(
             template(threshold=1, hooks=[mount("close_report", "closed", title="进入告警")])

@@ -156,6 +156,7 @@ class Env:
         n = next(self._seq)
         return DynamicData(
             observable_id=observable_id,
+            upstream="adsb",
             fields={"lat": lat, "lon": lon, "altitude_m": None},
             occurred_at=datetime(2026, 9, 26, tzinfo=UTC) + timedelta(minutes=n),
             source_id=f"adsb#{n}",

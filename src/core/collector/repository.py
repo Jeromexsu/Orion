@@ -7,8 +7,11 @@ from core.contracts import DynamicData
 
 
 class CursorRepository(Protocol):
-    def get(self, observable_id: str) -> str | None: ...   # 上次采集游标（ISO 时间戳）
-    def set(self, observable_id: str, cursor: str) -> None: ...
+    """每个 (ObservableTarget, 上游) 一个游标（ISO 时间戳）：上游之间互不影响，
+    某个上游中途才被订阅也不会漏掉它的数据。"""
+
+    def get(self, observable_id: str, upstream: str) -> str | None: ...
+    def set(self, observable_id: str, upstream: str, cursor: str) -> None: ...
 
 
 class DynamicDataRepository(Protocol):

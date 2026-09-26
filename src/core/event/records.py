@@ -11,6 +11,7 @@ class TargetRef(BaseModel):
 
     target_id: str
     focus: str
+    upstreams: list[str]        # 父事件订阅的上游，重启时按它重新 acquire
 
 
 class TemplateRef(BaseModel):

@@ -140,7 +140,9 @@ def _allow_actions(hil: HilManager, events: EventManager) -> None:
     """hil 白名单：建议能触发的核心公开方法。proposal.target 是父事件 ID。"""
 
     def add_target(parent_id: str | None, args: dict[str, Any]) -> object:
-        return events.get(_required(parent_id)).add_target(args["target_id"], args["focus"])
+        return events.get(_required(parent_id)).add_target(
+            args["target_id"], args["focus"], args["upstreams"]
+        )
 
     def remove_target(parent_id: str | None, args: dict[str, Any]) -> object:
         return events.get(_required(parent_id)).remove_target(args["observable_id"])

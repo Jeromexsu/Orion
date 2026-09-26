@@ -10,6 +10,7 @@ from core.target.errors import (
     TargetTypeChangeError,
     UnknownTargetTypeError,
     UnsupportedFocusError,
+    UnsupportedUpstreamError,
 )
 from core.target.manager import TargetManager
 from core.target.observable import ObservableTarget, Referencer, observable_key
@@ -32,6 +33,7 @@ __all__ = [
     "TargetTypeChangeError",
     "UnknownTargetTypeError",
     "UnsupportedFocusError",
+    "UnsupportedUpstreamError",
     "UpstreamCatalog",
     "observable_key",
     "type_name",

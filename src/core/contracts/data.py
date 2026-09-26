@@ -24,6 +24,7 @@ class DynamicData(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     observable_id: str          # 对应哪个 ObservableTarget
+    upstream: str               # 来自哪个上游，ObservableTarget 按它路由给订阅者
     fields: dict[str, Any]      # 按 dynamic_schema 校验过的字段，如 {"lat": 31.2, "lon": 121.3}
     occurred_at: datetime
     source_id: str              # 去重用，如 "adsb#881"

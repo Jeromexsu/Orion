@@ -3,15 +3,21 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from core.target import Target, TargetManager
+from core.target import (
+    ObservableTarget,
+    Target,
+    TargetManager,
+    UnsupportedFocusError,
+    UnsupportedUpstreamError,
+)
 from tests.core.target.conftest import Subscriber
 
 
 def test_acquire_is_idempotent_and_release_tolerant(manager: TargetManager, plane: Target) -> None:
     obs = manager.get_observable(plane.id, "position")
     sub = Subscriber()
-    obs.acquire(sub)
-    obs.acquire(sub)
+    obs.acquire(sub, ["adsb"])
+    obs.acquire(sub, ["adsb"])
     assert obs.referencers() == frozenset({sub})
     obs.release(sub)
     obs.release(sub)
@@ -21,8 +27,8 @@ def test_acquire_is_idempotent_and_release_tolerant(manager: TargetManager, plan
 def test_referencers_is_a_snapshot(manager: TargetManager, plane: Target) -> None:
     obs = manager.get_observable(plane.id, "position")
     a, b = Subscriber(), Subscriber()
-    obs.acquire(a)
-    obs.acquire(b)
+    obs.acquire(a, ["adsb"])
+    obs.acquire(b, ["adsb"])
     snapshot = obs.referencers()
     obs.release(a)
     assert snapshot == frozenset({a, b})
@@ -53,3 +59,44 @@ def test_rebind_target_rejects_other_id(manager: TargetManager, plane: Target) -
     obs = manager.get_observable(plane.id, "position")
     with pytest.raises(ValueError):
         obs.rebind_target(plane.model_copy(update={"id": "t2"}))
+
+
+# ---------------------------------------------------------------- 构造与按上游订阅
+
+
+def test_constructor_validates_focus_and_upstreams(plane: Target) -> None:
+    with pytest.raises(UnsupportedFocusError):
+        ObservableTarget(plane, "fuel", ["adsb"])
+    with pytest.raises(UnsupportedUpstreamError):
+        ObservableTarget(plane, "position", [])
+    obs = ObservableTarget(plane, "position", ["adsb", "radar"])
+    assert obs.dynamic_schema.__name__ == "AircraftPosition"
+
+
+def test_acquire_validates_upstreams(plane: Target) -> None:
+    obs = ObservableTarget(plane, "position", ["adsb", "radar"])
+    with pytest.raises(UnsupportedUpstreamError):
+        obs.acquire(Subscriber(), [])
+    with pytest.raises(UnsupportedUpstreamError):
+        obs.acquire(Subscriber(), ["adsb", "satellite"])
+    assert not obs.is_active
+
+
+def test_routing_by_upstream(plane: Target) -> None:
+    obs = ObservableTarget(plane, "position", ["adsb", "radar", "satellite"])
+    a, b = Subscriber(), Subscriber()
+    obs.acquire(a, ["adsb"])
+    obs.acquire(b, ["adsb", "radar"])
+
+    assert obs.referencers_for("adsb") == {a, b}
+    assert obs.referencers_for("radar") == {b}
+    assert obs.referencers_for("satellite") == frozenset()
+    assert obs.active_upstreams() == ("adsb", "radar")
+
+    obs.acquire(b, ["satellite"])  # 再次 acquire 替换订阅
+    assert obs.subscription(b) == {"satellite"}
+    assert obs.active_upstreams() == ("adsb", "satellite")
+
+    obs.release(a)
+    obs.release(b)
+    assert obs.active_upstreams() == ()
