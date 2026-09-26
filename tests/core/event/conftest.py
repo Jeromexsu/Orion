@@ -10,11 +10,11 @@ from core.contracts import Category, DynamicData, Level, MountPoint, Proposal, S
 from core.event import EventManager, EventRuntime
 from core.operators import BaseContext, OperatorRegistry, ProgressContext, SuggestContext
 from core.report import ReportManager
-from core.target import Target, TargetManager
+from core.target import TargetManager
 from plugins.condition_engine.on_enter import OnEnter
 from plugins.operators.close_report import CloseReport
 from plugins.operators.count_hits import CountHits
-from plugins.target.aircraft import AircraftType
+from plugins.target.aircraft import Aircraft
 from tests.core.event.fakes import (
     InMemoryInstanceRepository,
     InMemoryParentEventRepository,
@@ -111,9 +111,7 @@ class Env:
         self.target_repo = InMemoryTargetRepository()
         self.targets = self.make_targets()
         for tid, name in (("t1", "MU5101"), ("t2", "CA1501")):
-            self.targets.upsert_target(
-                Target(id=tid, type="aircraft", name=name, attributes={"registration": tid})
-            )
+            self.targets.upsert_target(Aircraft(id=tid, name=name, registration=tid))
 
         self.log = Log()
         self.drafts = InMemoryDraftRepository()
@@ -137,7 +135,7 @@ class Env:
             InMemoryObservableTargetRepository(),
             StaticUpstreamCatalog({("aircraft", "position"): ["adsb"]}),
         )
-        targets.register_type(AircraftType())
+        targets.register_type(Aircraft)
         return targets
 
     def make_runtime(self, targets: TargetManager) -> EventRuntime:

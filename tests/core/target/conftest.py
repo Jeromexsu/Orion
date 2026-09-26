@@ -2,7 +2,7 @@ import pytest
 
 from core.contracts import DynamicData
 from core.target import Target, TargetManager
-from plugins.target.aircraft import AircraftType
+from plugins.target.aircraft import Aircraft
 from tests.core.target.fakes import (
     InMemoryObservableTargetRepository,
     InMemoryTargetRepository,
@@ -34,18 +34,12 @@ def manager(
 ) -> TargetManager:
     upstreams = StaticUpstreamCatalog({("aircraft", "position"): ["adsb"]})
     m = TargetManager(targets, observables, upstreams)
-    m.register_type(AircraftType())
+    m.register_type(Aircraft)
     return m
 
 
 @pytest.fixture
 def plane(manager: TargetManager) -> Target:
     return manager.upsert_target(
-        Target(
-            id="t1",
-            type="aircraft",
-            name="东航 MU5101",
-            attributes={"registration": "B-2447"},
-            aliases=["MU5101"],
-        )
+        Aircraft(id="t1", name="东航 MU5101", registration="B-2447", aliases=["MU5101"])
     )

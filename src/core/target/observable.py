@@ -81,7 +81,7 @@ class ObservableTarget:
         return QuerySpec(
             type=self._target.type,
             focus=self._focus,
-            attributes=self._target.attributes,
+            attributes=self._target.attributes(),
             aliases=self._target.aliases,
             since=since,
         )

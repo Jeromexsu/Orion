@@ -29,7 +29,7 @@ from core.target import ObservableTargetRepository, TargetManager, TargetReposit
 from plugins.condition_engine.on_enter import OnEnter
 from plugins.operators.close_report import CloseReport
 from plugins.operators.count_hits import CountHits
-from plugins.target.aircraft import AircraftType
+from plugins.target.aircraft import Aircraft
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +90,7 @@ def build_app(repos: Repositories) -> App:
     # 在这里 adapters.register(...) 各上游 Adapter 插件
 
     targets = TargetManager(repos.targets, repos.observables, adapters)
-    targets.register_type(AircraftType())
+    targets.register_type(Aircraft)
 
     collector = Collector(targets, adapters, repos.cursors, repos.dynamic_data, Dispatcher())
 

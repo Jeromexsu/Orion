@@ -4,7 +4,8 @@ import pytest
 
 from bootstrap import App, Repositories, build_app
 from core.contracts import Proposal, Suggestion
-from core.target import NoUpstreamError, Target
+from core.target import NoUpstreamError, type_name
+from plugins.target.aircraft import Aircraft
 from tests.core.collector.fakes import InMemoryCursorRepository, InMemoryDynamicDataRepository
 from tests.core.event.fakes import (
     InMemoryInstanceRepository,
@@ -34,7 +35,7 @@ def build() -> App:
 
 def test_build_app_wires_everything() -> None:
     app = build()
-    assert [t.name for t in app.targets.types()] == ["aircraft"]
+    assert [type_name(t) for t in app.targets.types()] == ["aircraft"]
     assert [o.name for o in app.operators.operators()] == ["count_hits", "close_report"]
     assert app.hil.allowed_actions() == ["add_target", "remove_target", "upsert_template"]
     assert app.events.parents() == []
@@ -42,9 +43,7 @@ def test_build_app_wires_everything() -> None:
 
 def test_accepted_suggestion_goes_through_public_method() -> None:
     app = build()
-    app.targets.upsert_target(
-        Target(id="t1", type="aircraft", name="MU5101", attributes={"registration": "B-2447"})
-    )
+    app.targets.upsert_target(Aircraft(id="t1", name="MU5101", registration="B-2447"))
     app.events.create("p1", "东海方向")
 
     def propose(**args: Any) -> Suggestion:

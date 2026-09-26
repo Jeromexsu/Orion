@@ -11,8 +11,8 @@ from core.collector import (
     UnknownAdapterError,
 )
 from core.contracts import DynamicData
-from core.target import ObservableTarget, Target, TargetManager
-from plugins.target.aircraft import AircraftType
+from core.target import ObservableTarget, TargetManager
+from plugins.target.aircraft import Aircraft
 from tests.core.collector.fakes import (
     FakeAdapter,
     InMemoryCursorRepository,
@@ -38,10 +38,8 @@ class Env:
         self.manager = TargetManager(
             InMemoryTargetRepository(), InMemoryObservableTargetRepository(), self.registry
         )
-        self.manager.register_type(AircraftType())
-        self.manager.upsert_target(
-            Target(id="t1", type="aircraft", name="x", attributes={"registration": "B-2447"})
-        )
+        self.manager.register_type(Aircraft)
+        self.manager.upsert_target(Aircraft(id="t1", name="x", registration="B-2447"))
         self.cursors = InMemoryCursorRepository()
         self.data = InMemoryDynamicDataRepository()
         self.collector = Collector(

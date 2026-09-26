@@ -2,23 +2,23 @@
 
 from collections.abc import Sequence
 
-from core.target import ObservableTarget, Target
+from core.target import ObservableTarget, TargetRecord
 
 
 class InMemoryTargetRepository:
     def __init__(self) -> None:
-        self.items: dict[str, Target] = {}
+        self.items: dict[str, TargetRecord] = {}
 
-    def get(self, target_id: str) -> Target | None:
+    def get(self, target_id: str) -> TargetRecord | None:
         return self.items.get(target_id)
 
-    def upsert(self, target: Target) -> None:
+    def upsert(self, target: TargetRecord) -> None:
         self.items[target.id] = target
 
     def remove(self, target_id: str) -> None:
         self.items.pop(target_id, None)
 
-    def find_by_alias(self, alias: str) -> Target | None:
+    def find_by_alias(self, alias: str) -> TargetRecord | None:
         return next((t for t in self.items.values() if alias in t.aliases), None)
 
 
