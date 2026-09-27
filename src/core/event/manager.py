@@ -34,14 +34,14 @@ class ParentEventManager:
         self._parents[parent_id] = parent
         return parent
 
-    def get(self, parent_id: str) -> ParentEvent:
+    def get_pevent_by_id(self, parent_id: str) -> ParentEvent:
         """已加载的父事件。不存在抛 ParentEventNotFoundError。"""
         try:
             return self._parents[parent_id]
         except KeyError:
             raise ParentEventNotFoundError(parent_id) from None
 
-    def parents(self) -> list[ParentEvent]:
+    def get_pevents(self) -> list[ParentEvent]:
         """全部已加载的父事件。"""
         return list(self._parents.values())
 

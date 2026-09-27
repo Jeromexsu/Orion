@@ -128,21 +128,32 @@ class ParentEvent:
         越界抛 TemplateScopeError；版本不大于现有版本抛 TemplateVersionError；编译失败抛 TemplateCompileError。
         任一检查失败时什么都不写。
         """
+
+        # check if targets defined in template are in the target namespace
         self._check_namespace(template_def)
+
+        # check if there is a runner for this template
         runner = self._runners.get(template_def.id)
+
+        # if there is an existed runner, check version (must >= current version)
         if runner is not None:
             runner.check_version(template_def.version)
 
-        template = self._services.template_compiler.compile(template_def)
+        # compile template
+        compiled_template = self._services.template_compiler.compile(template_def)
+
+        # compile pass, syntax ok, save template definition
         self._services.template_repository.upsert(template_def)
+
+        # kick off new runner if there is no runner for the compiled template
         if runner is None:
-            self._runners[template.id] = EventRunner.start(
-                self._id, template, self._runtime, self._changed
+            self._runners[compiled_template.id] = EventRunner.start(
+                self._id, compiled_template, self._runtime, self._changed
             )
             self._changed()
         else:
-            runner.stage(template)   # 内部通过 on_change 存档
-        return template
+            runner.stage(compiled_template)   # 内部通过 on_change 存档
+        return compiled_template
 
     def remove_template(self, template_id: str) -> None:
         """移除模板：runner 关闭活跃子事件、取消订阅、删除开启条件状态，然后触发 on_change。

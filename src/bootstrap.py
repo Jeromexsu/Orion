@@ -158,14 +158,14 @@ def _allow_actions(hil_manager: HilManager, parent_event_manager: ParentEventMan
     """hil 白名单：建议能触发的核心公开方法。proposal.target 是父事件 ID。"""
 
     def add_target(parent_id: str | None, args: dict[str, Any]) -> object:
-        return parent_event_manager.get(_required(parent_id)).add_target(args["target_id"])
+        return parent_event_manager.get_pevent_by_id(_required(parent_id)).add_target(args["target_id"])
 
     def remove_target(parent_id: str | None, args: dict[str, Any]) -> object:
-        return parent_event_manager.get(_required(parent_id)).remove_target(args["target_id"])
+        return parent_event_manager.get_pevent_by_id(_required(parent_id)).remove_target(args["target_id"])
 
     def upsert_template(parent_id: str | None, args: dict[str, Any]) -> object:
         template_def = TemplateDef.model_validate(args["template_def"])
-        return parent_event_manager.get(_required(parent_id)).upsert_template(template_def)
+        return parent_event_manager.get_pevent_by_id(_required(parent_id)).upsert_template(template_def)
 
     hil_manager.allow("add_target", add_target)
     hil_manager.allow("remove_target", remove_target)

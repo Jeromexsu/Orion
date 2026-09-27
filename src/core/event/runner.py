@@ -124,29 +124,35 @@ class EventRunner:
         """Dispatcher 回调。评估开启条件并保存其状态；无活跃子事件且命中时开新子事件；
         然后把这条观测交给活跃子事件处理并存档；子事件关闭则结束本周期（有挂起版本就切换）。
         """
+        # not my observable, return
         if envelope.observable_id not in self._observables:
             return
 
+        # check if this observation trigger the open condition
         opened = self._template.open_tree.evaluate(envelope, self._open_state)
         if opened.state_patch:
             self._open_state = apply_state_patch(self._open_state, opened.state_patch)
             self._runtime.runner_state_repository.save(self._parent_id, self._template.id, self._open_state)
 
-        if self._active is None:
+        processor = self._active
+
+        # there is no active event processor
+        if processor is None:
+            # open condition not tiggered, return
             if opened.outcome != HIT:
                 return
-            self._active = Event.open(
+            # open condition triggerd and there is no active event processor, create a new one
+            processor = Event.open(
                 self._parent_id,
                 self._template,
                 self._runtime,
                 self.target_names,
                 cycle=envelope.occurred_at.year,
             )
-
-        event = self._active
-        event.process(envelope)
-        self._runtime.event_repository.save(event.to_record())
-        if event.is_closed:
+        # hand over to active processer
+        processor.process(envelope)
+        self._runtime.event_repository.save(processor.to_record())
+        if processor.is_closed:
             self._end_cycle()
 
     # ------------------------------------------------------------ 版本 / 生命周期
