@@ -14,10 +14,13 @@ class Referencer(Protocol):
     实现类必须按身份哈希（普通类默认如此）。
     """
 
-    def on_observation(self, envelope: ObservationEnvelope) -> None: ...
+    def on_observation(self, envelope: ObservationEnvelope) -> None:
+        """收到一条订阅的观测。只会收到自己 acquire 过的上游的数据。"""
+        ...
 
 
 def observable_key(target_id: str, observed_point_name: str) -> str:
+    """可观测目标 ID：`目标ID:观察点名`，如 `t1:position`。"""
     return f"{target_id}:{observed_point_name}"
 
 
@@ -73,7 +76,10 @@ class ObservableTarget:
     # ------------------------------------------------------------ 订阅
 
     def acquire(self, referencer: Referencer, upstreams: Iterable[str]) -> None:
-        """订阅指定上游。同一订阅者再次 acquire 会用新的上游集合替换旧的。"""
+        """订阅指定上游。同一订阅者再次 acquire 会用新的上游集合替换旧的。
+
+        上游为空或不在可用上游里抛 UnsupportedUpstreamError。只改内存，不写库。
+        """
         wanted = frozenset(upstreams)
         if not wanted:
             raise UnsupportedUpstreamError(f"{self.id}: subscribe to at least one upstream")

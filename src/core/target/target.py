@@ -33,6 +33,7 @@ class Target(BaseModel, frozen=True):
         return self.model_dump(exclude=set(_BASE_FIELDS))
 
     def to_record(self) -> "TargetRecord":
+        """转成与类型无关的持久化记录：子类属性字段收进 attributes。"""
         return TargetRecord(
             id=self.id,
             type=self.type,

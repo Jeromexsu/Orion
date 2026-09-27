@@ -42,6 +42,10 @@ class TargetManager:
     # ------------------------------------------------------------ 类型
 
     def register_type(self, target_class: type[Target]) -> None:
+        """注册一种目标类型，并收集它声明的观察点。
+
+        类型名重复抛 DuplicateTargetTypeError；同名观察点对应不同类抛 DuplicateObservedPointError。
+        """
         name = type_name(target_class)
         if name in self._types:
             raise DuplicateTargetTypeError(name)
@@ -58,21 +62,25 @@ class TargetManager:
         self._observed_points.update(points)
 
     def get_type(self, name: str) -> type[Target]:
+        """类型名 → 目标类型。未注册抛 UnknownTargetTypeError。"""
         try:
             return self._types[name]
         except KeyError:
             raise UnknownTargetTypeError(name) from None
 
     def types(self) -> list[type[Target]]:
+        """已注册的全部目标类型。"""
         return list(self._types.values())
 
     def get_observed_point(self, name: str) -> type[ObservedPoint]:
+        """观察点名 → 观察点。没有任何已注册类型声明过抛 UnknownObservedPointError。"""
         try:
             return self._observed_points[name]
         except KeyError:
             raise UnknownObservedPointError(name) from None
 
     def observed_points(self) -> list[type[ObservedPoint]]:
+        """已注册类型声明过的全部观察点。"""
         return list(self._observed_points.values())
 
     def parse(self, raw: Mapping[str, Any]) -> Target:
@@ -82,7 +90,11 @@ class TargetManager:
     # ------------------------------------------------------------ 目标
 
     def upsert_target(self, target: Target) -> Target:
-        """保存目标。属性校验在构造 Target 子类时已完成。"""
+        """新建或更新目标，返回传入的目标。属性校验在构造 Target 子类时已完成。
+
+        写库；已存在的可观测目标换上新记录（rebind_target）。
+        类不是该类型名注册的类抛 UnknownTargetTypeError；改变已有目标的类型抛 TargetTypeChangeError。
+        """
         if type(target) is not self.get_type(target.type):
             raise UnknownTargetTypeError(
                 f"{type(target).__name__} is not the registered class for {target.type!r}"
@@ -101,17 +113,22 @@ class TargetManager:
         return target
 
     def get_target(self, target_id: str) -> Target:
+        """从仓库读出目标并还原成具体子类。不存在抛 TargetNotFoundError。"""
         record = self._target_repository.get(target_id)
         if record is None:
             raise TargetNotFoundError(target_id)
         return self._restore(record)
 
     def find_by_alias(self, alias: str) -> Target | None:
+        """按别名找目标；找不到返回 None。"""
         record = self._target_repository.find_by_alias(alias)
         return self._restore(record) if record is not None else None
 
     def remove_target(self, target_id: str) -> None:
-        """删除目标及其所有 ObservableTarget。仍有引用者时拒绝。"""
+        """删除目标及其所有可观测目标（内存与仓库）。
+
+        不存在抛 TargetNotFoundError；任一可观测目标仍有订阅者抛 TargetInUseError，此时什么都不删。
+        """
         target = self.get_target(target_id)
         keys = [observable_key(target_id, p.name) for p in type(target).observed_points]
         in_use = [k for k in keys if (live := self._live.get(k)) is not None and live.is_active]
@@ -149,6 +166,7 @@ class TargetManager:
     def get_observable(self, target_id: str, observed_point: str) -> ObservableTarget:
         """取（必要时创建）唯一的 ObservableTarget。observed_point 是观察点名。
 
+        首次创建时放进内存单例表并写库；检查与 inspect_observable 相同，不通过时抛同样的异常。
         上游列表由这里问 UpstreamCatalog 得到；调用方随后自行 acquire(referencer, upstreams)。
         """
         key = observable_key(target_id, observed_point)
@@ -163,7 +181,7 @@ class TargetManager:
         return observable
 
     def find_observable(self, observable_id: str) -> ObservableTarget | None:
-        """按 ID 查内存里已存在的 ObservableTarget。"""
+        """按 ID 查内存里已存在的 ObservableTarget；不存在返回 None，不创建。"""
         return self._live.get(observable_id)
 
     def active_observables(self) -> list[ObservableTarget]:
