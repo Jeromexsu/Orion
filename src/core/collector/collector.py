@@ -61,16 +61,26 @@ class Collector:
     def _collect_upstream(
         self, observable: ObservableTarget, upstream: str
     ) -> list[ObservationEnvelope]:
+        # get upstream adapter
         adapter = self._adapter_registry.get(upstream)
+
+        # build query based on target fields required by upstream adapter
         query = match_query(adapter, observable.target)
+
+        # target fields not satisfied upstream adapter requirement
         if query is None:
             # 目标记录更新后可能不再满足这个上游的任何查询方式
             logger.warning("%s no longer satisfies any query of %s", observable.id, upstream)
             return []
+
+        # build datetime cursor
         cursor = self._cursor_repository.get(observable.id, upstream)
         since = datetime.fromisoformat(cursor) if cursor else None
+
+        # fetch from upstream
         records = adapter.fetch(observable.query_spec(), query, since)
 
+        # convert raw records into observation envelopes
         new: list[ObservationEnvelope] = []
         for record in sorted(records, key=lambda r: r.occurred_at):
             if self._observation_repository.exists(record.source_id):
