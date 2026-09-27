@@ -37,7 +37,7 @@ uv run lint-imports   # 模块依赖边界
 graph BT
   target["target<br/>目标 · 观察点 · 可观测目标"]
   hil["hil<br/>提议审核"]
-  report["report<br/>报告草稿"]
+  report["report<br/>报告"]
   collector["collector<br/>采集 · 分发"]
   condition["condition_engine<br/>条件编译与求值"]
   hooks["hooks<br/>钩子 · 上下文"]
@@ -402,7 +402,29 @@ class CountHits(Hook[CountHitsParams]):          # name 默认 "countHits"，参
 | hil | 实现 `ProposalSink` | 接收 `ctx.propose` 提的提议：来源（钩子、挂载、父事件、子事件）由上下文盖上；动作不在白名单、参数不合动作的模型，当场拒收 |
 
 扩展点只有一个：继承 `Hook[参数模型]` 并用 `@hook` 声明，放在 `plugins/hooks/`。
-示例见 `plugins/hooks/count_hits.py`（直接作用于子事件）和 `close_report.py`（对外输出，注入报告管理器；一个挂载挂在多处）。
+示例见 `plugins/hooks/count_hits.py`（直接作用于子事件）和 `close_report.py`（对外输出，注入只能写草稿的 `ReportWriter`；一个挂载挂在多处）。
+
+### hil：提议审核
+
+钩子只能**提议**改父事件 / 目标，由分析师确认后才执行。
+
+- 钩子调 `ctx.propose(action, args, reason=..., evidence=...)`；来源 `ProposalOrigin`（钩子、挂载、父事件、子事件）由上下文盖上。
+- 白名单由 bootstrap 登记：`HilManager.allow(action, args_model, handler)`，handler 是核心公开方法，自带完整校验，提议绕不过去。
+- `receive`：动作不在白名单、参数不合动作的参数模型，当场拒收，进不了审核队列。
+- `accept(id, overrides)`：分析师可改参数，改后再按模型校验；执行失败时提议保持待审。`reject(id)` 留档。
+
+### report：报告
+
+报告的生命周期：草稿 →（分析师接手）编辑中 →（发出）已发出。
+
+| 入口 | 谁调用 | 做什么 |
+|---|---|---|
+| `write(parent_id, source, title, content)` | 钩子（如 `closeReport`） | 新写一份草稿 |
+| `roll(parent_id, source, title, content)` | 父事件的 `digest()`（来源 `"digest"`） | 覆盖**同一来源**最新的草稿，没有就新写；别的来源的、分析师接手的、已发出的都不碰 |
+| `edit` / `send` | 分析师（API 层） | 编辑后变「编辑中」，机器不再写；发出后谁都不能改 |
+
+- 每份报告带来源 `source`：汇总是 `"digest"`，钩子写的是挂载名。
+- 钩子注入的是 `ReportWriter`（只有 `write` / `roll`），拿不到分析师入口；`ReportManager` 结构化地实现它。
 
 ### 静态定义与运行时对象
 

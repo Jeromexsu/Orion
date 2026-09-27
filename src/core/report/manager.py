@@ -1,9 +1,9 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from core.report.draft import DRAFT, EDITING, SENT, Draft
-from core.report.errors import DraftLockedError, DraftNotFoundError
-from core.report.repository import DraftRepository
+from core.report.errors import ReportLockedError, ReportNotFoundError
+from core.report.report import DRAFT, EDITING, SENT, Report
+from core.report.repository import ReportRepository
 
 
 def _now() -> datetime:
@@ -11,73 +11,94 @@ def _now() -> datetime:
 
 
 class ReportManager:
-    """报告草稿的生命周期：草稿 →（分析师接手）编辑中 →（发出）已发出。
+    """The life of a report: draft -> (an analyst takes over) editing -> (sent) sent.
 
-    write() 是机器入口：只能被报告类钩子或 ParentEvent.digest() 调用，只写“草稿”状态。
-    edit() / send() 是分析师入口，由 API 层调用。
+    Machine entry points write drafts only: write() and roll(), also offered to hooks as
+    ReportWriter. Analyst entry points, called by the API layer: edit() and send().
     """
 
-    def __init__(self, draft_repository: DraftRepository) -> None:
-        self._draft_repository = draft_repository
+    def __init__(self, report_repository: ReportRepository) -> None:
+        self._report_repository = report_repository
 
-    def get(self, draft_id: str) -> Draft:
-        """不存在抛 DraftNotFoundError。"""
-        draft = self._draft_repository.get(draft_id)
-        if draft is None:
-            raise DraftNotFoundError(draft_id)
-        return draft
+    def get(self, report_id: str) -> Report:
+        """Raises ReportNotFoundError if it does not exist."""
+        report = self._report_repository.get(report_id)
+        if report is None:
+            raise ReportNotFoundError(report_id)
+        return report
 
-    def list_by_parent(self, parent_id: str) -> list[Draft]:
-        """某个父事件的全部报告（任意状态）。"""
-        return self._draft_repository.list_by_parent(parent_id)
+    def list_by_parent(self, parent_id: str) -> list[Report]:
+        """Every report of a parent event, in any status."""
+        return self._report_repository.list_by_parent(parent_id)
 
-    def write(
-        self, parent_id: str, title: str, content: str, draft_id: str | None = None
-    ) -> Draft:
-        """机器写入，返回写入后的草稿（写库）。不给 draft_id 则新建；给了则覆盖内容，版本 +1。
+    # ------------------------------------------------------------ machines
 
-        只允许覆盖本父事件、“草稿”状态的报告，否则抛 DraftLockedError；不存在抛 DraftNotFoundError。
+    def write(self, parent_id: str, source: str, title: str, content: str) -> Report:
+        """Write (store) a new draft."""
+        report = Report(
+            id=uuid4().hex,
+            parent_id=parent_id,
+            source=source,
+            title=title,
+            content=content,
+            status=DRAFT,
+            version=1,
+            updated_at=_now(),
+        )
+        self._report_repository.upsert(report)
+        return report
+
+    def roll(self, parent_id: str, source: str, title: str, content: str) -> Report:
+        """Overwrite (store) this source's latest draft under the parent event, version +1.
+
+        Only drafts of the same source are candidates: reports other sources wrote, and
+        ones an analyst took over or sent, are never touched. Writes a new draft if there
+        is no candidate.
         """
-        if draft_id is None:
-            draft = Draft(
-                id=uuid4().hex,
-                parent_id=parent_id,
-                title=title,
-                content=content,
-                status=DRAFT,
-                version=1,
-                updated_at=_now(),
-            )
-        else:
-            current = self.get(draft_id)
-            if current.parent_id != parent_id:
-                raise DraftLockedError(f"{draft_id} belongs to {current.parent_id}")
-            if current.status != DRAFT:
-                raise DraftLockedError(f"{draft_id} is {current.status}; machine writes stop")
-            draft = self._bump(current, title=title, content=content)
-        self._draft_repository.upsert(draft)
-        return draft
+        drafts = [
+            r
+            for r in self._report_repository.list_by_parent(parent_id)
+            if r.source == source and r.status == DRAFT
+        ]
+        latest = max(drafts, key=lambda r: r.updated_at, default=None)
+        if latest is None:
+            return self.write(parent_id, source, title, content)
+        report = self._bump(latest, title=title, content=content)
+        self._report_repository.upsert(report)
+        return report
 
-    def edit(self, draft_id: str, content: str, title: str | None = None) -> Draft:
-        """分析师编辑，返回新版本（写库）：进入“编辑中”，之后机器写入被拒绝。已发出的抛 DraftLockedError。"""
-        current = self.get(draft_id)
-        if current.status == SENT:
-            raise DraftLockedError(f"{draft_id} was already sent")
-        draft = self._bump(current, title=title or current.title, content=content, status=EDITING)
-        self._draft_repository.upsert(draft)
-        return draft
+    # ------------------------------------------------------------ analysts
 
-    def send(self, draft_id: str) -> Draft:
-        """定稿发出，返回新状态（写库）。之后任何人不能再改；重复发出抛 DraftLockedError。"""
-        current = self.get(draft_id)
+    def edit(self, report_id: str, content: str, title: str | None = None) -> Report:
+        """Edit as an analyst (stored): the report becomes "editing" and machines stop
+        writing to it.
+
+        Raises:
+            ReportLockedError: If it was already sent.
+        """
+        current = self.get(report_id)
         if current.status == SENT:
-            raise DraftLockedError(f"{draft_id} was already sent")
-        draft = current.model_copy(update={"status": SENT, "updated_at": _now()})
-        self._draft_repository.upsert(draft)
-        return draft
+            raise ReportLockedError(f"{report_id} was already sent")
+        title = title if title is not None else current.title
+        report = self._bump(current, title=title, content=content, status=EDITING)
+        self._report_repository.upsert(report)
+        return report
+
+    def send(self, report_id: str) -> Report:
+        """Send it (stored). Nobody can change it afterwards.
+
+        Raises:
+            ReportLockedError: If it was already sent.
+        """
+        current = self.get(report_id)
+        if current.status == SENT:
+            raise ReportLockedError(f"{report_id} was already sent")
+        report = current.model_copy(update={"status": SENT, "updated_at": _now()})
+        self._report_repository.upsert(report)
+        return report
 
     @staticmethod
-    def _bump(current: Draft, **update: object) -> Draft:
+    def _bump(current: Report, **update: object) -> Report:
         return current.model_copy(
             update={**update, "version": current.version + 1, "updated_at": _now()}
         )

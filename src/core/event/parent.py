@@ -11,10 +11,12 @@ from core.event.records import ParentEventRecord
 from core.event.runner import EventRunner
 from core.event.runtime import EventRuntime, ParentEventServices
 from core.event.template import EventTemplate
-from core.report import DRAFT, Draft
+from core.report import Report
 from core.target import TargetNotFoundError
 
 logger = logging.getLogger(__name__)
+
+DIGEST_SOURCE = "digest"   # 汇总报告的来源；钩子写的报告以挂载名为来源
 
 
 class ParentEvent:
@@ -168,16 +170,13 @@ class ParentEvent:
 
     # ------------------------------------------------------------ 报告
 
-    def digest(self) -> Draft:
-        """定时触发的汇总（原生方法，不是钩子）：写进本父事件最近一份仍是“草稿”的报告，没有就新建。"""
-        reports = self._services.report_manager
-        drafts = [d for d in reports.list_by_parent(self._id) if d.status == DRAFT]
-        latest = max(drafts, key=lambda d: d.updated_at, default=None)
-        return reports.write(
-            self._id,
-            title=f"{self._name} 汇总",
-            content=self._digest_content(),
-            draft_id=latest.id if latest else None,
+    def digest(self) -> Report:
+        """定时触发的汇总（原生方法，不是钩子）：滚动写进本父事件最近一份汇总草稿，没有就新建。
+
+        只覆盖来源为 "digest" 的草稿；钩子写的报告、分析师接手或已发出的都不碰。
+        """
+        return self._services.report_manager.roll(
+            self._id, DIGEST_SOURCE, title=f"{self._name} 汇总", content=self._digest_content()
         )
 
     def _digest_content(self) -> str:

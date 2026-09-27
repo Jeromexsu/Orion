@@ -2,20 +2,20 @@
 
 from typing import Protocol
 
-from core.report.draft import Draft
+from core.report.report import Report
 
 
-class DraftRepository(Protocol):
-    """报告草稿的存取，只存最新版本。"""
+class ReportRepository(Protocol):
+    """报告的存取，只存最新版本。"""
 
-    def get(self, draft_id: str) -> Draft | None:
+    def get(self, report_id: str) -> Report | None:
         """不存在返回 None。"""
         ...
 
-    def upsert(self, draft: Draft) -> None:
+    def upsert(self, report: Report) -> None:
         """按 id 新建或覆盖。"""
         ...
 
-    def list_by_parent(self, parent_id: str) -> list[Draft]:
+    def list_by_parent(self, parent_id: str) -> list[Report]:
         """某个父事件的全部报告。"""
         ...

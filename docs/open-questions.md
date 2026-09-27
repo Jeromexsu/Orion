@@ -142,7 +142,7 @@ class RadarAdapter(UpstreamAdapter): ...
 ### 8. 其他（随审阅推进逐条确认）
 
 - 模板 ID 全局还是按父事件区分（现为全局：`TemplateRepository` 只按 template_id 存取）。
-- `EvalResult.outcome`、`Draft.status` 的中文字面值是否对外改为英文枚举。
+- `EvalResult.outcome`、`Report.status` 的中文字面值是否对外改为英文枚举。
 - 父事件级钩子：已去掉 `Level`（原「父事件级」挂载没有任何触发点）；真需要时按那时的需求重新设计挂载点和触发。
 - 校准钩子的挂载点（设计文档待办）。
 - 异步执行钩子：只声明了 `external` 作用域的钩子不改监控状态，可以入队异步执行（`Event._run_hooks` 里的 TODO）；
@@ -160,11 +160,19 @@ class RadarAdapter(UpstreamAdapter): ...
 - **hil：处理结果留档**：`mark_resolved` 只记接受 / 拒绝。审核记录还应有：谁、何时、最终参数（含分析师的改动）、
   执行结果或错误。另：`accept` 先执行动作、再标记已处理，标记失败会留在待审、可被再次接受而重复执行——
   有真实持久化层时处理（同一事务，或先标记「执行中」）。
+- **report：不存历史版本**：仓库只存最新版本，机器每次滚动、分析师每次编辑都会丢掉上一版。需要审计或对比时再存版本历史。
 - report 模块是否开 pyright strict。
 - 设计文档第八、九节与代码同步。
 
 ## 已决
 
+- **报告按来源滚动**（report 审阅）：
+  - 修 bug：`digest()` 原来覆盖本父事件「最近一份草稿」，不管是谁写的，会把 `closeReport` 写的关闭报告覆盖成汇总。
+    报告加来源 `source`（汇总是 `"digest"`，钩子写的是挂载名）；滚动逻辑从父事件挪进 report：
+    `ReportManager.roll(parent_id, source, ...)` 只覆盖同一来源的最新草稿，没有就新写；`write` 总是新写（去掉按 `draft_id` 覆盖）。
+  - 改名：`Draft` → `Report`（「已发出的草稿」说不通；草稿只是状态之一），`DraftRepository` → `ReportRepository`，
+    `DraftLockedError` / `DraftNotFoundError` → `ReportLockedError` / `ReportNotFoundError`。
+  - 钩子注入窄接口 `ReportWriter`（只有 `write` / `roll`），拿不到分析师入口 `edit` / `send`。
 - **提议的形状**（hil 审阅）：
   - 来源不再由钩子自己填（原 `source=self.name`）：`ctx.propose(action, args, reason=..., evidence=...)`，
     上下文盖上 `ProposalOrigin(hook, mount, parent_id, event_id)`。按钩子统计采纳率有了可靠依据，也能追到具体运行。

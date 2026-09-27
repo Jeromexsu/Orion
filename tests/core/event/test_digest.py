@@ -2,7 +2,7 @@ from core.event import TemplateDef
 from tests.core.event.conftest import Env, mount, template
 
 
-def test_digest_rolls_one_machine_draft(env: Env) -> None:
+def test_digest_rolls_one_machine_report(env: Env) -> None:
     parent = env.parent_events.create("p1", "东海方向")
     parent.add_target("t1")
     parent.upsert_template(TemplateDef.model_validate(template(threshold=9)))
@@ -30,10 +30,10 @@ def test_digest_all_isolates_failures(env: Env) -> None:
     env.parent_events.create("p1", "a")
     env.parent_events.create("p2", "b")
     assert env.parent_events.digest_all() == []
-    assert len(env.drafts.items) == 2
+    assert len(env.report_repo.items) == 2
 
 
-def test_close_report_hook_writes_draft(env: Env) -> None:
+def test_close_report_hook_writes_report(env: Env) -> None:
     parent = env.parent_events.create("p1", "东海方向")
     parent.add_target("t1")
     parent.upsert_template(
@@ -47,7 +47,12 @@ def test_close_report_hook_writes_draft(env: Env) -> None:
     parent.runner("enter-zone").on_observation(env.envelope(20, 20))
     parent.runner("enter-zone").on_observation(env.envelope(5, 5))
 
-    (draft,) = env.reports.list_by_parent("p1")
-    assert draft.title == "进入告警"
-    assert "已关闭（converged）" in draft.content
-    assert "命中 1 次，涉及目标：MU5101" in draft.content
+    (report,) = env.reports.list_by_parent("p1")
+    assert (report.title, report.source) == ("进入告警", "closeReport")
+    assert "已关闭（converged）" in report.content
+    assert "命中 1 次，涉及目标：MU5101" in report.content
+
+    # 回归：汇总只滚动自己的草稿，不会把关闭报告覆盖成汇总
+    digest = parent.digest()
+    assert digest.id != report.id
+    assert env.reports.get(report.id) == report

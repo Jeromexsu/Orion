@@ -14,7 +14,7 @@ from tests.core.event.fakes import (
     InMemoryTemplateRepository,
 )
 from tests.core.hil.fakes import InMemoryProposalRepository
-from tests.core.report.fakes import InMemoryDraftRepository
+from tests.core.report.fakes import InMemoryReportRepository
 from tests.core.target.fakes import InMemoryObservableTargetRepository, InMemoryTargetRepository
 
 
@@ -29,7 +29,7 @@ def build() -> App:
             template_repository=InMemoryTemplateRepository(),
             event_repository=InMemoryEventRepository(),
             runner_state_repository=InMemoryRunnerStateRepository(),
-            draft_repository=InMemoryDraftRepository(),
+            report_repository=InMemoryReportRepository(),
             proposal_repository=InMemoryProposalRepository(),
         )
     )

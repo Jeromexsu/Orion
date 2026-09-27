@@ -1,15 +1,15 @@
-from core.report import Draft
+from core.report import Report
 
 
-class InMemoryDraftRepository:
+class InMemoryReportRepository:
     def __init__(self) -> None:
-        self.items: dict[str, Draft] = {}
+        self.items: dict[str, Report] = {}
 
-    def get(self, draft_id: str) -> Draft | None:
-        return self.items.get(draft_id)
+    def get(self, report_id: str) -> Report | None:
+        return self.items.get(report_id)
 
-    def upsert(self, draft: Draft) -> None:
-        self.items[draft.id] = draft
+    def upsert(self, report: Report) -> None:
+        self.items[report.id] = report
 
-    def list_by_parent(self, parent_id: str) -> list[Draft]:
-        return [d for d in self.items.values() if d.parent_id == parent_id]
+    def list_by_parent(self, parent_id: str) -> list[Report]:
+        return [r for r in self.items.values() if r.parent_id == parent_id]

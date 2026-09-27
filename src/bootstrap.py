@@ -27,7 +27,7 @@ from core.event import (
 )
 from core.hil import HilManager, ProposalRepository
 from core.hooks import HookRegistry, MountCompiler
-from core.report import DraftRepository, ReportManager
+from core.report import ReportManager, ReportRepository
 from core.target import ObservableTargetRepository, TargetManager, TargetRepository
 from plugins.condition_engine.on_enter import OnEnter
 from plugins.hooks.close_report import CloseReport
@@ -51,7 +51,7 @@ class Repositories:
         template_repository: TemplateRepository,
         event_repository: EventRepository,
         runner_state_repository: RunnerStateRepository,
-        draft_repository: DraftRepository,
+        report_repository: ReportRepository,
         proposal_repository: ProposalRepository,
     ) -> None:
         self.target_repository = target_repository
@@ -62,7 +62,7 @@ class Repositories:
         self.template_repository = template_repository
         self.event_repository = event_repository
         self.runner_state_repository = runner_state_repository
-        self.draft_repository = draft_repository
+        self.report_repository = report_repository
         self.proposal_repository = proposal_repository
 
 
@@ -111,7 +111,7 @@ def build_app(repos: Repositories) -> App:
     evaluator_registry.register(OnEnter())
     condition_compiler = ConditionCompiler(evaluator_registry)
 
-    report_manager = ReportManager(repos.draft_repository)
+    report_manager = ReportManager(repos.report_repository)
     hil_manager = HilManager(repos.proposal_repository)
 
     hook_registry = HookRegistry()

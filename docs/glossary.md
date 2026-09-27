@@ -42,6 +42,15 @@
 | 调用时机 | `Occasion`（`CreatedOccasion` / `ObservationOccasion` / `RuleHitOccasion` / `ClosedOccasion`） | 钩子为什么被调用：在哪个挂载点、当时发生了什么 |
 | 钩子上下文 | `HookContext` | 钩子运行时拿到的：本挂载的状态副本、只读信息，以及声明过的能力（`ctx.event`、`ctx.propose`）；参数不在里面，单独传给 `run` |
 
+## 报告（report）
+
+| 术语 | 代码 | 含义 |
+|---|---|---|
+| 报告 | `Report` | 一份报告的当前版本（只存最新版本）；状态：草稿 / 编辑中 / 已发出 |
+| 草稿 | 状态 `DRAFT` | 机器能写的唯一状态；分析师一编辑就变「编辑中」，机器不再写 |
+| 来源 | `Report.source` | 谁写的：汇总是 `"digest"`，钩子写的是挂载名；滚动（`roll`）只覆盖同一来源的草稿 |
+| 报告写入器 | `ReportWriter` | 机器入口（`write` / `roll`）的窄接口，注入钩子；`ReportManager` 结构化实现 |
+
 ## 条件（condition_engine）
 
 | 术语 | 代码 | 含义 |

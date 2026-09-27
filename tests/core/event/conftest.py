@@ -31,7 +31,7 @@ from tests.core.event.fakes import (
     InMemoryTemplateRepository,
     RecordingSink,
 )
-from tests.core.report.fakes import InMemoryDraftRepository
+from tests.core.report.fakes import InMemoryReportRepository
 from tests.core.target.fakes import (
     InMemoryObservableTargetRepository,
     InMemoryTargetRepository,
@@ -90,8 +90,8 @@ class Env:
             self.targets.upsert_target(Aircraft(id=tid, name=name, registration=tid))
 
         self.log = Log()
-        self.drafts = InMemoryDraftRepository()
-        self.reports = ReportManager(self.drafts)
+        self.report_repo = InMemoryReportRepository()
+        self.reports = ReportManager(self.report_repo)
         self.hook_registry = HookRegistry()
         for hook in (CountHits(), Recorder(self.log), Spotter(), Boom(), CloseReport(self.reports)):
             self.hook_registry.register(hook)
