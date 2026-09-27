@@ -1,12 +1,13 @@
 """示例 Evaluator：进入区域。有状态的判断方式照这个写。"""
 
 from collections.abc import Mapping
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 from core.condition_engine import HIT, MISS, EvalResult, Evaluator, evaluator
-from core.target import ObservationEnvelope
+from core.target import Observation
 
 Point = tuple[float, float]                 # (lat, lon)
 Polygon = list[Point]
@@ -40,10 +41,13 @@ class OnEnter(Evaluator[OnEnterCriteria]):
     """上一次在区域外、这一次在区域内 → 命中。状态里记住上一次是否在区域内。"""
 
     def evaluate(
-        self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: OnEnterCriteria
+        self,
+        observation: Observation,
+        occurred_at: datetime,
+        state: Mapping[str, Any],
+        criteria: OnEnterCriteria,
     ) -> EvalResult:
         """命中时 extracted 带进入时的位置；每次都返回新的 inside 状态。"""
-        observation = envelope.observation
         position = (float(getattr(observation, "lat")), float(getattr(observation, "lon")))
         inside = point_in_polygon(position, criteria.area)
         was_inside: bool | None = state.get("inside")

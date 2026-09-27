@@ -1,6 +1,7 @@
 """组合节点三值逻辑的性质测试。"""
 
 from collections.abc import Mapping
+from datetime import datetime
 from typing import Any, Literal
 
 from hypothesis import given
@@ -18,7 +19,7 @@ from core.condition_engine import (
     Outcome,
     evaluator,
 )
-from core.target import Observation, ObservationEnvelope
+from core.target import Observation
 from tests.core.condition_engine.conftest import compile_, make_envelope
 
 outcomes = st.sampled_from([HIT, MISS, NOT_APPLICABLE])
@@ -32,8 +33,12 @@ class FixedCriteria(BaseModel):
 class Fixed(Evaluator[FixedCriteria]):
 
     def evaluate(
-        self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: FixedCriteria
-    ) -> EvalResult:
+        self,
+    observation: Observation,
+    occurred_at: datetime,
+    state: Mapping[str, Any],
+    criteria: FixedCriteria,
+) -> EvalResult:
         return EvalResult(outcome=criteria.outcome)
 
 

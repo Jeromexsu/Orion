@@ -26,7 +26,7 @@ since 之前的不返回），等往外分插件任务时再搭。
 
 **发现于**：审阅 condition_engine 的 `Evaluator` 时。**状态**：待讨论。
 
-每个叶子条件只绑定一个可观测目标，`evaluate(envelope, state, criteria)` 每次只拿到一条观测；
+每个叶子条件只绑定一个可观测目标，`evaluate(observation, occurred_at, state, criteria)` 每次只拿到一条观测；
 `LeafNode` 对不属于自己目标的数据直接返回「不适用」。因此需要同时比较多个目标数据的条件——
 如「两架飞机相互接近」「A 在 B 之前进入区域」——单个叶子做不了。组合节点（all/any/not）只组合
 各叶子的三值结果，也拿不到对方的数值。
@@ -48,7 +48,7 @@ since 之前的不返回），等往外分插件任务时再搭。
 `LeafDef.observable` 本就是可观测目标 ID，条件在概念上就是「对可观测目标的观测做判断」，原 Protocol 只是把
 这层关联藏了起来；target 是最底层、最稳定的模块，无环；回退只需在条件引擎内重新引入输入 Protocol。
 
-代价：条件引擎与「观测」的形状绑定；判断方式能看到 `upstream` / `source_id` / `raw`（靠约定不依赖）；
+代价：条件引擎与「观测」的形状绑定；判断方式只拿观测和发生时间（`evaluate(observation, occurred_at, state, criteria)`），来源信息不交出去；
 `Observation` 的变更会波及条件引擎和判断方式插件；与设计文档「条件引擎零依赖」不一致。
 
 **触发重新评估的条件**：出现要判断「非观测类输入」的需求（如一段新闻文本、一条人工录入的线索，
@@ -117,6 +117,28 @@ class OnEnter(Evaluator[...]):
 - 通用型判断方式（如「某字段大于某值」）字段名在判定标准里，需另加编译时检查（判定标准里的字段存在于观测类）；
 - 可为空字段（`altitude_m: float | None`）继承只保证「有这个字段」，运行时「为空则不适用」的检查仍要保留。
 
+### 11. 按上游调整判断的可信度
+
+**发现于**：收窄 `Evaluator.evaluate` 签名时（不再传观测外壳）。**状态**：已记下，有需要时再做。
+
+需求：不同上游可信度不同（如雷达不如 ADS-B），同样判为「命中」，可信度应当打折。
+
+不放进判断方式：判断方式按上游调整就得写 `if upstream == "radar"`——条件插件认识上游插件的名字（跨插件字符串耦合），
+且每个判断方式各写一遍、口径不一。判断方式因此只拿观测和发生时间，拿不到上游。
+
+可能的做法：上游可信度作为独立的一层——
+
+```python
+@upstream_adapter(observed_points=[Position], query_key_sets=[{Icao24}], confidence=0.6)
+class RadarAdapter(UpstreamAdapter): ...
+```
+
+叶子节点在判断方式返回后，把判断方式给的可信度与这条观测来源上游的可信度合并（如相乘）。
+待定点：
+- 可信度由上游适配器声明，还是在模板里按（可观测目标, 上游）配置，或两者都有（模板覆盖默认）；
+- 合并方式（相乘 / 取小）；组合节点（all / any）对可信度的合并规则是否要随之调整；
+- 同一观察点的不同观测（如有无高度）是否也影响可信度。
+
 ### 8. 其他（随审阅推进逐条确认）
 
 - 模板 ID 全局还是按父事件区分（现为全局：`TemplateRepository` 只按 template_id 存取）。
@@ -138,7 +160,7 @@ class OnEnter(Evaluator[...]):
 
 - **条件节点统一为 kind + op + 操作对象**：`OpDef` / `OpNode` → `BranchDef` / `BranchNode`（`kind: "branch"`）；叶子的
   `type` → `op`（引用 `Evaluator.op`，原 `Evaluator.type`，顺带去掉了遮蔽内置 `type` 的写法）；条件留痕的 `"type"` 键 → `"op"`。
-  叶子的参数叫 `criteria`（判定标准），`Evaluator.evaluate(envelope, state, criteria)`；算子挂载的 `params` 不变。
+  叶子的参数叫 `criteria`（判定标准），`Evaluator.evaluate(observation, occurred_at, state, criteria)`（后又收窄：不再传观测外壳）；算子挂载的 `params` 不变。
 
 - **条件状态：结果直接给新状态，不给补丁**：`EvalResult.state_patch` 改为 `state`，含义在两层一致——「求值对象的新状态，
   `None` 表示没变」：判断方式返回本叶子的完整新状态，`ConditionTree.evaluate` 返回整棵树的新状态。`apply_state_patch`

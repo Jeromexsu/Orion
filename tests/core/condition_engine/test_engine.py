@@ -17,7 +17,7 @@ from core.condition_engine import (
     EvaluatorRegistry,
     evaluator,
 )
-from core.target import ObservationEnvelope
+from core.target import Observation
 from plugins.condition_engine.on_enter import OnEnter
 from tests.core.condition_engine.conftest import (
     SQUARE,
@@ -167,9 +167,13 @@ class RecentCount(Evaluator[RecentCriteria]):
 
 
     def evaluate(
-        self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: RecentCriteria
-    ) -> EvalResult:
-        now = envelope.occurred_at
+        self,
+    observation: Observation,
+    occurred_at: datetime,
+    state: Mapping[str, Any],
+    criteria: RecentCriteria,
+) -> EvalResult:
+        now = occurred_at
         window = [*state.get("window", []), now.isoformat()]
         window = [t for t in window if datetime.fromisoformat(t) > now - timedelta(hours=criteria.hours)]
         return EvalResult(
@@ -179,16 +183,20 @@ class RecentCount(Evaluator[RecentCriteria]):
 
 @evaluator(requires={"alt"})
 class Spy(Evaluator[GtCriteria]):
-    """记录收到的观测外壳。"""
+    """记录收到的观测和发生时间。"""
 
 
     def __init__(self) -> None:
-        self.seen: list[ObservationEnvelope] = []
+        self.seen: list[tuple[Observation, datetime]] = []
 
     def evaluate(
-        self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: GtCriteria
-    ) -> EvalResult:
-        self.seen.append(envelope)
+        self,
+    observation: Observation,
+    occurred_at: datetime,
+    state: Mapping[str, Any],
+    criteria: GtCriteria,
+) -> EvalResult:
+        self.seen.append((observation, occurred_at))
         return EvalResult(outcome=MISS)
 
 
@@ -201,10 +209,10 @@ def test_evaluator_gets_a_copy_with_time() -> None:
 
     result = compile_(compiler, {"kind": "leaf", "observable": "t1:position", "op": "spy",
                                "criteria": {"field": "alt", "value": 0}}).evaluate(original, {})
-    (seen,) = spy.seen
-    assert seen.occurred_at == T0 + timedelta(hours=3)
-    assert seen is not original and seen.observation is not original.observation  # 拿到的是副本
-    assert seen == original
+    ((observation, occurred_at),) = spy.seen
+    assert occurred_at == T0 + timedelta(hours=3)
+    assert observation is not original.observation  # 拿到的是副本
+    assert observation == original.observation
     assert result.trace[0]["occurred_at"] == (T0 + timedelta(hours=3)).isoformat()
 
 
@@ -237,8 +245,12 @@ def test_evaluator_decorator_defaults_and_overrides() -> None:
     @evaluator(op="httpCheck")
     class HTTPCheck(Evaluator[GtCriteria]):
         def evaluate(
-            self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: GtCriteria
-        ) -> EvalResult:
+            self,
+        observation: Observation,
+        occurred_at: datetime,
+        state: Mapping[str, Any],
+        criteria: GtCriteria,
+    ) -> EvalResult:
             return EvalResult(outcome=MISS)
 
     assert (HTTPCheck.op, HTTPCheck.requires, HTTPCheck.criteria_model) == (
@@ -251,8 +263,12 @@ def test_evaluator_decorator_defaults_and_overrides() -> None:
 def test_undeclared_evaluator_rejected_at_register() -> None:
     class Bare(Evaluator[GtCriteria]):
         def evaluate(
-            self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: GtCriteria
-        ) -> EvalResult:
+            self,
+        observation: Observation,
+        occurred_at: datetime,
+        state: Mapping[str, Any],
+        criteria: GtCriteria,
+    ) -> EvalResult:
             return EvalResult(outcome=MISS)
 
     with pytest.raises(TypeError, match="@evaluator"):

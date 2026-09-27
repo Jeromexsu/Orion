@@ -40,7 +40,7 @@
 |---|---|---|
 | 条件定义 | `ConditionDef`（`LeafDef` / `BranchDef`） | 纯数据，可任意嵌套；两种节点都是 `kind` + `op` + 操作对象 |
 | 条件树 | `ConditionTree`（`LeafNode` / `BranchNode`） | 编译后的条件；`evaluate(envelope, state)` 是纯函数，状态由调用方保管 |
-| 判断方式 | `Evaluator` | 唯一的扩展点；继承 `Evaluator[判定标准模型]`，用 `@evaluator(requires=...)` 声明（`op` 默认类名首字母小写，叶子的 `op` 引用它），实现 `evaluate(envelope, state, criteria)`：拿这条观测和上一轮状态对照判定标准 |
+| 判断方式 | `Evaluator` | 唯一的扩展点；继承 `Evaluator[判定标准模型]`，用 `@evaluator(requires=...)` 声明（`op` 默认类名首字母小写，叶子的 `op` 引用它），实现 `evaluate(observation, occurred_at, state, criteria)`：拿这条观测（及发生时间）和上一轮状态对照判定标准，拿不到来源信息 |
 | 节点路径 | `path`（如 `root/1/0`） | 节点在树中的地址；用于定位编译错误、按叶子分组状态、审计追溯 |
 
 ## 命名约定

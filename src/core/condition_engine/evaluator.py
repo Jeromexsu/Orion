@@ -2,11 +2,12 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable, Mapping, Set
+from datetime import datetime
 from typing import Any, ClassVar, Generic, Literal, TypeVar, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.target import ObservationEnvelope
+from core.target import Observation
 
 HIT = "命中"
 MISS = "未命中"
@@ -42,13 +43,13 @@ class Evaluator(ABC, Generic[C]):
 
         @evaluator(requires={"lat", "lon"})
         class OnEnter(Evaluator[OnEnterCriteria]):
-            def evaluate(self, envelope, state, criteria): ...
+            def evaluate(self, observation, occurred_at, state, criteria): ...
 
     op 默认是类名首字母小写（OnEnter → "onEnter"）；criteria_model 取泛型参数（OnEnterCriteria）。
 
     规则：
     - 不得修改传入的 state（只读视图）；新状态放进结果的 state 返回——本叶子的**完整**新状态，
-      不是变化量；不变就不填（None）；envelope 是副本；
+      不是变化量；不变就不填（None）；observation 是副本；
     - 返回“不适用”时不得带 state（带了也会被忽略）。
     """
 
@@ -58,17 +59,21 @@ class Evaluator(ABC, Generic[C]):
 
     @abstractmethod
     def evaluate(
-        self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: C
+        self,
+        observation: Observation,
+        occurred_at: datetime,
+        state: Mapping[str, Any],
+        criteria: C,
     ) -> EvalResult:
         """Judge one observation, given this leaf's previous state, against the criteria.
 
-        The observation is envelope.observation; the fields in requires are guaranteed to
-        have values, read them by name (getattr(envelope.observation, "lat")).
-        envelope.occurred_at is when it happened. Do not depend on upstream / source_id /
-        raw. The envelope is a copy.
+        Gets only what a judgement may depend on: the observation and when it happened.
+        Where it came from (upstream, source_id, raw) is deliberately not passed.
 
         Args:
-            envelope: The observation to judge, with its source information.
+            observation: The observation (a copy). Fields in requires are guaranteed to
+                have values; read them by name (getattr(observation, "lat")).
+            occurred_at: When the observation happened (not when it was processed).
             state: This leaf's state as last returned (empty on first call); read-only.
                 May hold anything (e.g. a sliding window); keep its size bounded.
             criteria: What counts as a hit, as configured in the template and validated

@@ -72,8 +72,11 @@ class LeafNode(ConditionNode):
 
         old_state = dict(state.get(self.path, {}))
         leaf_state = MappingProxyType(dict(old_state))
-        # 每个叶子拿一份副本：判断方式即使修改了也影响不到其他叶子和调用方
-        result = self.evaluator.evaluate(envelope.model_copy(deep=True), leaf_state, self.criteria)
+        # 每个叶子拿一份观测副本：判断方式即使修改了也影响不到其他叶子和调用方；
+        # 只交观测和发生时间，来源信息（upstream / source_id / raw）不交出去
+        result = self.evaluator.evaluate(
+            observation.model_copy(deep=True), envelope.occurred_at, leaf_state, self.criteria
+        )
 
         entry: dict[str, Any] = {
             "path": self.path,

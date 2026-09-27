@@ -72,9 +72,13 @@ class Gt(Evaluator[GtCriteria]):
 
 
     def evaluate(
-        self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: GtCriteria
-    ) -> EvalResult:
-        value = getattr(envelope.observation, criteria.field)
+        self,
+    observation: Observation,
+    occurred_at: datetime,
+    state: Mapping[str, Any],
+    criteria: GtCriteria,
+) -> EvalResult:
+        value = getattr(observation, criteria.field)
         hit = value > criteria.value
         return EvalResult(outcome=HIT if hit else MISS, extracted={"alt": value} if hit else {})
 

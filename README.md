@@ -351,7 +351,7 @@ graph LR
 ```python
 @evaluator(requires={"lat", "lon"})
 class OnEnter(Evaluator[OnEnterCriteria]):
-    def evaluate(self, envelope, state, criteria): ...
+    def evaluate(self, observation, occurred_at, state, criteria): ...
 ```
 
 | 声明 / 实现 | 含义 |
@@ -359,7 +359,7 @@ class OnEnter(Evaluator[OnEnterCriteria]):
 | `op` | 模板里叶子的 `op` 引用它。默认类名首字母小写（`OnEnter` → `"onEnter"`），缩写开头的类名用 `op=` 指定 |
 | `requires` | 需要观测里有值的字段名；缺失或为空时叶子直接返回「不适用」，不调用判断方式 |
 | 判定标准模型 | 取泛型参数（`Evaluator[OnEnterCriteria]`），编译时用它校验叶子的 `criteria`；也可 `criteria=` 指定 |
-| `evaluate(envelope, state, criteria)` | 判断；不改传入的 `state`（只读），把本叶子的**完整**新状态放进结果的 `state`（不是变化量；没变就不填）；返回「不适用」时不得带 `state` |
+| `evaluate(observation, occurred_at, state, criteria)` | 判断；只拿观测（副本）和发生时间，拿不到来源信息（upstream / source_id / raw）；不改传入的 `state`（只读），把本叶子的**完整**新状态放进结果的 `state`（不是变化量；没变就不填）；返回「不适用」时不得带 `state` |
 
 示例见 `plugins/condition_engine/on_enter.py`（进入区域，有状态）。
 
