@@ -1,9 +1,15 @@
 """What a hook gets when it runs: why (Occasion), what it may see and do (HookContext),
 and where its proposals go (ProposalSink).
 
-Occasions have one type per mount point, so a hook can match on it and get fields that
-are always set (no Optional); Pydantic so an occasion can later travel with an async
-output hook through a queue. The context is built per run from the hook's declaration.
+Where a new piece of information goes:
+- Occasion: about this trigger. Changes with every trigger and is shared by every hook
+  run at it (mount point, the envelope, the rule result, the close reason). Pure data,
+  one type per mount point, so a hook can match on it and get fields that are always
+  set; Pydantic so it can travel with an async hook through a queue.
+- HookContext: about where the hook runs. The same across triggers within one event and
+  private to one mount (who it is, which event, its own state, target names), plus the
+  capabilities its declaration allows. Built per run; its data could be carried to an
+  async hook, its capabilities must be given where it runs.
 """
 
 from collections.abc import Callable, Mapping, Sequence
