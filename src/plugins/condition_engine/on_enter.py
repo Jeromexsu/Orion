@@ -29,11 +29,15 @@ def point_in_polygon(point: Point, polygon: Polygon) -> bool:
 
 
 class OnEnterParams(BaseModel):
+    """模板里 LeafDef.params 的形状。"""
+
     area: Polygon = Field(min_length=3)
     initial_as_enter: bool = False   # 首次观测就在区域内是否算“进入”
 
 
 class OnEnter(Evaluator[OnEnterParams]):
+    """上一次在区域外、这一次在区域内 → 命中。状态里记住上一次是否在区域内。"""
+
     type = "onEnter"
     requires = frozenset({"lat", "lon"})
     params_model = OnEnterParams
@@ -41,6 +45,7 @@ class OnEnter(Evaluator[OnEnterParams]):
     def evaluate(
         self, params: OnEnterParams, envelope: ObservationEnvelope, state: Mapping[str, Any]
     ) -> EvalResult:
+        """命中时 extracted 带进入时的位置；每次都返回新的 inside 状态。"""
         observation = envelope.observation
         position = (float(getattr(observation, "lat")), float(getattr(observation, "lon")))
         inside = point_in_polygon(position, params.area)

@@ -10,10 +10,14 @@ from core.report import ReportManager
 
 
 class CloseReportParams(BaseModel):
+    """挂载参数。"""
+
     title: str = "子事件收敛"
 
 
 class CloseReport:
+    """挂在 closed：用子事件最终状态写一份新草稿到所属父事件。"""
+
     name = "close_report"
     category: Category = "output"
     levels: frozenset[Level] = frozenset({"event"})
@@ -24,6 +28,7 @@ class CloseReport:
         self._report_manager = report_manager
 
     def run(self, trigger: Trigger, ctx: BaseContext) -> None:
+        """新建一份草稿（写库）。上下文没有父事件 ID 时什么都不做。"""
         if ctx.parent_id is None:
             return
         params = CloseReportParams.model_validate(ctx.params)

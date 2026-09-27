@@ -7,6 +7,8 @@ from plugins.observed_points.position import Position
 
 
 class Aircraft(Target, frozen=True):
+    """飞机：可在位置观察点被观测。icao24 供按 ICAO 地址查询的上游使用。"""
+
     observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (Position,)
 
     type: Literal["aircraft"] = "aircraft"
