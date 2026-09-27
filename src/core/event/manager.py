@@ -1,5 +1,6 @@
 import logging
 
+from core.event.compiler import TemplateCompiler
 from core.event.errors import DuplicateParentEventError, ParentEventNotFoundError
 from core.event.parent import ParentEvent
 from core.event.runtime import EventRuntime
@@ -10,14 +11,15 @@ logger = logging.getLogger(__name__)
 class ParentEventManager:
     """event 模块入口：创建、查找父事件，以及启动时的重启恢复。"""
 
-    def __init__(self, runtime: EventRuntime) -> None:
+    def __init__(self, runtime: EventRuntime, template_compiler: TemplateCompiler) -> None:
         self._runtime = runtime
+        self._template_compiler = template_compiler
         self._parents: dict[str, ParentEvent] = {}
 
     def create(self, parent_id: str, name: str) -> ParentEvent:
         if parent_id in self._parents or self._runtime.parents.get(parent_id) is not None:
             raise DuplicateParentEventError(parent_id)
-        parent = ParentEvent(parent_id, name, self._runtime)
+        parent = ParentEvent(parent_id, name, self._runtime, self._template_compiler)
         self._runtime.parents.upsert(parent.to_record())
         self._parents[parent_id] = parent
         return parent
@@ -52,7 +54,9 @@ class ParentEventManager:
             if record.id in self._parents:
                 continue
             try:
-                self._parents[record.id] = ParentEvent.restore(record, self._runtime)
+                self._parents[record.id] = ParentEvent.restore(
+                    record, self._runtime, self._template_compiler
+                )
             except Exception:
                 logger.exception("failed to restore parent event %s", record.id)
                 failed.append(record.id)

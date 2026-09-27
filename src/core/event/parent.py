@@ -1,5 +1,6 @@
 import logging
 
+from core.event.compiler import TemplateCompiler
 from core.event.definitions import TemplateDef
 from core.event.errors import (
     TargetStillReferencedError,
@@ -24,17 +25,26 @@ class ParentEvent:
     所有变更方法都会立即持久化自己的记录。通过 ParentEventManager 创建和恢复。
     """
 
-    def __init__(self, parent_id: str, name: str, runtime: EventRuntime) -> None:
+    def __init__(
+        self,
+        parent_id: str,
+        name: str,
+        runtime: EventRuntime,
+        template_compiler: TemplateCompiler,
+    ) -> None:
         self._id = parent_id
         self._name = name
         self._runtime = runtime
+        self._template_compiler = template_compiler   # 只有父事件编译模板
         self._targets: set[str] = set()
         self._runners: dict[str, EventRunner] = {}
 
     @classmethod
-    def restore(cls, record: ParentEventRecord, runtime: EventRuntime) -> "ParentEvent":
+    def restore(
+        cls, record: ParentEventRecord, runtime: EventRuntime, template_compiler: TemplateCompiler
+    ) -> "ParentEvent":
         """重启恢复：还原命名空间；读回模板定义并编译（当前版本和挂起版本），交给 runner 恢复。不写库。"""
-        parent = cls(record.id, record.name, runtime)
+        parent = cls(record.id, record.name, runtime, template_compiler)
         parent._targets = set(record.targets)
         for ref in record.templates:
             template = parent._load_template(ref.template_id, ref.version)
@@ -109,7 +119,7 @@ class ParentEvent:
         if runner is not None:
             runner.check_version(template_def.version)
 
-        template = self._runtime.template_compiler.compile(template_def)
+        template = self._template_compiler.compile(template_def)
         self._runtime.templates.upsert(template_def)
         if runner is None:
             self._runners[template.id] = EventRunner.start(
@@ -180,7 +190,7 @@ class ParentEvent:
         template_def = self._runtime.templates.get(template_id, version)
         if template_def is None:
             raise TemplateNotFoundError(f"{template_id} v{version}")
-        return self._runtime.template_compiler.compile(template_def)
+        return self._template_compiler.compile(template_def)
 
     def _save(self) -> None:
         self._runtime.parents.upsert(self.to_record())

@@ -253,7 +253,7 @@ def test_restore(env: Env) -> None:
 
     # 模拟重启：新的 TargetManager（订阅关系为空）+ 同一批仓库
     targets = env.make_targets()
-    events = ParentEventManager(env.make_runtime(targets))
+    events = env.make_parent_events(targets)
     assert events.restore() == []
 
     restored = events.get("p1").runner("enter-zone")
@@ -274,5 +274,5 @@ def test_restore(env: Env) -> None:
 def test_restore_failure_is_isolated(env: Env) -> None:
     make_parent(env)
     env.templates.items.clear()
-    events = ParentEventManager(env.runtime)
+    events = ParentEventManager(env.runtime, env.template_compiler)
     assert events.restore() == ["p1"]

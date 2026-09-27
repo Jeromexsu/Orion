@@ -137,7 +137,8 @@ class Env:
         self.events = InMemoryEventRepository()
         self.runner_states = InMemoryRunnerStateRepository()
         self.runtime = self.make_runtime(self.targets)
-        self.parent_events = ParentEventManager(self.runtime)
+        self.template_compiler = self.make_compiler(self.targets)
+        self.parent_events = ParentEventManager(self.runtime, self.template_compiler)
         self._seq = count()
 
     def make_targets(self) -> TargetManager:
@@ -150,14 +151,18 @@ class Env:
         targets.register_type(Aircraft)
         return targets
 
-    def make_runtime(self, targets: TargetManager) -> EventRuntime:
+    def make_compiler(self, targets: TargetManager) -> TemplateCompiler:
         evaluator_registry = EvaluatorRegistry()
         evaluator_registry.register(OnEnter())
+        return TemplateCompiler(ConditionCompiler(evaluator_registry), self.operator_registry, targets)
+
+    def make_parent_events(self, targets: TargetManager) -> ParentEventManager:
+        """用给定的 TargetManager 组装一套新的父事件管理器——模拟重启。"""
+        return ParentEventManager(self.make_runtime(targets), self.make_compiler(targets))
+
+    def make_runtime(self, targets: TargetManager) -> EventRuntime:
         return EventRuntime(
             targets=targets,
-            template_compiler=TemplateCompiler(
-                ConditionCompiler(evaluator_registry), self.operator_registry, targets
-            ),
             operator_registry=self.operator_registry,
             suggestions=self.sink,
             parents=self.parents,

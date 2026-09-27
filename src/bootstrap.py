@@ -114,7 +114,6 @@ def build_app(repos: Repositories) -> App:
     parent_events = ParentEventManager(
         EventRuntime(
             targets=targets,
-            template_compiler=TemplateCompiler(condition_compiler, operator_registry, targets),
             operator_registry=operator_registry,
             suggestions=hil,
             parents=repos.parents,
@@ -122,7 +121,8 @@ def build_app(repos: Repositories) -> App:
             events=repos.events,
             runner_states=repos.runner_states,
             reports=reports,
-        )
+        ),
+        TemplateCompiler(condition_compiler, operator_registry, targets),
     )
     _allow_actions(hil, parent_events)
 
