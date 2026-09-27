@@ -29,6 +29,7 @@ from core.hil import HilManager, SuggestionRepository
 from core.operators import OperatorRegistry
 from core.report import DraftRepository, ReportManager
 from core.target import ObservableTargetRepository, TargetManager, TargetRepository
+from plugins.collector.opensky import OpenSkyAdapter
 from plugins.condition_engine.on_enter import OnEnter
 from plugins.operators.close_report import CloseReport
 from plugins.operators.count_hits import CountHits
@@ -92,7 +93,7 @@ class App:
 def build_app(repos: Repositories) -> App:
     """装配并完成重启恢复。"""
     adapter_registry = AdapterRegistry()
-    # 在这里 adapter_registry.register(...) 各上游 Adapter 插件
+    adapter_registry.register(OpenSkyAdapter())
 
     target_manager = TargetManager(
         repos.target_repository, repos.observable_target_repository, adapter_registry
