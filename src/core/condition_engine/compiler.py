@@ -98,24 +98,28 @@ class ConditionCompiler:
         path: str,
         errors: list[str],
     ) -> ConditionNode | None:
-        """ Check and compile leaf condition definition into leaf condition node.
+        """Check a leaf condition definition and compile it into a leaf node.
 
-        Verify:
-            1. declared evaluator exists
-            2. declared observables are in range of observables declared in template
-            3. fields of observation can satisfy requirements of evaluator
-            4. criteria syntax ok
-        
+        Checks, in order:
+            1. The evaluator named by op exists. If not, stops here: the remaining
+               checks need the evaluator.
+            2. The observable target the leaf refers to is one the template declares.
+            3. The observation that observable target produces has every field the
+               evaluator requires.
+            4. The criteria are valid against the evaluator's criteria_model (shape
+               and values, e.g. an area needs at least 3 points).
+
         Args:
-            leaf_def: leaf condition definition
-            declared_observables: declared observables in template and their observations' shapes
-            path: path to reach this definition node from root
-            errors: errors
-        
-        Returns:
-            A leaf condition node if all test passed
-        """
+            leaf_def: The leaf condition definition.
+            declared_observables: The observable targets the template declares, each
+                with the observation class it produces.
+            path: Node path from the root (e.g. "root/1/0"); prefixes error messages
+                and keys this leaf's state.
+            errors: Collects every error found. Appended to; nothing is raised.
 
+        Returns:
+            The leaf node, or None if any check failed (its errors are in errors).
+        """
         # get evaluator instance declared in definition
         try:
             evaluator = self._evaluator_registry.get(leaf_def.op)
@@ -124,20 +128,20 @@ class ConditionCompiler:
             return None
 
         ok = True
-        # get observation shape of the mentioned observable
+        # get the observation class of the referenced observable target (None: not declared)
         observation_type = declared_observables.get(leaf_def.observable)
         if observation_type is None:
             errors.append(f"{path}: unknown observable {leaf_def.observable!r}")
             ok = False
-        # check if fields of observation can satisfy requirements of evaluator
         else:
+            # check that the observation has every field the evaluator requires
             missing = set(evaluator.requires) - set(observation_type.model_fields)
             if missing:
                 errors.append(
                     f"{path}: observable {leaf_def.observable!r} lacks fields {sorted(missing)}"
                 )
                 ok = False
-        # check syntax of criteria
+        # validate the criteria against the evaluator's criteria_model
         try:
             criteria = evaluator.criteria_model.model_validate(leaf_def.criteria)
         except ValidationError as e:
