@@ -38,11 +38,15 @@ def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list
 - 纯数据定义的类型以 `Def` 结尾，装着它的字段以 `_def` / `_defs` 结尾；运行时对象不带后缀。
 - 注入的依赖按具体类型命名：`TargetManager` → `target_manager`，`TemplateRepository` → `template_repository`。
 - 按职责给类起名：
-  - `*Manager`：有自己要存的数据的模块的入口，管这些数据的生命周期，仓库注入在它身上（`TargetManager`、
-    `ParentEventManager`、`HilManager`、`ReportManager`）。没有自己数据的模块没有 manager。入口做的事能用一个
-    动词说清时可以用动词名词化（`Collector`）。
-  - `*Registry`：一种插件的注册表，只有 `register` / `get` / 列出全部（外加注册时的声明检查）；启动时由 bootstrap
-    注册，之后只读，注入给用它的一方（`TargetTypeRegistry`、`UpstreamAdapterRegistry`、`EvaluatorRegistry`、`HookRegistry`）。
+  - `*Manager`：管数据——运行期间不断变化、要存库的业务数据的生命周期，不只是增删改查，还有状态流转和规则
+    （如「有订阅者不能删目标」「已发出的报告不能改」）。它是有自己数据的模块的入口，仓库注入在它身上，用仓库存取；
+    规则在 manager 里，不在仓库里（`TargetManager` 管目标实例和可观测目标，`ParentEventManager`、`HilManager`、
+    `ReportManager`）。没有自己数据的模块没有 manager。入口做的事能用一个动词说清时可以用动词名词化（`Collector`）。
+  - `*Registry`：管插件——一种插件的注册表，只有 `register` / `get` / 列出全部（外加注册时的声明检查）；启动时由
+    bootstrap 注册，之后只读，注入给用它的一方。按它装的东西命名：目标类型的插件是类（`Aircraft`），所以叫
+    `TargetTypeRegistry`，不叫 `TargetRegistry`（目标是这些类的实例，是数据，归 `TargetManager`）；其余插件是实例
+    （`UpstreamAdapterRegistry`、`EvaluatorRegistry`、`HookRegistry`）。
+  - `*Repository`：只管数据怎么存取，协议定义在 core，由 repo 层实现。
   - `*Compiler`：把纯数据定义编译成运行时对象，无状态（`TemplateCompiler`、`ConditionCompiler`、`MountCompiler`）。
 - 行为类用普通类，跨 JSON 边界的纯数据用 Pydantic，不用 dataclass。
 
