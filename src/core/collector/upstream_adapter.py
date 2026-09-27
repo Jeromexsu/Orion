@@ -12,9 +12,9 @@ Query = dict[type[QueryKey], Any]
 
 
 class FetchedRecord(BaseModel):
-    """Adapter 从上游拿到的一条记录：观测实例 + 来源信息。
+    """UpstreamAdapter 从上游拿到的一条记录：观测实例 + 来源信息。
 
-    observation 由 Adapter 直接构造成观察点的观测类（如 PositionObservation），字段写错在 Adapter 里当场报错；
+    observation 由 UpstreamAdapter 直接构造成观察点的观测类（如 PositionObservation），字段写错在 UpstreamAdapter 里当场报错；
     collector 只检查它的类型是否与上游服务的观察点一致。
     """
 
@@ -26,10 +26,10 @@ class FetchedRecord(BaseModel):
     raw: dict[str, Any] | None = None   # 上游原始响应，便于排查
 
 
-class Adapter(ABC):
-    """上游基类。一个上游（数据提供方，如 OpenSky）一个子类，放在 plugins/collector/ 下：
+class UpstreamAdapter(ABC):
+    """上游基类。一个上游（数据提供方，如 OpenSky）一个子类，放在 plugins/upstream_adapters/ 下：
 
-        class OpenSkyAdapter(Adapter):
+        class OpenSkyAdapter(UpstreamAdapter):
             name = "opensky"
             observed_points = frozenset({Position})
             query_key_sets = (frozenset({Icao24}),)
@@ -40,8 +40,8 @@ class Adapter(ABC):
     一个上游可以服务多个观察点：fetch 按 observed_point 分支（比较类：observed_point is Position），
     返回对应观察点的观测；
     游标、订阅、路由都按（可观测目标, 上游）组织，可观测目标里已带观察点，所以互不干扰。
-    Adapter 不关心目标类型，只关心观察点（输出契约）和查询键（输入契约）——不同目标类型只要
-    能提供其中一种查询方式要的查询键，就能用同一个 Adapter 观测。目标的信息只经查询键传进来。
+    UpstreamAdapter 不关心目标类型，只关心观察点（输出契约）和查询键（输入契约）——不同目标类型只要
+    能提供其中一种查询方式要的查询键，就能用同一个 UpstreamAdapter 观测。目标的信息只经查询键传进来。
     """
 
     name: str                           # 上游名，写进 ObservableTarget.upstreams
@@ -49,7 +49,7 @@ class Adapter(ABC):
     # 支持的查询方式，按优先级排列；每种是一组需要目标提供的查询键（对所服务的全部观察点通用）。
     # 目标能提供其中任意一组（这些查询键都有值），就能用这个上游观测它；采用第一组满足的。
     # 例如 (frozenset({Icao24}), frozenset({Mmsi}))：有 ICAO 地址的按它查，有 MMSI 的按它查——
-    # Adapter 不需要认识目标类型，也不需要知道目标的字段名。
+    # UpstreamAdapter 不需要认识目标类型，也不需要知道目标的字段名。
     query_key_sets: tuple[frozenset[type[QueryKey]], ...]
 
     def choose_query(self, provided: Mapping[type[QueryKey], Any]) -> Query | None:
@@ -76,7 +76,7 @@ class Adapter(ABC):
         ...
 
 
-def check_adapter(adapter: Adapter) -> None:
+def check_upstream_adapter(adapter: UpstreamAdapter) -> None:
     """注册时检查子类把类属性都声明了，且至少服务一个观察点、支持一种查询方式；不合格抛 TypeError。"""
     missing = [
         attr for attr in ("name", "observed_points", "query_key_sets") if not hasattr(adapter, attr)

@@ -1,30 +1,30 @@
-from core.collector.adapter import Adapter, check_adapter
-from core.collector.errors import DuplicateAdapterError, UnknownAdapterError
+from core.collector.errors import DuplicateUpstreamAdapterError, UnknownUpstreamAdapterError
+from core.collector.upstream_adapter import UpstreamAdapter, check_upstream_adapter
 from core.target import ObservedPoint, Target
 
 
-class AdapterRegistry:
-    """Adapter 注册表。结构化地实现 target 的 UpstreamCatalog。"""
+class UpstreamAdapterRegistry:
+    """UpstreamAdapter 注册表。结构化地实现 target 的 UpstreamCatalog。"""
 
     def __init__(self) -> None:
-        self._adapters: dict[str, Adapter] = {}
+        self._adapters: dict[str, UpstreamAdapter] = {}
 
-    def register(self, adapter: Adapter) -> None:
-        """注册一个上游。类属性漏写或没有查询方式抛 TypeError；名字重复抛 DuplicateAdapterError。"""
-        check_adapter(adapter)
+    def register(self, adapter: UpstreamAdapter) -> None:
+        """注册一个上游。类属性漏写或没有查询方式抛 TypeError；名字重复抛 DuplicateUpstreamAdapterError。"""
+        check_upstream_adapter(adapter)
         if adapter.name in self._adapters:
-            raise DuplicateAdapterError(adapter.name)
+            raise DuplicateUpstreamAdapterError(adapter.name)
         self._adapters[adapter.name] = adapter
 
-    def get(self, name: str) -> Adapter:
-        """上游名 → Adapter。未注册抛 UnknownAdapterError。"""
+    def get(self, name: str) -> UpstreamAdapter:
+        """上游名 → UpstreamAdapter。未注册抛 UnknownUpstreamAdapterError。"""
         try:
             return self._adapters[name]
         except KeyError:
-            raise UnknownAdapterError(name) from None
+            raise UnknownUpstreamAdapterError(name) from None
 
-    def adapters(self) -> list[Adapter]:
-        """已注册的全部 Adapter。"""
+    def adapters(self) -> list[UpstreamAdapter]:
+        """已注册的全部 UpstreamAdapter。"""
         return list(self._adapters.values())
 
     # UpstreamCatalog

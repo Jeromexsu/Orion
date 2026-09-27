@@ -1,6 +1,6 @@
-"""示例 Adapter：OpenSky Network 的公开 ADS-B 接口。新增上游照这个写。
+"""示例 UpstreamAdapter：OpenSky Network 的公开 ADS-B 接口。新增上游照这个写。
 
-一个 Adapter 要回答三件事，全部用类来声明，不写字段名字符串：
+一个 UpstreamAdapter 要回答三件事，全部用类来声明，不写字段名字符串：
 - 服务哪个观察点（输出契约）：Position → 返回的观测是 PositionObservation；
 - 支持哪些查询方式（输入契约）：只按 Icao24 查；
 - 怎么拉：fetch 把上游的原始响应翻译成 FetchedRecord（直接构造观测实例，写错字段当场报错）。
@@ -16,7 +16,7 @@ from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from core.collector import Adapter, FetchedRecord, Query
+from core.collector import FetchedRecord, Query, UpstreamAdapter
 from core.target import ObservedPoint
 from plugins.observed_points.position import Position, PositionObservation
 from plugins.query_keys.icao24 import Icao24
@@ -41,7 +41,7 @@ def _http_get_json(url: str) -> Any:
         return json.load(resp)
 
 
-class OpenSkyAdapter(Adapter):
+class OpenSkyAdapter(UpstreamAdapter):
     """按 ICAO 地址查飞机当前位置。"""
 
     name = "opensky"

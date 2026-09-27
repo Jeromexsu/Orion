@@ -2,9 +2,9 @@ class CollectorError(Exception):
     """collector 模块所有异常的基类。"""
 
 
-class DuplicateAdapterError(CollectorError):
+class DuplicateUpstreamAdapterError(CollectorError):
     pass
 
 
-class UnknownAdapterError(CollectorError):
+class UnknownUpstreamAdapterError(CollectorError):
     pass

@@ -10,7 +10,7 @@
 ```
 src/
   core/<module>/     # target, collector, event, condition_engine, operators, hil, report
-  plugins/<module>/  # 具体的 Target 子类 / ObservedPoint 子类 / Adapter / Evaluator / Operator 实现
+  plugins/<module>/  # 具体的 Target 子类 / ObservedPoint 子类 / UpstreamAdapter / Evaluator / Operator 实现
   api/               # Web API 层（暂缓）
   persistence/       # 仓库实现 · ORM（暂缓）
   bootstrap.py       # 唯一的跨切面装配点
@@ -62,7 +62,7 @@ graph BT
 ```mermaid
 sequenceDiagram
   participant C as Collector
-  participant A as Adapter（上游）
+  participant A as UpstreamAdapter（上游）
   participant O as ObservableTarget
   participant D as Dispatcher
   participant R as EventRunner
@@ -90,7 +90,7 @@ sequenceDiagram
 | `ObservedPoint` 子类（如 `Position`） | 观察点：名字 + 返回什么观测。与目标类型无关，可被多种目标共用 | 开发者（`plugins/observed_points/`） |
 | `Observation` 子类（如 `PositionObservation`） | 观测：观察点返回的数据，字段即形状 | 开发者（和观察点放在一起） |
 | `QueryKey` 子类（如 `Icao24`） | 查询键：拿什么去查一个目标，名字 + 取值的类型与格式 | 开发者（`plugins/query_keys/`） |
-| `Adapter`（上游） | 接入一个数据提供方（上游，如 OpenSky）：服务哪些观察点（`observed_points`，可多个）、支持哪些查询方式（`query_key_sets`，每种是一组查询键，目标能提供其一即可），把查询键翻译成上游 API、把响应翻译成观测 | 开发者（`plugins/collector/`） |
+| `UpstreamAdapter`（上游） | 接入一个数据提供方（上游，如 OpenSky）：服务哪些观察点（`observed_points`，可多个）、支持哪些查询方式（`query_key_sets`，每种是一组查询键，目标能提供其一即可），把查询键翻译成上游 API、把响应翻译成观测 | 开发者（`plugins/upstream_adapters/`） |
 | `ObservableTarget`（obs） | 目标实例 + 观察点 + 可用上游，全局唯一；订阅者按上游订阅，它按上游路由数据 | `TargetManager` 按需创建 |
 | `ObservationEnvelope` | 观测的外壳：来源信息（可观测目标、上游、发生时间、去重 ID）+ 观测实例 | collector 产出 |
 
@@ -104,7 +104,7 @@ graph LR
   OB -. 装在 .-> ENV
 ```
 
-可用上游 = 服务该观察点、且目标能提供其某种查询方式要的全部查询键（字段有值）的 Adapter。
+可用上游 = 服务该观察点、且目标能提供其某种查询方式要的全部查询键（字段有值）的 UpstreamAdapter。
 一个上游 = 一个数据提供方，可以服务多个观察点（`fetch` 按 `observed_point` 分支）；模板里写的上游名就是提供方的名字。
 游标、订阅、路由都按（可观测目标, 上游）组织，可观测目标里已带观察点，所以同一上游的不同观察点互不干扰。
 上游不认识目标类型：同一个上游可以对飞机按 `Icao24`、对船按 `Mmsi` 查询。
@@ -126,7 +126,7 @@ class Aircraft(Target):
 
 观察点和查询键是目标类型与上游之间的两份契约，双方都 import 同一个类，不靠字段名字符串对齐：
 
-| 契约 | 方向 | 目标类型声明 | Adapter 声明 |
+| 契约 | 方向 | 目标类型声明 | UpstreamAdapter 声明 |
 |---|---|---|---|
 | 观察点 `ObservedPoint` | 输出：上游返回什么 | `observed_points = (Position,)` | `observed_points = frozenset({Position})` |
 | 查询键 `QueryKey` | 输入：上游拿什么去查 | `icao24: str \| None = provides(Icao24, default=None)` | `query_key_sets = (frozenset({Icao24}),)` |
@@ -137,17 +137,17 @@ class Aircraft(Target):
 |---|---|---|
 | 查询键 | 定义输入的词汇：每个查询键是一项输入（名字 + 取值格式），全部查询键就是输入的全部范围 | 上游、目标类型 |
 | 目标类型 | 把自己的字段映射进查询键（`provides(...)`）；字段为空的不算提供 | 上游 |
-| Adapter | 在查询键范围里挑自己要的：`query_key_sets` 是几种可选的查询方式，每种是一组**联立**的查询键（要全部提供）；按优先级取第一种满足的。再把查询键翻译成上游 API 的参数名和格式（如 `Icao24` → `ICAO`、大写） | 目标类型、目标的字段名 |
+| UpstreamAdapter | 在查询键范围里挑自己要的：`query_key_sets` 是几种可选的查询方式，每种是一组**联立**的查询键（要全部提供）；按优先级取第一种满足的。再把查询键翻译成上游 API 的参数名和格式（如 `Icao24` → `ICAO`、大写） | 目标类型、目标的字段名 |
 
-**不在查询键范围内的，Adapter 拿不到。** `fetch(observed_point, query, since)` 的三个参数各管一件事：
+**不在查询键范围内的，UpstreamAdapter 拿不到。** `fetch(observed_point, query, since)` 的三个参数各管一件事：
 
 | 参数 | 管什么 | 来源 |
 |---|---|---|
 | `observed_point` | 查什么：哪个观察点（类，分支时写 `observed_point is Position`） | 可观测目标 |
-| `query` | 凭什么查：这次采用的查询方式及取值，如 `{Icao24: "780a3b"}`（构造目标时已按查询键校验） | `Adapter.choose_query(目标能提供的查询键)` |
+| `query` | 凭什么查：这次采用的查询方式及取值，如 `{Icao24: "780a3b"}`（构造目标时已按查询键校验） | `UpstreamAdapter.choose_query(目标能提供的查询键)` |
 | `since` | 从哪儿开始查：这个上游的游标 | collector |
 
-`query` 是 Adapter 得到目标信息的唯一途径：Adapter 看不到目标本身、目标类型和字段名。挑查询方式的
+`query` 是 UpstreamAdapter 得到目标信息的唯一途径：UpstreamAdapter 看不到目标本身、目标类型和字段名。挑查询方式的
 `choose_query` 是基类方法，只接收目标能提供的查询键；判断可用上游和实际采集都用它，两处结果一致。
 
 ### event：父事件、模板、子事件

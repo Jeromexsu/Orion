@@ -3,14 +3,14 @@ from datetime import UTC, datetime
 import pytest
 
 from core.collector import (
-    Adapter,
-    AdapterRegistry,
     Collector,
     Dispatcher,
-    DuplicateAdapterError,
+    DuplicateUpstreamAdapterError,
     FetchedRecord,
     Query,
-    UnknownAdapterError,
+    UnknownUpstreamAdapterError,
+    UpstreamAdapter,
+    UpstreamAdapterRegistry,
 )
 from core.target import (
     ObservableTarget,
@@ -30,7 +30,7 @@ from plugins.query_keys.icao24 import Icao24
 from plugins.query_keys.registration import Registration
 from plugins.target.aircraft import Aircraft
 from tests.core.collector.fakes import (
-    FakeAdapter,
+    FakeUpstreamAdapter,
     InMemoryCursorRepository,
     InMemoryObservationRepository,
 )
@@ -67,8 +67,8 @@ def rec(source_id: str, minute: int, lat: float = 1.0, lon: float = 2.0) -> Fetc
 
 class Env:
     def __init__(self) -> None:
-        self.adsb = FakeAdapter("adsb")
-        self.registry = AdapterRegistry()
+        self.adsb = FakeUpstreamAdapter("adsb")
+        self.registry = UpstreamAdapterRegistry()
         self.registry.register(self.adsb)
         self.manager = TargetManager(
             InMemoryTargetRepository(), InMemoryObservableTargetRepository(), self.registry
@@ -95,14 +95,14 @@ def test_registry_is_upstream_catalog(env: Env) -> None:
     assert env.registry.upstreams_for(plane, Position) == ["adsb"]
     assert env.registry.upstreams_for(plane, Fuel) == []
     assert env.observable().upstreams == ("adsb",)
-    with pytest.raises(DuplicateAdapterError):
-        env.registry.register(FakeAdapter("adsb"))
-    with pytest.raises(UnknownAdapterError):
+    with pytest.raises(DuplicateUpstreamAdapterError):
+        env.registry.register(FakeUpstreamAdapter("adsb"))
+    with pytest.raises(UnknownUpstreamAdapterError):
         env.registry.get("nope")
 
 
 def test_upstreams_match_by_query_keys(env: Env) -> None:
-    env.registry.register(FakeAdapter("mode-s", query_key_sets=(frozenset({Icao24}),)))
+    env.registry.register(FakeUpstreamAdapter("mode-s", query_key_sets=(frozenset({Icao24}),)))
     no_icao = env.manager.get_target("t1")
     with_icao = Aircraft(id="t2", name="y", registration="B-1", icao24="780abc")
     # 查询要 icao24：没有这个值的目标用不了这个上游
@@ -112,7 +112,9 @@ def test_upstreams_match_by_query_keys(env: Env) -> None:
 
 def test_one_upstream_several_query_ways() -> None:
     """同一个上游对不同目标用不同的查询方式：飞机按 ICAO 地址，船按 MMSI——上游不认识目标类型。"""
-    tracker = FakeAdapter("global-track", query_key_sets=(frozenset({Icao24}), frozenset({Mmsi})))
+    tracker = FakeUpstreamAdapter(
+        "global-track", query_key_sets=(frozenset({Icao24}), frozenset({Mmsi}))
+    )
     plane = Aircraft(id="a1", name="x", registration="B-1", icao24="780abc")
     ship = Ship(id="s1", name="y", mmsi="412000000")
     bare_plane = Aircraft(id="a2", name="z", registration="B-2")
@@ -211,7 +213,7 @@ def test_dispatcher_counts_failures(env: Env) -> None:
 
 
 def test_only_subscribed_upstreams_are_fetched_and_routed(env: Env) -> None:
-    radar = FakeAdapter("radar")
+    radar = FakeUpstreamAdapter("radar")
     env.registry.register(radar)
     obs = env.observable()
     assert obs.upstreams == ("adsb", "radar")
@@ -239,7 +241,7 @@ def test_only_subscribed_upstreams_are_fetched_and_routed(env: Env) -> None:
 
 
 def test_register_checks_adapter_declarations(env: Env) -> None:
-    class NoQuery(FakeAdapter):
+    class NoQuery(FakeUpstreamAdapter):
         pass
 
     incomplete = NoQuery("no-query", query_key_sets=())
@@ -259,7 +261,7 @@ def test_query_way_with_several_keys_needs_all_of_them() -> None:
         callsign: str | None = provides(Callsign, default=None)
         registration: str | None = provides(Registration, default=None)
 
-    upstream = FakeAdapter(
+    upstream = FakeUpstreamAdapter(
         "strict", query_key_sets=(frozenset({Icao24, Callsign}), frozenset({Registration}))
     )
     both = Flight(id="f1", name="x", icao24="780a3b", callsign="CES5101", registration="B-1")
@@ -279,7 +281,7 @@ def test_one_adapter_serves_several_observed_points() -> None:
     class Tanker(Target):
         registration: str = provides(Registration)
 
-    class Provider(Adapter):
+    class Provider(UpstreamAdapter):
         name = "provider"
         observed_points = frozenset({Position, Fuel})
         query_key_sets = (frozenset({Registration}),)
@@ -300,7 +302,7 @@ def test_one_adapter_serves_several_observed_points() -> None:
             return [FetchedRecord(observation=observation, occurred_at=at(1), source_id=source_id)]
 
     provider = Provider()
-    registry = AdapterRegistry()
+    registry = UpstreamAdapterRegistry()
     registry.register(provider)
     manager = TargetManager(
         InMemoryTargetRepository(), InMemoryObservableTargetRepository(), registry
@@ -328,4 +330,4 @@ def test_one_adapter_serves_several_observed_points() -> None:
 
 def test_adapter_must_serve_an_observed_point(env: Env) -> None:
     with pytest.raises(TypeError, match="observed_points"):
-        env.registry.register(FakeAdapter("nothing", observed_points=frozenset()))
+        env.registry.register(FakeUpstreamAdapter("nothing", observed_points=frozenset()))

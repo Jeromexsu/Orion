@@ -1,7 +1,7 @@
 """查询键：用什么去查一个目标（如 ICAO 地址、MMSI）。
 
 与观察点对称：观察点是输出契约（上游返回什么），查询键是输入契约（上游拿什么去查）。
-目标类型和 Adapter 都 import 同一个查询键类，不靠字段名字符串对齐。
+目标类型和 UpstreamAdapter 都 import 同一个查询键类，不靠字段名字符串对齐。
 """
 
 from collections.abc import Callable
@@ -19,7 +19,7 @@ class QueryKey:
         class Icao24(QueryKey): ...
 
     目标类型在提供它的字段上关联：icao24: str | None = provides(Icao24, default=None)
-    Adapter 用它声明支持的查询方式：query_key_sets = (frozenset({Icao24}),)
+    UpstreamAdapter 用它声明支持的查询方式：query_key_sets = (frozenset({Icao24}),)
     """
 
     name: ClassVar[str]         # 由 @query_key 设置

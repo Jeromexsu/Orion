@@ -2,11 +2,11 @@
 
 from datetime import UTC, datetime
 
-from core.collector import AdapterRegistry, Collector, Dispatcher, FetchedRecord
+from core.collector import Collector, Dispatcher, FetchedRecord, UpstreamAdapterRegistry
 from core.event import TemplateDef
 from plugins.observed_points.position import PositionObservation
 from tests.core.collector.fakes import (
-    FakeAdapter,
+    FakeUpstreamAdapter,
     InMemoryCursorRepository,
     InMemoryObservationRepository,
 )
@@ -15,12 +15,12 @@ from tests.core.event.conftest import Env, template
 
 def test_collect_drives_sub_event_to_close() -> None:
     env = Env()
-    adsb = FakeAdapter("adsb")
-    adapter_registry = AdapterRegistry()
-    adapter_registry.register(adsb)
+    adsb = FakeUpstreamAdapter("adsb")
+    upstream_adapter_registry = UpstreamAdapterRegistry()
+    upstream_adapter_registry.register(adsb)
     collector = Collector(
         env.targets,
-        adapter_registry,
+        upstream_adapter_registry,
         InMemoryCursorRepository(),
         InMemoryObservationRepository(),
         Dispatcher(),

@@ -1,12 +1,12 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from core.collector import AdapterRegistry, Collector, Dispatcher
+from core.collector import Collector, Dispatcher, UpstreamAdapterRegistry
 from core.target import TargetManager
-from plugins.collector.opensky import OpenSkyAdapter
 from plugins.observed_points.position import Position, PositionObservation
 from plugins.query_keys.icao24 import Icao24
 from plugins.target.aircraft import Aircraft
+from plugins.upstream_adapters.opensky import OpenSkyAdapter
 from tests.core.collector.fakes import InMemoryCursorRepository, InMemoryObservationRepository
 from tests.core.target.conftest import Subscriber
 from tests.core.target.fakes import InMemoryObservableTargetRepository, InMemoryTargetRepository
@@ -35,7 +35,7 @@ class FakeOpenSky:
 
 
 def test_only_serves_aircraft_with_icao24() -> None:
-    registry = AdapterRegistry()
+    registry = UpstreamAdapterRegistry()
     registry.register(OpenSkyAdapter(FakeOpenSky()))
     with_icao = Aircraft(id="a", name="x", registration="B-1", icao24="780a3b")
     without = Aircraft(id="b", name="y", registration="B-2")
@@ -59,8 +59,8 @@ def test_fetch_translates_state_vectors() -> None:
 
 
 def test_collector_end_to_end() -> None:
-    """真实的 collector + 这个 Adapter：订阅 → 采集 → 解析 → 分发。"""
-    registry = AdapterRegistry()
+    """真实的 collector + 这个 UpstreamAdapter：订阅 → 采集 → 解析 → 分发。"""
+    registry = UpstreamAdapterRegistry()
     registry.register(OpenSkyAdapter(FakeOpenSky(state(T0))))
     manager = TargetManager(
         InMemoryTargetRepository(), InMemoryObservableTargetRepository(), registry

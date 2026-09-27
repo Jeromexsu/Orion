@@ -15,11 +15,11 @@
 从未读取——重启恢复靠 event 模块重新订阅。选项：保留 / 改为存纯数据记录 / 去掉。
 **状态**：等审阅到 `core/target/repository.py` 和 `manager.py` 时决定。
 
-### 3. Adapter 与 Target 子类的对应关系只靠约定
+### 3. UpstreamAdapter 与 Target 子类的对应关系只靠约定
 
-**已解决**：观察点与目标类型解耦后，Adapter 不再引用目标类型（见「已决 · 观察点」）；查询也不再靠字段名
-约定（见「已决 · 查询键」）。`Adapter` / `Operator` 已改为基类，注册时检查类属性声明；Adapter 直接构造
-观测实例，collector 检查其类型。剩余可做的是 Adapter 契约测试基类（跑一次 fetch，检查 source_id 不重复、
+**已解决**：观察点与目标类型解耦后，UpstreamAdapter 不再引用目标类型（见「已决 · 观察点」）；查询也不再靠字段名
+约定（见「已决 · 查询键」）。`UpstreamAdapter` / `Operator` 已改为基类，注册时检查类属性声明；UpstreamAdapter 直接构造
+观测实例，collector 检查其类型。剩余可做的是 UpstreamAdapter 契约测试基类（跑一次 fetch，检查 source_id 不重复、
 since 之前的不返回），等往外分插件任务时再搭。
 
 ### 4. 跨目标条件：单个叶子只能看一个目标的数据
@@ -150,7 +150,7 @@ since 之前的不返回），等往外分插件任务时再搭。
 - **观察点（取代「关注点」与「动态数据 schema」）**：观察点与目标类型解耦，不同目标类型可共用。
   - `ObservedPoint` 子类（如 `Position`）就是观测 `fields` 的 schema，放在 `plugins/observed_points/`；
   - 目标类型用 `observed_points` 声明可以在哪些观察点被观测（取代原 `focuses`）；
-  - Adapter 声明 `observed_points`（服务哪些观察点）和支持的查询方式（见下条「查询键」），不再引用目标类型；
+  - UpstreamAdapter 声明 `observed_points`（服务哪些观察点）和支持的查询方式（见下条「查询键」），不再引用目标类型；
     上游 = 数据提供方，一个上游可服务多个观察点，`fetch` 按 `observed_point` 分支；查询方式对它服务的
     全部观察点通用（真遇到按观察点不同再扩展成按观察点声明）；
   - `ObservableTarget(target, observed_point, upstreams)`；`ObservableDef.observed_point`
@@ -158,16 +158,16 @@ since 之前的不返回），等往外分插件任务时再搭。
 - **查询键（取代「同名属性字段含义一致」的约定）**：查询的输入也要有人负责，与观察点对称。
   - `QueryKey` 子类（如 `Icao24`）= 名字 + 取值的类型与格式，放在 `plugins/query_keys/`；
   - 目标类型在提供它的字段上关联：`icao24: str | None = provides(Icao24, default=None)`；构造目标时按查询键校验取值；
-  - Adapter 声明 `query_key_sets`（支持的查询方式：多组查询键，按优先级）；按查询键类匹配，不看字段名；
+  - UpstreamAdapter 声明 `query_key_sets`（支持的查询方式：多组查询键，按优先级）；按查询键类匹配，不看字段名；
     采用目标能提供的第一种，组装成 `query`（查询键 → 取值）；
-  - 不在查询键范围内的，Adapter 拿不到：去掉 `QuerySpec`（目标属性、别名、目标类型兜底都不再传），
-    `Adapter.fetch(observed_point, query, since)`——查什么、凭什么查、从哪儿开始查；别名要用来查就定义成查询键；
-  - 挑查询方式是基类方法 `Adapter.choose_query(目标能提供的查询键)`，只接收查询键、不接收目标本身；
+  - 不在查询键范围内的，UpstreamAdapter 拿不到：去掉 `QuerySpec`（目标属性、别名、目标类型兜底都不再传），
+    `UpstreamAdapter.fetch(observed_point, query, since)`——查什么、凭什么查、从哪儿开始查；别名要用来查就定义成查询键；
+  - 挑查询方式是基类方法 `UpstreamAdapter.choose_query(目标能提供的查询键)`，只接收查询键、不接收目标本身；
     判断可用上游和实际采集都用它，保证一致；
   - 一种查询方式可以联立多个查询键（`frozenset({B, C})`），缺一个就不满足、退到下一种。
-- **插件接口用基类，不用协议**：`Adapter`、`Operator` 与 `Evaluator` 一样是 ABC 基类，类属性的类型在基类里
+- **插件接口用基类，不用协议**：`UpstreamAdapter`、`Operator` 与 `Evaluator` 一样是 ABC 基类，类属性的类型在基类里
   声明，插件直接赋值（`category = "progress"`），不必逐个标注，也不会踩「协议是只读属性、pyright 不认 ClassVar」的坑；
-  注册时检查类属性是否都声明了。`FetchedRecord` 直接装观测实例（原为字段 dict），字段写错在 Adapter 里当场报错。
+  注册时检查类属性是否都声明了。`FetchedRecord` 直接装观测实例（原为字段 dict），字段写错在 UpstreamAdapter 里当场报错。
 - **声明用装饰器**：目标类型、观察点、查询键都用装饰器声明（`@target_type` / `@observed_point` / `@query_key`），
   字段关联查询键用 `provides(...)`，插件作者不必写 `ClassVar` / `Annotated` / `Literal`；`type` 字段由类型名自动填写；
   `Target` 的不可变写在 `model_config` 里，子类不必重复 `frozen=True`。装饰时就检查声明，写错在 import 时报错。

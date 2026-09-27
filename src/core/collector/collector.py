@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 
 from core.collector.dispatcher import Dispatcher
-from core.collector.registry import AdapterRegistry
+from core.collector.registry import UpstreamAdapterRegistry
 from core.collector.repository import CursorRepository, ObservationRepository
 from core.target import ObservableTarget, ObservationEnvelope, TargetManager
 
@@ -18,13 +18,13 @@ class Collector:
     def __init__(
         self,
         target_manager: TargetManager,
-        adapter_registry: AdapterRegistry,
+        upstream_adapter_registry: UpstreamAdapterRegistry,
         cursor_repository: CursorRepository,
         observation_repository: ObservationRepository,
         dispatcher: Dispatcher,
     ) -> None:
         self._target_manager = target_manager
-        self._adapter_registry = adapter_registry
+        self._adapter_registry = upstream_adapter_registry
         self._cursor_repository = cursor_repository
         self._observation_repository = observation_repository
         self._dispatcher = dispatcher

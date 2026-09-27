@@ -1,1 +1,1 @@
-"""插件：具体的 Target 子类 / ObservedPoint 子类 / Adapter / Evaluator / Operator 实现。"""
+"""插件：目标类型 / 观察点 / 查询键 / 上游适配器（UpstreamAdapter）/ 判断方式（Evaluator）/ 算子（Operator）的具体实现。"""

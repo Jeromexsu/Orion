@@ -7,11 +7,11 @@ import logging
 from typing import Any
 
 from core.collector import (
-    AdapterRegistry,
     Collector,
     CursorRepository,
     Dispatcher,
     ObservationRepository,
+    UpstreamAdapterRegistry,
 )
 from core.condition_engine import ConditionCompiler, EvaluatorRegistry
 from core.event import (
@@ -29,11 +29,11 @@ from core.hil import HilManager, SuggestionRepository
 from core.operators import OperatorRegistry
 from core.report import DraftRepository, ReportManager
 from core.target import ObservableTargetRepository, TargetManager, TargetRepository
-from plugins.collector.opensky import OpenSkyAdapter
 from plugins.condition_engine.on_enter import OnEnter
 from plugins.operators.close_report import CloseReport
 from plugins.operators.count_hits import CountHits
 from plugins.target.aircraft import Aircraft
+from plugins.upstream_adapters.opensky import OpenSkyAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ class App:
     def __init__(
         self,
         target_manager: TargetManager,
-        adapter_registry: AdapterRegistry,
+        upstream_adapter_registry: UpstreamAdapterRegistry,
         collector: Collector,
         condition_compiler: ConditionCompiler,
         operator_registry: OperatorRegistry,
@@ -81,7 +81,7 @@ class App:
         hil_manager: HilManager,
     ) -> None:
         self.target_manager = target_manager
-        self.adapter_registry = adapter_registry
+        self.upstream_adapter_registry = upstream_adapter_registry
         self.collector = collector
         self.condition_compiler = condition_compiler
         self.operator_registry = operator_registry
@@ -92,17 +92,17 @@ class App:
 
 def build_app(repos: Repositories) -> App:
     """装配并完成重启恢复。"""
-    adapter_registry = AdapterRegistry()
-    adapter_registry.register(OpenSkyAdapter())
+    upstream_adapter_registry = UpstreamAdapterRegistry()
+    upstream_adapter_registry.register(OpenSkyAdapter())
 
     target_manager = TargetManager(
-        repos.target_repository, repos.observable_target_repository, adapter_registry
+        repos.target_repository, repos.observable_target_repository, upstream_adapter_registry
     )
     target_manager.register_type(Aircraft)
 
     collector = Collector(
         target_manager,
-        adapter_registry,
+        upstream_adapter_registry,
         repos.cursor_repository,
         repos.observation_repository,
         Dispatcher(),
@@ -145,7 +145,7 @@ def build_app(repos: Repositories) -> App:
 
     return App(
         target_manager=target_manager,
-        adapter_registry=adapter_registry,
+        upstream_adapter_registry=upstream_adapter_registry,
         collector=collector,
         condition_compiler=condition_compiler,
         operator_registry=operator_registry,
