@@ -55,6 +55,8 @@ def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list
     领域代码只在这两处碰记录，要从历史里查东西就给仓库加一个窄的查询（如 `count_closed`），不把整批记录交出去。
   - `*Compiler`：把纯数据定义编译成运行时对象，无状态（`TemplateCompiler`、`ConditionCompiler`、`MountCompiler`）。
 - 行为类用普通类，跨 JSON 边界的纯数据用 Pydantic，不用 dataclass。
+- 有「定义 → 编译 → 运行时对象」的模块按阶段分文件：`definitions.py`（纯数据 `*Def`，不依赖任何运行时对象）、
+  `compiler.py`（`*Compiler`）、运行时产物各自的文件（如 condition_engine 的 `tree.py`、event 的 `template.py`、hooks 的 `mount.py`）。
 
 ## 插件
 

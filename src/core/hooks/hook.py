@@ -7,12 +7,8 @@ from typing import Any, ClassVar, Generic, Literal, TypeVar, get_args, get_origi
 from pydantic import BaseModel
 
 from core.hooks.context import HookContext
+from core.hooks.definitions import MountPoint
 from core.hooks.occasion import Occasion
-
-# 挂载点是核心结构事实，固定这几个：
-#   生命周期 created / closed · 数据进入 pre（不算条件，启发钩子专用）
-#   条件命中 rule_hit · 后置 post
-MountPoint = Literal["created", "closed", "pre", "rule_hit", "post"]
 
 # 作用域：钩子影响哪一块。external 是系统外部（报告、通知）；event / parent / target 是监控运行状态
 Scope = Literal["external", "event", "parent", "target"]
