@@ -49,12 +49,17 @@ since 之前的不返回），等往外分插件任务时再搭。
 设计文档 `EvalResult.extracted` 提到的「命中的关键词、地点」可能属于此类）。届时条件引擎应改回
 定义自己的输入 Protocol，依赖不再指向 observation。
 
-### 6. 观测外壳的持久化
+### 6. 观测外壳的持久化与读取
 
 `ObservationEnvelope.observation` 持有具体观测实例（如 `PositionObservation`），序列化时按实际类型输出
 （`SerializeAsAny`）。从存储读回时需要先知道是哪个观察点，才能还原成对应的观测类——与 `Target` 子类的
-还原类似，需要按 `observable_id` 找到观察点再 `model_validate`。持久化层实现时处理；
-`ObservationRepository` 目前只定义了接口。
+还原类似，需要按 `observable_id` 找到观察点再 `model_validate`。
+
+现在 `ObservationRepository` 只有 collector 在用（`append` 落库、`exists` 去重），没有读取方；预留的 `history`
+没人调用，已去掉。等读取方出现（API 展示轨迹、子事件回放、报告引用观测）时一起定：
+- 读取接口由读取方各自定义（接口在使用方），还是由 collector 统一对外提供；
+- 按什么查（可观测目标 + 时间段？）——按需加窄的查询，不整批交出；
+- 读回时怎么还原观测类（上面那段）。
 
 ### 7. 手动开启子事件
 

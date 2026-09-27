@@ -64,11 +64,3 @@ class InMemoryObservationRepository:
     def exists(self, source_id: str) -> bool:
         return any(d.source_id == source_id for d in self.items)
 
-    def history(
-        self, observable_id: str, since: datetime | None = None
-    ) -> list[ObservationEnvelope]:
-        return [
-            d
-            for d in self.items
-            if d.observable_id == observable_id and (since is None or d.occurred_at > since)
-        ]
