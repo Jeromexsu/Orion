@@ -129,8 +129,8 @@ class Aircraft(Target):
 
 | 契约 | 方向 | 目标类型声明 | UpstreamAdapter 声明 |
 |---|---|---|---|
-| 观察点 `ObservedPoint` | 输出：上游返回什么 | `observed_points = (Position,)` | `observed_points = frozenset({Position})` |
-| 查询键 `QueryKey` | 输入：上游拿什么去查 | `icao24: str \| None = provides(Icao24, default=None)` | `query_key_sets = (frozenset({Icao24}),)` |
+| 观察点 `ObservedPoint` | 输出：上游返回什么 | `@target_type(..., observed_points=[Position])` | `@upstream_adapter(observed_points=[Position], ...)` |
+| 查询键 `QueryKey` | 输入：上游拿什么去查 | `icao24: str \| None = provides(Icao24, default=None)` | `@upstream_adapter(..., query_key_sets=[{Icao24}])` |
 
 输入这一侧的分工：
 
@@ -192,8 +192,16 @@ collector 与 event 互不认识，只在可观测目标这里会合。
 要别人提供的（collector 定义接口，持久化层实现）：`CursorRepository`（每个（可观测目标, 上游）一个游标）、
 `ObservationRepository`（已采集观测，只增不改）。
 
-扩展点只有一个：继承 `UpstreamAdapter`，放在 `plugins/upstream_adapters/`——声明需要什么输入（`query_key_sets`）、
-能提供什么输出（`observed_points`），实现怎么查（`fetch`）。见上节「输入这一侧的分工」和 `plugins/upstream_adapters/opensky.py`。
+扩展点只有一个：继承 `UpstreamAdapter` 并用 `@upstream_adapter` 声明，放在 `plugins/upstream_adapters/`——
+声明需要什么输入（`query_key_sets`）、能提供什么输出（`observed_points`），实现怎么查（`fetch`）：
+
+```python
+@upstream_adapter(observed_points=[Position], query_key_sets=[{Icao24}])
+class OpenSkyAdapter(UpstreamAdapter):          # 上游名默认 "openSky"（去掉 Adapter 后缀、首字母小写）
+    def fetch(self, observed_point, query, since): ...
+```
+
+见上节「输入这一侧的分工」和 `plugins/upstream_adapters/opensky.py`。
 
 内部分工：`Collector.collect` → `collect_one`（一个可观测目标的全部活跃上游，拉完按时间顺序 `publish`）→
 `_collect_upstream`（一个上游：挑查询 → `fetch` → 检查观测类型、去重 → 落库、推进游标）。

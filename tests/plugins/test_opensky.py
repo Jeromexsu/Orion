@@ -39,7 +39,7 @@ def test_only_serves_aircraft_with_icao24() -> None:
     registry.register(OpenSkyAdapter(FakeOpenSky()))
     with_icao = Aircraft(id="a", name="x", registration="B-1", icao24="780a3b")
     without = Aircraft(id="b", name="y", registration="B-2")
-    assert registry.upstreams_for(with_icao, Position) == ["opensky"]
+    assert registry.upstreams_for(with_icao, Position) == ["openSky"]
     assert registry.upstreams_for(without, Position) == []
 
 
@@ -74,13 +74,13 @@ def test_collector_end_to_end() -> None:
     )
 
     observable = manager.get_observable("t1", "position")
-    assert observable.upstreams == ("opensky",)
+    assert observable.upstreams == ("openSky",)
     sub = Subscriber()
-    observable.subscribe(sub, ["opensky"])
+    observable.subscribe(sub, ["openSky"])
 
     collector.collect()
     (envelope,) = sub.received
-    assert envelope.upstream == "opensky"
+    assert envelope.upstream == "openSky"
     assert envelope.observation == PositionObservation(lat=31.2, lon=121.5, altitude_m=10050.0)
 
     collector.collect()   # 上游还是同一条：游标挡住，不重复分发

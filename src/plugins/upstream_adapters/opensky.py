@@ -16,7 +16,7 @@ from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from core.collector import FetchedRecord, Query, UpstreamAdapter
+from core.collector import FetchedRecord, Query, UpstreamAdapter, upstream_adapter
 from core.target import ObservedPoint
 from plugins.observed_points.position import Position, PositionObservation
 from plugins.query_keys.icao24 import Icao24
@@ -41,12 +41,9 @@ def _http_get_json(url: str) -> Any:
         return json.load(resp)
 
 
+@upstream_adapter(observed_points=[Position], query_key_sets=[{Icao24}])
 class OpenSkyAdapter(UpstreamAdapter):
-    """按 ICAO 地址查飞机当前位置。"""
-
-    name = "opensky"
-    observed_points = frozenset({Position})
-    query_key_sets = (frozenset({Icao24}),)
+    """按 ICAO 地址查飞机当前位置。上游名 "openSky"。"""
 
     def __init__(self, get_json: GetJson = _http_get_json) -> None:
         self._get_json = get_json   # 注入点：测试里换成假的，不联网

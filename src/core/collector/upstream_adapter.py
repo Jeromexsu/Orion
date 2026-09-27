@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from datetime import datetime
-from typing import Any
+from typing import Any, TypeVar
 
 from pydantic import BaseModel, ConfigDict, SerializeAsAny
 
@@ -29,14 +29,11 @@ class FetchedRecord(BaseModel):
 class UpstreamAdapter(ABC):
     """上游基类。一个上游（数据提供方，如 OpenSky）一个子类，放在 plugins/upstream_adapters/ 下：
 
+        @upstream_adapter(observed_points=[Position], query_key_sets=[{Icao24}])
         class OpenSkyAdapter(UpstreamAdapter):
-            name = "opensky"
-            observed_points = frozenset({Position})
-            query_key_sets = (frozenset({Icao24}),)
-
             def fetch(self, observed_point, query, since): ...
 
-    类属性的类型在这里声明，子类直接赋值即可。
+    name（上游名）默认是类名去掉 Adapter 后缀、首字母小写（OpenSkyAdapter → "openSky"）。
     一个上游可以服务多个观察点：fetch 按 observed_point 分支（比较类：observed_point is Position），
     返回对应观察点的观测；
     游标、订阅、路由都按（可观测目标, 上游）组织，可观测目标里已带观察点，所以互不干扰。
@@ -76,14 +73,64 @@ class UpstreamAdapter(ABC):
         ...
 
 
+A = TypeVar("A", bound=UpstreamAdapter)
+
+
+def upstream_adapter(
+    *,
+    observed_points: Iterable[type[ObservedPoint]],
+    query_key_sets: Iterable[Iterable[type[QueryKey]]],
+    name: str | None = None,
+) -> Callable[[type[A]], type[A]]:
+    """Declare an upstream adapter.
+
+    Args:
+        observed_points: Observed points it serves (at least one).
+        query_key_sets: Query ways it supports, in priority order; each is a set of
+            query keys used together (at least one non-empty set).
+        name: Upstream name, used in templates and for subscriptions and cursors.
+            Defaults to the class name without an "Adapter" suffix, first letter
+            lowered (OpenSkyAdapter -> "openSky").
+
+    Raises:
+        TypeError: If the declaration is incomplete.
+    """
+
+    def decorate(cls: type[A]) -> type[A]:
+        cls.name = name if name is not None else _default_name(cls.__name__)
+        cls.observed_points = frozenset(observed_points)
+        cls.query_key_sets = tuple(frozenset(keys) for keys in query_key_sets)
+        _check_declaration(cls.__name__, cls.name, cls.observed_points, cls.query_key_sets)
+        return cls
+
+    return decorate
+
+
 def check_upstream_adapter(adapter: UpstreamAdapter) -> None:
-    """注册时检查子类把类属性都声明了，且至少服务一个观察点、支持一种查询方式；不合格抛 TypeError。"""
-    missing = [
-        attr for attr in ("name", "observed_points", "query_key_sets") if not hasattr(adapter, attr)
-    ]
-    if missing:
-        raise TypeError(f"{type(adapter).__name__} must set {', '.join(missing)}")
-    if not adapter.observed_points:
-        raise TypeError(f"{adapter.name}: observed_points needs at least one observed point")
-    if not adapter.query_key_sets or not all(adapter.query_key_sets):
-        raise TypeError(f"{adapter.name}: query_key_sets needs at least one non-empty set")
+    """Raise TypeError unless the adapter is fully declared (normally by @upstream_adapter)."""
+    if not all(hasattr(adapter, a) for a in ("name", "observed_points", "query_key_sets")):
+        raise TypeError(
+            f"{type(adapter).__name__} must be declared with @upstream_adapter(...)"
+        )
+    _check_declaration(
+        type(adapter).__name__, adapter.name, adapter.observed_points, adapter.query_key_sets
+    )
+
+
+def _check_declaration(
+    class_name: str,
+    name: str,
+    observed_points: frozenset[type[ObservedPoint]],
+    query_key_sets: tuple[frozenset[type[QueryKey]], ...],
+) -> None:
+    if not name:
+        raise TypeError(f"{class_name}: upstream name must not be empty")
+    if not observed_points:
+        raise TypeError(f"{name}: observed_points needs at least one observed point")
+    if not query_key_sets or not all(query_key_sets):
+        raise TypeError(f"{name}: query_key_sets needs at least one non-empty set")
+
+
+def _default_name(class_name: str) -> str:
+    base = class_name.removesuffix("Adapter") or class_name
+    return base[:1].lower() + base[1:]

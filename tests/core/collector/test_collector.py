@@ -10,6 +10,7 @@ from core.collector import (
     UnknownUpstreamAdapterError,
     UpstreamAdapter,
     UpstreamAdapterRegistry,
+    upstream_adapter,
 )
 from core.target import (
     ObservableTarget,
@@ -28,6 +29,7 @@ from plugins.observed_points.position import Position, PositionObservation
 from plugins.query_keys.icao24 import Icao24
 from plugins.query_keys.registration import Registration
 from plugins.target.aircraft import Aircraft
+from plugins.upstream_adapters.opensky import OpenSkyAdapter
 from tests.core.collector.fakes import (
     FakeUpstreamAdapter,
     InMemoryCursorRepository,
@@ -282,10 +284,8 @@ def test_one_adapter_serves_several_observed_points() -> None:
     class Tanker(Target):
         registration: str = provides(Registration)
 
+    @upstream_adapter(observed_points=[Position, Fuel], query_key_sets=[{Registration}])
     class Provider(UpstreamAdapter):
-        name = "provider"
-        observed_points = frozenset({Position, Fuel})
-        query_key_sets = (frozenset({Registration}),)
 
         def __init__(self) -> None:
             self.asked: list[str] = []
@@ -332,3 +332,18 @@ def test_one_adapter_serves_several_observed_points() -> None:
 def test_adapter_must_serve_an_observed_point(env: Env) -> None:
     with pytest.raises(TypeError, match="observed_points"):
         env.registry.register(FakeUpstreamAdapter("nothing", observed_points=frozenset()))
+
+
+def test_upstream_adapter_decorator() -> None:
+    assert OpenSkyAdapter.name == "openSky"   # 类名去掉 Adapter 后缀、首字母小写
+    assert OpenSkyAdapter.observed_points == frozenset({Position})
+    assert OpenSkyAdapter.query_key_sets == (frozenset({Icao24}),)
+
+    with pytest.raises(TypeError, match="observed_points"):
+
+        @upstream_adapter(observed_points=[], query_key_sets=[{Icao24}])
+        class Nothing(UpstreamAdapter):  # pyright: ignore[reportUnusedClass]
+            def fetch(
+                self, observed_point: type[ObservedPoint], query: Query, since: datetime | None
+            ) -> list[FetchedRecord]:
+                return []

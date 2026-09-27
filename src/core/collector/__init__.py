@@ -2,9 +2,9 @@
 
 负责：按可观测目标的活跃上游拉取 → 检查观测类型 → 去重 → 落库 → 推进游标 → 调用可观测目标的 publish。
 对外：Collector（定时调用 collect）；UpstreamAdapterRegistry（注册上游，同时充当 target 的 UpstreamCatalog）；
-      UpstreamAdapter 是上游插件要继承的基类；Query 是交给它的查询（查询键 → 取值）。
+      UpstreamAdapter 是上游插件要继承的基类（用 @upstream_adapter 声明）；Query 是交给它的查询（查询键 → 取值）。
 依赖：target。
-扩展点：plugins/upstream_adapters/ 下继承 UpstreamAdapter。
+扩展点：plugins/upstream_adapters/ 下继承 UpstreamAdapter，用 @upstream_adapter 声明。
 """
 
 from core.collector.collector import Collector
@@ -15,11 +15,12 @@ from core.collector.errors import (
 )
 from core.collector.registry import UpstreamAdapterRegistry
 from core.collector.repository import CursorRepository, ObservationRepository
-from core.collector.upstream_adapter import FetchedRecord, Query, UpstreamAdapter
+from core.collector.upstream_adapter import FetchedRecord, Query, UpstreamAdapter, upstream_adapter
 
 __all__ = [
     "UpstreamAdapter",
     "UpstreamAdapterRegistry",
+    "upstream_adapter",
     "Collector",
     "CollectorError",
     "CursorRepository",
