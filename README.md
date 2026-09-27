@@ -487,3 +487,21 @@ Django 的 `apps.get_model` 是一回事；加上「按名字创建对象」就�
     一眼能看出系统装了哪些插件，不会因为 import 了哪个文件就多出插件，测试之间也不互相污染。
   - **注册表注入，不做全局**。注册表是构造参数，交给用它的一方（Compiler、Manager），是普通的依赖，
     避开 Service Locator（全局、隐式地按名字取依赖）的问题。
+
+### 设计原则
+
+core 里反复出现的几条原则，都有通用的名字：
+
+| 原则 | 在这里的做法 | 通用说法 |
+|---|---|---|
+| **按身份引用，不持有别人的对象** | `ObservableTarget` 只存 `target_id`，用到目标时向 `TargetManager` 现读；父事件的命名空间也只存目标 ID | DDD：聚合之间按身份引用（reference other aggregates by identity） |
+| **一份数据只存一处，派生的现算** | 可用上游按目标当前的查询键现算，不存快照；子事件的钩子状态、条件状态各存一处 | 单一数据源（single source of truth）；不做反规范化缓存 |
+| **同一身份在内存里只有一个对象** | `TargetManager` 保证每个（目标, 观察点）只有一个 `ObservableTarget` | 标识映射（Identity Map，Fowler《企业应用架构模式》） |
+| **按上游路由的发布 / 订阅** | runner 按上游订阅可观测目标，collector 采集后由可观测目标 `publish` | 观察者模式；消息系统的 topic / subscription |
+| **接口定义在使用方** | `UpstreamCatalog`、`ProposalSink`、`ReportWriter`、各 `*Repository` 由用它的模块定义，提供方结构化实现，bootstrap 装配 | 依赖倒置（DIP）；端口与适配器（六边形架构） |
+| **被引用就不能删** | 父事件引用的目标不能从命名空间删（`TargetStillReferencedError`）；删目标时检查可观测目标还有没有订阅者 | 引用完整性（referential integrity），由引用方守；跨聚合的约束由应用服务或事件协调 |
+| **持久化只存纯数据，运行时对象每次重建** | 见上文「静态定义与运行时对象」 | 定义与实例分离；存储模型 ≠ 领域对象 |
+| **插件按名字查找** | 见上文「插件与注册表」 | 插件注册表（plugin registry） |
+
+违反第一条的代价，在可观测目标上出现过：它曾缓存目标对象和由此派生的可用上游，于是目标一改就得通知它
+（`rebind_target`），可用上游还会过时。改成只存 ID、现读现算之后，这两个问题都消失了。
