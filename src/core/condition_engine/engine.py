@@ -5,7 +5,7 @@ from pydantic import ValidationError
 from core.condition_engine.definitions import ConditionDef, LeafDef, OpDef
 
 FieldsByObservable = Mapping[str, Set[str]]
-"""可观测目标 ID（如 "t1:position"）→ 该可观测目标的动态数据字段名（如 {"lat", "lon", "altitude_m"}）。"""
+"""可观测目标 ID（如 "t1:position"）→ 它的观测有哪些字段（如 {"lat", "lon", "altitude_m"}）。"""
 from core.condition_engine.errors import ConditionCompileError
 from core.condition_engine.registry import EvaluatorRegistry
 from core.condition_engine.tree import ConditionNode, ConditionTree, LeafNode, OpNode

@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict
 
 from core.condition_engine import EvalResult
-from core.target import Observation
+from core.target import ObservationEnvelope
 
 # 四类算子：推进（改状态）/ 输出（报告、通知）/ 发现（启发）/ 校正（校准）
 Category = Literal["progress", "output", "discover", "calibrate"]
@@ -23,6 +23,6 @@ class Trigger(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     mount_point: MountPoint
-    observation: Observation | None = None
+    envelope: ObservationEnvelope | None = None
     result: EvalResult | None = None
     patch: dict[str, Any] | None = None

@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from core.collector.dispatcher import Dispatcher
 from core.collector.registry import AdapterRegistry
 from core.collector.repository import CursorRepository, ObservationRepository
-from core.target import ObservableTarget, Observation, TargetManager
+from core.target import ObservableTarget, ObservationEnvelope, TargetManager
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +31,9 @@ class Collector:
         self._observations = observations
         self._dispatcher = dispatcher
 
-    def collect(self) -> list[Observation]:
+    def collect(self) -> list[ObservationEnvelope]:
         """采集一轮，返回本轮新落库的数据。单个目标或上游失败不影响其他。"""
-        collected: list[Observation] = []
+        collected: list[ObservationEnvelope] = []
         for observable in self._targets.active_observables():
             try:
                 collected.extend(self.collect_one(observable))
@@ -41,45 +41,45 @@ class Collector:
                 logger.exception("collect failed for %s", observable.id)
         return collected
 
-    def collect_one(self, observable: ObservableTarget) -> list[Observation]:
+    def collect_one(self, observable: ObservableTarget) -> list[ObservationEnvelope]:
         """只拉有人订阅的上游，每个上游用自己的游标。"""
-        new: list[Observation] = []
+        new: list[ObservationEnvelope] = []
         for upstream in observable.active_upstreams():
             try:
                 new.extend(self._collect_upstream(observable, upstream))
             except Exception:
                 logger.exception("upstream %s failed for %s", upstream, observable.id)
 
-        for observation in sorted(new, key=lambda o: o.occurred_at):
-            self._dispatcher.dispatch(observable, observation)
+        for envelope in sorted(new, key=lambda e: e.occurred_at):
+            self._dispatcher.dispatch(observable, envelope)
         return new
 
-    def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list[Observation]:
+    def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list[ObservationEnvelope]:
         cursor = self._cursors.get(observable.id, upstream)
         spec = observable.query_spec(datetime.fromisoformat(cursor) if cursor else None)
         records = self._adapter_registry.get(upstream).fetch(spec)
 
-        new: list[Observation] = []
+        new: list[ObservationEnvelope] = []
         for record in sorted(records, key=lambda r: r.occurred_at):
             if self._observations.exists(record.source_id):
                 continue
             try:
-                fields = observable.validate_fields(record.fields)
+                observation = observable.parse_observation(record.fields)
             except ValidationError:
                 logger.warning("invalid record %s for %s", record.source_id, observable.id)
                 continue
-            observation = Observation(
+            envelope = ObservationEnvelope(
                 observable_id=observable.id,
                 upstream=upstream,
-                fields=fields,
+                observation=observation,
                 occurred_at=record.occurred_at,
                 source_id=record.source_id,
                 raw=record.raw,
             )
-            self._observations.append(observation)
-            new.append(observation)
+            self._observations.append(envelope)
+            new.append(envelope)
 
         # 先推进游标再分发：订阅者失败不应导致重复采集
         if new:
-            self._cursors.set(observable.id, upstream, max(d.occurred_at for d in new).isoformat())
+            self._cursors.set(observable.id, upstream, max(e.occurred_at for e in new).isoformat())
         return new

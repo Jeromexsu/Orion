@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from core.condition_engine.evaluator import Evaluator
 from core.condition_engine.result import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
-from core.target import Observation
+from core.target import ObservationEnvelope
 
 # 整棵树的状态：节点路径 → 该叶子的状态
 TreeState = Mapping[str, Mapping[str, Any]]
@@ -26,7 +26,7 @@ class ConditionNode(ABC):
         self.path = path
 
     @abstractmethod
-    def evaluate(self, observation: Observation, state: TreeState) -> EvalResult: ...
+    def evaluate(self, envelope: ObservationEnvelope, state: TreeState) -> EvalResult: ...
 
     @abstractmethod
     def targets(self) -> frozenset[str]: ...
@@ -41,24 +41,26 @@ class LeafNode(ConditionNode):
         self.evaluator = evaluator
         self.params = params
 
-    def evaluate(self, observation: Observation, state: TreeState) -> EvalResult:
+    def evaluate(self, envelope: ObservationEnvelope, state: TreeState) -> EvalResult:
         requires: Set[str] = self.evaluator.requires
-        if observation.observable_id != self.target or not requires <= observation.fields.keys():
+        observation = envelope.observation
+        if envelope.observable_id != self.target or any(
+            getattr(observation, f, None) is None for f in requires
+        ):
+            # 不是这个叶子的目标，或需要的字段缺失 / 为空（如没有高度的观测）
             return EvalResult(outcome=NOT_APPLICABLE)
 
         leaf_state = MappingProxyType(dict(state.get(self.path, {})))
         # 每个叶子拿一份副本：判断方式即使修改了也影响不到其他叶子和调用方
-        result = self.evaluator.evaluate(
-            self.params, observation.model_copy(deep=True), leaf_state
-        )
+        result = self.evaluator.evaluate(self.params, envelope.model_copy(deep=True), leaf_state)
 
         entry: dict[str, Any] = {
             "path": self.path,
             "type": self.evaluator.type,
             "target": self.target,
             "outcome": result.outcome,
-            "occurred_at": observation.occurred_at.isoformat(),
-            "fields": {k: observation.fields[k] for k in sorted(requires)},
+            "occurred_at": envelope.occurred_at.isoformat(),
+            "fields": {f: getattr(observation, f) for f in sorted(requires)},
         }
         patch = (
             {self.path: result.state_patch}
@@ -87,8 +89,8 @@ class OpNode(ConditionNode):
         self.op = op
         self.children = children
 
-    def evaluate(self, observation: Observation, state: TreeState) -> EvalResult:
-        results = [child.evaluate(observation, state) for child in self.children]
+    def evaluate(self, envelope: ObservationEnvelope, state: TreeState) -> EvalResult:
+        results = [child.evaluate(envelope, state) for child in self.children]
 
         patch: dict[str, Any] = {}
         trace: list[dict[str, Any]] = []
@@ -143,9 +145,9 @@ class ConditionTree:
     def __init__(self, root: ConditionNode) -> None:
         self._root = root
 
-    def evaluate(self, observation: Observation, state: TreeState) -> EvalResult:
+    def evaluate(self, envelope: ObservationEnvelope, state: TreeState) -> EvalResult:
         """纯函数：不改 state；新状态在结果的 state_patch 里，用 apply_state_patch 合并。"""
-        return self._root.evaluate(observation, state)
+        return self._root.evaluate(envelope, state)
 
     def targets(self) -> frozenset[str]:
         """树里引用的全部 ObservableTarget ID，供 EventTemplate.validate 做范围检查。"""

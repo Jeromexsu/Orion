@@ -11,7 +11,7 @@ from core.event.records import EventRecord
 from core.event.runtime import EventRuntime
 from core.event.template import EventTemplate
 from core.operators import Trigger, build_context
-from core.target import Observation
+from core.target import ObservationEnvelope
 
 logger = logging.getLogger(__name__)
 
@@ -110,24 +110,24 @@ class Event:
 
     # ------------------------------------------------------------ 管道
 
-    def process(self, observation: Observation) -> None:
+    def process(self, envelope: ObservationEnvelope) -> None:
         """前置钩子 → 逐条规则跑条件树 → 合并 state_patch → 命中则跑规则钩子 → 后置钩子 → shouldClose。"""
         if self.is_closed:
             raise EventClosedError(self._id)
 
-        self._run_hooks(self._template.hooks_at("pre"), Trigger(mount_point="pre", observation=observation))
+        self._run_hooks(self._template.hooks_at("pre"), Trigger(mount_point="pre", envelope=envelope))
 
         for rule in self._template.rules:
             state = self._condition_state.get(rule.name, {})
-            result = rule.tree.evaluate(observation, state)
+            result = rule.tree.evaluate(envelope, state)
             if result.state_patch:
                 self._condition_state[rule.name] = apply_state_patch(state, result.state_patch)
             if result.outcome == HIT:
                 self._run_hooks(
-                    rule.hook_defs, Trigger(mount_point="rule_hit", observation=observation, result=result)
+                    rule.hook_defs, Trigger(mount_point="rule_hit", envelope=envelope, result=result)
                 )
 
-        self._run_hooks(self._template.hooks_at("post"), Trigger(mount_point="post", observation=observation))
+        self._run_hooks(self._template.hooks_at("post"), Trigger(mount_point="post", envelope=envelope))
 
         if self.should_close():
             self.close("converged")

@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from core.collector import FetchedRecord
-from core.target import Observation, ObservedPoint, QuerySpec
+from core.target import ObservationEnvelope, ObservedPoint, QuerySpec
 from plugins.observed_points.position import Position
 
 
@@ -41,15 +41,17 @@ class InMemoryCursorRepository:
 
 class InMemoryObservationRepository:
     def __init__(self) -> None:
-        self.items: list[Observation] = []
+        self.items: list[ObservationEnvelope] = []
 
-    def append(self, observation: Observation) -> None:
-        self.items.append(observation)
+    def append(self, envelope: ObservationEnvelope) -> None:
+        self.items.append(envelope)
 
     def exists(self, source_id: str) -> bool:
         return any(d.source_id == source_id for d in self.items)
 
-    def history(self, observable_id: str, since: datetime | None = None) -> list[Observation]:
+    def history(
+        self, observable_id: str, since: datetime | None = None
+    ) -> list[ObservationEnvelope]:
         return [
             d
             for d in self.items

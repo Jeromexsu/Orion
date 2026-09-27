@@ -7,6 +7,7 @@ from core.target import (
     DuplicateObservedPointError,
     DuplicateTargetTypeError,
     NoUpstreamError,
+    Observation,
     ObservedPoint,
     Target,
     TargetInUseError,
@@ -28,11 +29,15 @@ from tests.core.target.fakes import (
 )
 
 
+class DraughtObservation(Observation):
+    metres: float
+
+
 class Draught(ObservedPoint):
     """船特有的观察点：吃水。"""
 
     name: ClassVar[str] = "draught"
-    metres: float
+    observation: ClassVar[type[Observation]] = DraughtObservation
 
 
 class Ship(Target, frozen=True):
@@ -59,9 +64,12 @@ def test_observed_points_are_collected_from_types(manager: TargetManager) -> Non
 
 
 def test_observed_point_name_clash_rejected(manager: TargetManager) -> None:
+    class XObservation(Observation):
+        x: float
+
     class OtherPosition(ObservedPoint):
         name: ClassVar[str] = "position"
-        x: float
+        observation: ClassVar[type[Observation]] = XObservation
 
     class Car(Target, frozen=True):
         observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (OtherPosition,)

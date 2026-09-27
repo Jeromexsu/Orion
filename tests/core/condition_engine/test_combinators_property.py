@@ -17,8 +17,8 @@ from core.condition_engine import (
     EvaluatorRegistry,
     Outcome,
 )
-from core.target import Observation
-from tests.core.condition_engine.conftest import compile_, make_observation
+from core.target import ObservationEnvelope
+from tests.core.condition_engine.conftest import compile_, make_envelope
 
 outcomes = st.sampled_from([HIT, MISS, NOT_APPLICABLE])
 
@@ -33,7 +33,7 @@ class Fixed(Evaluator[FixedParams]):
     params_model = FixedParams
 
     def evaluate(
-        self, params: FixedParams, observation: Observation, state: Mapping[str, Any]
+        self, params: FixedParams, envelope: ObservationEnvelope, state: Mapping[str, Any]
     ) -> EvalResult:
         return EvalResult(outcome=params.outcome)
 
@@ -48,7 +48,7 @@ def leaf(o: Outcome) -> dict[str, Any]:
 
 
 def run(definition: dict[str, Any]) -> Outcome:
-    return compile_(engine, definition, {"t": set()}).evaluate(make_observation("t"), {}).outcome
+    return compile_(engine, definition, {"t": set()}).evaluate(make_envelope("t"), {}).outcome
 
 
 @given(outcomes)

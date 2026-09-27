@@ -19,8 +19,9 @@ from core.operators import (
     Trigger,
 )
 from core.report import ReportManager
-from core.target import Observation, TargetManager
+from core.target import ObservationEnvelope, TargetManager
 from plugins.condition_engine.on_enter import OnEnter
+from plugins.observed_points.position import PositionObservation
 from plugins.operators.close_report import CloseReport
 from plugins.operators.count_hits import CountHits
 from plugins.target.aircraft import Aircraft
@@ -94,12 +95,12 @@ class Spotter:
     params_model = NoParams
 
     def run(self, trigger: Trigger, ctx: SuggestContext) -> None:
-        assert trigger.observation is not None
+        assert trigger.envelope is not None
         ctx.suggest(
             Suggestion(
                 source=self.name,
-                reason=f"saw {ctx.target_name(trigger.observation.observable_id)}",
-                evidence=[trigger.observation.source_id],
+                reason=f"saw {ctx.target_name(trigger.envelope.observable_id)}",
+                evidence=[trigger.envelope.source_id],
                 proposal=Proposal(action="add_target", args={}),
             )
         )
@@ -164,18 +165,18 @@ class Env:
             reports=self.reports,
         )
 
-    def observation(
+    def envelope(
         self,
         lat: float,
         lon: float,
         observable_id: str = "t1:position",
         upstream: str = "adsb",
-    ) -> Observation:
+    ) -> ObservationEnvelope:
         n = next(self._seq)
-        return Observation(
+        return ObservationEnvelope(
             observable_id=observable_id,
             upstream=upstream,
-            fields={"lat": lat, "lon": lon, "altitude_m": None},
+            observation=PositionObservation(lat=lat, lon=lon),
             occurred_at=datetime(2026, 9, 26, tzinfo=UTC) + timedelta(minutes=n),
             source_id=f"adsb#{n}",
         )

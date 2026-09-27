@@ -8,14 +8,14 @@
 |---|---|---|
 | 目标类型 | `Target` 的子类（如 `Aircraft`） | 一类静态目标，如飞机。由开发者用代码定义：类型名（`type` 的 Literal 默认值）、属性字段、可以在哪些观察点被观测（`observed_points`）。同名属性字段在所有目标类型里含义必须一致 |
 | 目标 | `Target` 子类的实例 | 一个具体的静态目标，如注册号 B-2447 的那架飞机 |
-| 观察点 | `ObservedPoint` 的子类（如 `Position`），名字如 `position` | 观测的形状：类本身就是观测 `fields` 的 schema。与目标类型无关，多种目标类型可共用 |
+| 观察点 | `ObservedPoint` 的子类（如 `Position`），名字如 `position` | 名字 + 它返回什么观测（`observation`）。与目标类型无关，多种目标类型可共用 |
+| 观测（observation） | `Observation` 的子类（如 `PositionObservation`） | 观察点观察之后返回的数据本身，字段就是观测的形状，如 `lat`、`lon` |
 | 上游 | `upstream` | 数据来源，如 `adsb`；由 collector 的一个 Adapter 实现，声明服务哪个观察点、查询需要目标提供哪些字段（`required_fields`） |
 | 可观测目标（obs） | `ObservableTarget` | 封装好的「具体目标 + 一个观察点」，ID 形如 `t1:position`；持有全部可用上游（服务该观察点且目标能提供查询字段的上游）和订阅关系，全局唯一，由 `TargetManager` 创建 |
 | 订阅 | `ObservableTarget.acquire(订阅者, 上游集合)` | 订阅者指定要哪些上游；可观测目标按上游把数据路由给订阅者 |
-| 观测（observation） | `Observation` | 对一个可观测目标的一次观测结果：`observable_id`、`upstream`、`fields`、`occurred_at`、`source_id`、`raw`。collector 产出，条件判断的输入 |
-| 动态数据 | `Observation.fields` | 一次观测里的那组字段，形状由观察点定义，如 `{"lat": ..., "lon": ...}` |
+| 观测外壳 | `ObservationEnvelope` | 一次观测连同来源信息：`observable_id`、`upstream`、`observation`（观测实例）、`occurred_at`、`source_id`、`raw`。collector 产出，在采集 → 分发 → 条件判断的管道里流动 |
 
-注意区分 **obs**（可观测目标，长期存在的对象）与 **observation**（观测，一条结果）。
+注意区分 **obs**（可观测目标，长期存在的对象）、**observation**（观测，观察点返回的数据）与 **envelope**（观测外壳，观测加来源信息）。「动态数据」一词已不再使用。
 
 ## 事件（event）
 
@@ -35,8 +35,8 @@
 | 术语 | 代码 | 含义 |
 |---|---|---|
 | 条件定义 | `ConditionDef`（`LeafDef` / `OpDef`） | 纯数据，可任意嵌套 |
-| 条件树 | `ConditionTree`（`LeafNode` / `OpNode`） | 编译后的条件；`evaluate(observation, state)` 是纯函数，状态由调用方保管 |
-| 判断方式 | `Evaluator` | 唯一的扩展点；声明 `type`、`requires`、`params_model`，实现 `evaluate(params, observation, state)` |
+| 条件树 | `ConditionTree`（`LeafNode` / `OpNode`） | 编译后的条件；`evaluate(envelope, state)` 是纯函数，状态由调用方保管 |
+| 判断方式 | `Evaluator` | 唯一的扩展点；声明 `type`、`requires`（需要观测里有值的字段名）、`params_model`，实现 `evaluate(params, envelope, state)` |
 | 节点路径 | `path`（如 `root/1/0`） | 节点在树中的地址；用于定位编译错误、按叶子分组状态、审计追溯 |
 
 ## 命名约定

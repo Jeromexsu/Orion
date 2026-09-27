@@ -2,9 +2,9 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime
 from typing import Any, Protocol
 
-from core.target.data import Observation, QuerySpec
+from core.target.data import ObservationEnvelope, QuerySpec
 from core.target.errors import UnsupportedObservedPointError, UnsupportedUpstreamError
-from core.target.observed_point import ObservedPoint
+from core.target.observed_point import Observation, ObservedPoint
 from core.target.target import Target
 
 
@@ -14,7 +14,7 @@ class Referencer(Protocol):
     实现类必须按身份哈希（普通类默认如此）。
     """
 
-    def on_observation(self, observation: Observation) -> None: ...
+    def on_observation(self, envelope: ObservationEnvelope) -> None: ...
 
 
 def observable_key(target_id: str, observed_point_name: str) -> str:
@@ -116,9 +116,9 @@ class ObservableTarget:
             since=since,
         )
 
-    def validate_fields(self, fields: Mapping[str, Any]) -> dict[str, Any]:
-        """按观察点校验上游字段，返回规范化后的 dict。失败抛 pydantic.ValidationError。"""
-        return self._observed_point.model_validate(fields).model_dump()
+    def parse_observation(self, fields: Mapping[str, Any]) -> Observation:
+        """把上游返回的字段解析成该观察点的观测实例。失败抛 pydantic.ValidationError。"""
+        return self._observed_point.observation.model_validate(dict(fields))
 
     def rebind_target(self, target: Target) -> None:
         """目标记录更新后换上新记录。只应由 TargetManager 调用。"""

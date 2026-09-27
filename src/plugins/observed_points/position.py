@@ -2,12 +2,15 @@
 
 from typing import ClassVar
 
-from core.target import ObservedPoint
+from core.target import Observation, ObservedPoint
+
+
+class PositionObservation(Observation):
+    lat: float
+    lon: float
+    altitude_m: float | None = None   # 不是所有目标都有高度
 
 
 class Position(ObservedPoint):
     name: ClassVar[str] = "position"
-
-    lat: float
-    lon: float
-    altitude_m: float | None = None   # 不是所有目标都有高度
+    observation: ClassVar[type[Observation]] = PositionObservation

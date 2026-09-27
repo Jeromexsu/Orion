@@ -4,7 +4,7 @@ from itertools import count
 from typing import Any
 
 import pytest
-from pydantic import BaseModel, TypeAdapter
+from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from core.condition_engine import (
     HIT,
@@ -16,7 +16,7 @@ from core.condition_engine import (
     Evaluator,
     EvaluatorRegistry,
 )
-from core.target import Observation
+from core.target import Observation, ObservationEnvelope
 from plugins.condition_engine.on_enter import OnEnter
 
 _condition_def: TypeAdapter[ConditionDef] = TypeAdapter(ConditionDef)
@@ -39,12 +39,18 @@ T0 = datetime(2026, 9, 26, tzinfo=UTC)
 _seq = count()
 
 
-def make_observation(observable_id: str, at: float = 0, **fields: Any) -> Observation:
-    """测试辅助：构造一条观测。at 是相对 T0 的小时数。"""
-    return Observation(
+class AnyObservation(Observation):
+    """测试用观测：允许任意字段，便于直接写 lat=..., alt=...。"""
+
+    model_config = ConfigDict(frozen=True, extra="allow")
+
+
+def make_envelope(observable_id: str, at: float = 0, **fields: Any) -> ObservationEnvelope:
+    """测试辅助：构造一条观测外壳。at 是相对 T0 的小时数。"""
+    return ObservationEnvelope(
         observable_id=observable_id,
         upstream="test",
-        fields=fields,
+        observation=AnyObservation(**fields),
         occurred_at=T0 + timedelta(hours=at),
         source_id=f"test#{next(_seq)}",
     )
@@ -62,11 +68,12 @@ class Gt(Evaluator[GtParams]):
     requires = frozenset({"alt"})
     params_model = GtParams
 
-    def evaluate(self, params: GtParams, observation: Observation, state: Mapping[str, Any]) -> EvalResult:
-        hit = observation.fields[params.field] > params.value
-        return EvalResult(
-            outcome=HIT if hit else MISS, extracted={"alt": observation.fields["alt"]} if hit else {}
-        )
+    def evaluate(
+        self, params: GtParams, envelope: ObservationEnvelope, state: Mapping[str, Any]
+    ) -> EvalResult:
+        value = getattr(envelope.observation, params.field)
+        hit = value > params.value
+        return EvalResult(outcome=HIT if hit else MISS, extracted={"alt": value} if hit else {})
 
 
 # 可用目标及其字段：t1:position 有 lat/lon/alt；t2:position 只有 lat/lon

@@ -6,13 +6,15 @@ from pydantic import ValidationError
 
 from core.target import (
     ObservableTarget,
+    Observation,
+    ObservationEnvelope,
     ObservedPoint,
     Target,
     TargetManager,
     UnsupportedObservedPointError,
     UnsupportedUpstreamError,
 )
-from plugins.observed_points.position import Position
+from plugins.observed_points.position import Position, PositionObservation
 from tests.core.target.conftest import Subscriber
 
 
@@ -47,15 +49,13 @@ def test_query_spec(manager: TargetManager, plane: Target) -> None:
     assert spec.since == since
 
 
-def test_validate_fields(manager: TargetManager, plane: Target) -> None:
+def test_parse_observation(manager: TargetManager, plane: Target) -> None:
     obs = manager.get_observable(plane.id, "position")
-    assert obs.validate_fields({"lat": "31.2", "lon": 121.3}) == {
-        "lat": 31.2,
-        "lon": 121.3,
-        "altitude_m": None,
-    }
+    assert obs.parse_observation({"lat": "31.2", "lon": 121.3}) == PositionObservation(
+        lat=31.2, lon=121.3
+    )
     with pytest.raises(ValidationError):
-        obs.validate_fields({"lat": 31.2})
+        obs.parse_observation({"lat": 31.2})
 
 
 def test_rebind_target_rejects_other_id(manager: TargetManager, plane: Target) -> None:
@@ -67,9 +67,13 @@ def test_rebind_target_rejects_other_id(manager: TargetManager, plane: Target) -
 # ---------------------------------------------------------------- 构造与按上游订阅
 
 
+class FuelObservation(Observation):
+    litres: float
+
+
 class Fuel(ObservedPoint):
     name: ClassVar[str] = "fuel"
-    litres: float
+    observation: ClassVar[type[Observation]] = FuelObservation
 
 
 def test_constructor_validates_observed_point_and_upstreams(plane: Target) -> None:
@@ -109,3 +113,16 @@ def test_routing_by_upstream(plane: Target) -> None:
     obs.release(a)
     obs.release(b)
     assert obs.active_upstreams() == ()
+
+
+def test_envelope_serializes_the_concrete_observation() -> None:
+    envelope = ObservationEnvelope(
+        observable_id="t1:position",
+        upstream="adsb",
+        observation=PositionObservation(lat=1, lon=2),
+        occurred_at=datetime(2026, 1, 1, tzinfo=UTC),
+        source_id="adsb#1",
+    )
+    assert isinstance(envelope.observation, PositionObservation)
+    # 字段类型写的是基类 Observation，序列化时仍按实际类型输出全部字段
+    assert envelope.model_dump()["observation"] == {"lat": 1.0, "lon": 2.0, "altitude_m": None}

@@ -6,7 +6,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from core.condition_engine import HIT, MISS, EvalResult, Evaluator
-from core.target import Observation
+from core.target import ObservationEnvelope
 
 Point = tuple[float, float]                 # (lat, lon)
 Polygon = list[Point]
@@ -39,9 +39,10 @@ class OnEnter(Evaluator[OnEnterParams]):
     params_model = OnEnterParams
 
     def evaluate(
-        self, params: OnEnterParams, observation: Observation, state: Mapping[str, Any]
+        self, params: OnEnterParams, envelope: ObservationEnvelope, state: Mapping[str, Any]
     ) -> EvalResult:
-        position = (float(observation.fields["lat"]), float(observation.fields["lon"]))
+        observation = envelope.observation
+        position = (float(getattr(observation, "lat")), float(getattr(observation, "lon")))
         inside = point_in_polygon(position, params.area)
         was_inside: bool | None = state.get("inside")
 

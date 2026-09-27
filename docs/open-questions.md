@@ -53,7 +53,14 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
 设计文档 `EvalResult.extracted` 提到的「命中的关键词、地点」可能属于此类）。届时条件引擎应改回
 定义自己的输入 Protocol，依赖不再指向 target。
 
-### 6. 其他（随审阅推进逐条确认）
+### 6. 观测外壳的持久化
+
+`ObservationEnvelope.observation` 持有具体观测实例（如 `PositionObservation`），序列化时按实际类型输出
+（`SerializeAsAny`）。从存储读回时需要先知道是哪个观察点，才能还原成对应的观测类——与 `Target` 子类的
+还原类似，需要按 `observable_id` 找到观察点再 `model_validate`。持久化层实现时处理；
+`ObservationRepository` 目前只定义了接口。
+
+### 7. 其他（随审阅推进逐条确认）
 
 - 模板 ID 全局还是按父事件区分（现为全局：`TemplateRepository` 只按 template_id 存取）。
 - `EvalResult.outcome`、`Draft.status` 的中文字面值是否对外改为英文枚举。
@@ -66,13 +73,14 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
 
 ## 已决
 
-- **观测与动态数据合一**：原 `DynamicData` 改名为 `Observation`，并删除条件引擎里同名的 Protocol（它只是为让条件引擎
-  「零依赖」而设）。条件引擎改为依赖 target（target 不反向依赖，无环）。随之：`DynamicDataRepository` →
-  `ObservationRepository`、`Trigger.data` → `Trigger.observation`、订阅者回调 `on_data` → `on_observation`。
-  判断方式拿到的是观测的副本（深拷贝），不再用只读包装。「动态数据」专指 `Observation.fields`。
-
+- **观测 / 观察点 / 外壳三分**（取代「观测与动态数据合一」）：
+  - `Observation` 子类（如 `PositionObservation`）= 观察点观察之后返回的数据，字段即形状；
+  - `ObservedPoint` 子类（如 `Position`）= 名字 + `observation`（返回什么观测），普通类、不实例化；
+  - `ObservationEnvelope` = 外壳：来源信息 + 具体观测实例，在管道里流动；持久化是后面单独的问题（见第 6 条）；
+  - 条件树与判断方式接收外壳，判断方式按字段名读 `envelope.observation`，`requires` 字段须有值否则不适用；
+  - 条件引擎依赖 target（`ObservationEnvelope`），无环；「动态数据」一词不再使用。
 - **条件引擎不再查询 target**：去掉设计文档的 `TargetResolver`。`ConditionEngine.compile(definition, fields)`
-  由调用方传入「可观测目标 ID → 动态数据字段名」；`EventTemplate.compile()` 按观测声明向 `TargetManager`
+  由调用方传入「可观测目标 ID → 观测字段名」；`EventTemplate.compile()` 按观测声明向 `TargetManager`
   解析（目标、观察点存在，上游可用）并提取字段，所以条件只能引用已声明的观测、判断方式需要的字段必须存在。
   文档时代模板没有观测声明，条件引擎只能自己去问 target；有了观测声明，调用方手里已有这份信息。
 

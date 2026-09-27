@@ -1,6 +1,6 @@
 """算子核心：OperatorRegistry / Operator / 三种 Context / SuggestionSink / Trigger。
 
-依赖 target（Observation）、condition_engine（EvalResult）、hil（Suggestion）。"""
+依赖 target（ObservationEnvelope）、condition_engine（EvalResult）、hil（Suggestion）。"""
 
 from core.operators.context import BaseContext, ProgressContext, SuggestContext, build_context
 from core.operators.errors import (

@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Protocol
 
-from core.target import Observation
+from core.target import ObservationEnvelope
 
 
 class CursorRepository(Protocol):
@@ -15,8 +15,8 @@ class CursorRepository(Protocol):
 
 
 class ObservationRepository(Protocol):
-    def append(self, observation: Observation) -> None: ...        # 只增不改
+    def append(self, envelope: ObservationEnvelope) -> None: ...        # 只增不改
     def exists(self, source_id: str) -> bool: ...            # 去重
     def history(
         self, observable_id: str, since: datetime | None = None
-    ) -> list[Observation]: ...
+    ) -> list[ObservationEnvelope]: ...

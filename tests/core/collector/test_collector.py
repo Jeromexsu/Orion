@@ -11,8 +11,14 @@ from core.collector import (
     FetchedRecord,
     UnknownAdapterError,
 )
-from core.target import ObservableTarget, Observation, ObservedPoint, TargetManager
-from plugins.observed_points.position import Position
+from core.target import (
+    ObservableTarget,
+    Observation,
+    ObservationEnvelope,
+    ObservedPoint,
+    TargetManager,
+)
+from plugins.observed_points.position import Position, PositionObservation
 from plugins.target.aircraft import Aircraft
 from tests.core.collector.fakes import (
     FakeAdapter,
@@ -23,9 +29,13 @@ from tests.core.target.conftest import Subscriber
 from tests.core.target.fakes import InMemoryObservableTargetRepository, InMemoryTargetRepository
 
 
+class FuelObservation(Observation):
+    litres: float
+
+
 class Fuel(ObservedPoint):
     name: ClassVar[str] = "fuel"
-    litres: float
+    observation: ClassVar[type[Observation]] = FuelObservation
 
 
 def at(minute: int) -> datetime:
@@ -100,7 +110,7 @@ def test_collect_validates_dedups_persists_and_dispatches(env: Env) -> None:
     new = env.collector.collect()
 
     assert [d.source_id for d in new] == ["a#1", "a#2"]
-    assert new[1].fields == {"lat": 31.2, "lon": 121.3, "altitude_m": None}
+    assert new[1].observation == PositionObservation(lat=31.2, lon=121.3)
     assert env.observations.items == new
     assert sub.received == new
     assert env.cursors.get("t1:position", "adsb") == at(2).isoformat()
@@ -127,7 +137,7 @@ def test_upstream_failure_is_isolated(env: Env) -> None:
 
 def test_subscriber_failure_is_isolated(env: Env) -> None:
     class Broken:
-        def on_observation(self, observation: Observation) -> None:
+        def on_observation(self, envelope: ObservationEnvelope) -> None:
             raise RuntimeError("boom")
 
     good = Subscriber()
@@ -143,16 +153,20 @@ def test_subscriber_failure_is_isolated(env: Env) -> None:
 
 def test_dispatcher_counts_failures(env: Env) -> None:
     class Broken:
-        def on_observation(self, observation: Observation) -> None:
+        def on_observation(self, envelope: ObservationEnvelope) -> None:
             raise RuntimeError("boom")
 
     obs = env.observable()
     obs.acquire(Broken(), ["adsb"])
     obs.acquire(Subscriber(), ["adsb"])
-    observation = Observation(
-        observable_id=obs.id, upstream="adsb", fields={}, occurred_at=at(0), source_id="x"
+    envelope = ObservationEnvelope(
+        observable_id=obs.id,
+        upstream="adsb",
+        observation=PositionObservation(lat=0, lon=0),
+        occurred_at=at(0),
+        source_id="x",
     )
-    assert Dispatcher().dispatch(obs, observation) == 1
+    assert Dispatcher().dispatch(obs, envelope) == 1
 
 
 def test_only_subscribed_upstreams_are_fetched_and_routed(env: Env) -> None:

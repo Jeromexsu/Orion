@@ -77,7 +77,7 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "condition_engine 只依赖 target（Observation）"
+name = "condition_engine 只依赖 target（ObservationEnvelope）"
 type = "forbidden"
 source_modules = ["core.condition_engine"]
 forbidden_modules = [
