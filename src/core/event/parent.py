@@ -1,7 +1,11 @@
 import logging
 
 from core.event.definitions import TemplateDef
-from core.event.errors import TargetStillReferencedError, TemplateNotFoundError
+from core.event.errors import (
+    TargetStillReferencedError,
+    TemplateNotFoundError,
+    TemplateScopeError,
+)
 from core.event.records import ParentEventRecord
 from core.event.runner import EventRunner
 from core.event.runtime import EventRuntime
@@ -95,14 +99,17 @@ class ParentEvent:
     # ------------------------------------------------------------ 模板
 
     def upsert_template(self, template_def: TemplateDef) -> EventTemplate:
-        """编译（含观测声明校验）→ 校验命名空间 → 保存新版本 → 装入（已有则按「下个周期生效」挂起或切换）。"""
-        template = self._runtime.template_compiler.compile(template_def)
-        template.validate(self._targets)
+        """检查命名空间与版本（只看定义）→ 编译 → 保存定义 → 启动 runner 或交给已有 runner。
 
-        runner = self._runners.get(template.id)
+        只看定义就能做的检查放在编译之前：不白做编译，也不会为越界的模板创建可观测目标。
+        新版本交给已有 runner 时按「下个周期生效」挂起或立即切换。
+        """
+        self._check_namespace(template_def)
+        runner = self._runners.get(template_def.id)
         if runner is not None:
-            runner.check_version(template)
+            runner.check_version(template_def.version)
 
+        template = self._runtime.template_compiler.compile(template_def)
         self._runtime.templates.upsert(template_def)
         if runner is None:
             self._runners[template.id] = EventRunner.start(
@@ -159,6 +166,15 @@ class ParentEvent:
             return self._runtime.targets.get_target(target_id).name
         except TargetNotFoundError:
             return target_id
+
+    def _check_namespace(self, template_def: TemplateDef) -> None:
+        """观测的目标必须都在目标命名空间里。"""
+        missing = template_def.target_ids - self._targets
+        if missing:
+            raise TemplateScopeError(
+                f"template {template_def.id} v{template_def.version} observes targets outside "
+                f"the namespace: {sorted(missing)}"
+            )
 
     def _load_template(self, template_id: str, version: int) -> EventTemplate:
         template_def = self._runtime.templates.get(template_id, version)

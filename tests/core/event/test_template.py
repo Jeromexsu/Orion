@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from core.event import EventTemplate, TemplateCompileError, TemplateDef, TemplateScopeError
+from core.event import EventTemplate, TemplateCompileError, TemplateDef
 from tests.core.event.conftest import Env, enter, mount, template
 
 
@@ -64,10 +64,3 @@ def test_observation_defs_are_resolved(env: Env) -> None:
     assert any("observation_def 't1:position': upstreams ['satellite'] not in available" in e for e in errors)
     assert any(e.startswith("observation_def 'ghost:position': ") for e in errors)
     assert any(e.startswith("observation_def 't2:fuel': ") for e in errors)
-
-
-def test_validate_namespace(env: Env) -> None:
-    t = compile_(env, template())
-    t.validate({"t1", "t2"})
-    with pytest.raises(TemplateScopeError):
-        t.validate({"t2"})

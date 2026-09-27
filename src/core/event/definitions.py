@@ -61,3 +61,8 @@ class TemplateDef(BaseModel):
     rule_defs: list[RuleDef] = Field(min_length=1)
     # 子事件级钩子：created / closed / pre / status_updated / post（rule_hit 挂在规则上）
     hook_defs: list[OperatorMountDef] = Field(default_factory=list[OperatorMountDef])
+
+    @property
+    def target_ids(self) -> frozenset[str]:
+        """观测声明里的静态目标 ID。"""
+        return frozenset(o.target_id for o in self.observation_defs)

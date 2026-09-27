@@ -146,11 +146,12 @@ class EventRunner:
 
     # ------------------------------------------------------------ 版本 / 生命周期
 
-    def check_version(self, template: EventTemplate) -> None:
+    def check_version(self, version: int) -> None:
+        """新版本号必须大于当前版本和挂起版本。"""
         latest = self._pending.version if self._pending else self._template.version
-        if template.version <= latest:
+        if version <= latest:
             raise TemplateVersionError(
-                f"{template.id}: version {template.version} <= latest {latest}"
+                f"{self._template.id}: version {version} <= latest {latest}"
             )
 
     def stage(self, template: EventTemplate) -> None:

@@ -1,8 +1,5 @@
-from collections.abc import Set
-
 from core.condition_engine import ConditionTree
 from core.event.definitions import ObservationDef, OperatorMountDef, TemplateDef
-from core.event.errors import TemplateScopeError
 from core.operators import MountPoint
 
 
@@ -57,17 +54,7 @@ class EventTemplate:
     @property
     def target_ids(self) -> frozenset[str]:
         """观测声明里的静态目标 ID。"""
-        return frozenset(o.target_id for o in self._template_def.observation_defs)
+        return self._template_def.target_ids
 
     def hooks_at(self, mount_point: MountPoint) -> tuple[OperatorMountDef, ...]:
         return tuple(h for h in self._hooks if h.mount_point == mount_point)
-
-    def validate(self, namespace: Set[str]) -> None:
-        """跨对象约束：观测的目标必须都在父事件的目标命名空间里。"""
-        missing = self.target_ids - namespace
-        if missing:
-            raise TemplateScopeError(
-                f"template {self.id} v{self.version} observes targets outside the namespace: "
-                f"{sorted(missing)}"
-            )
-

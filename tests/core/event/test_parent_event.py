@@ -61,6 +61,16 @@ def test_template_must_observe_namespace_targets(env: Env) -> None:
     parent = env.parent_events.create("p1", "x")
     with pytest.raises(TemplateScopeError):
         parent.upsert_template(TemplateDef.model_validate(template()))
+    # 在编译之前就被拒：没有为越界的模板创建可观测目标，也没有存定义
+    assert env.targets.find_observable("t1:position") is None
+    assert env.templates.list_versions("enter-zone") == []
+
+
+def test_version_checked_before_compile(env: Env) -> None:
+    parent = make_parent(env)
+    bad = template(version=1, threshold=0)  # 版本号不增，且参数非法
+    with pytest.raises(TemplateVersionError):  # 先报版本，不白做编译
+        parent.upsert_template(TemplateDef.model_validate(bad))
 
 
 def test_unavailable_upstream_rejected_at_upsert(env: Env) -> None:
