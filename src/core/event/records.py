@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class TemplateRef(BaseModel):
+    """父事件记录里对一个模板的引用：用哪个版本，有没有挂起的新版本。"""
+
     model_config = ConfigDict(frozen=True)
 
     template_id: str
@@ -26,6 +28,8 @@ class ParentEventRecord(BaseModel):
 
 
 class EventRecord(BaseModel):
+    """子事件的持久化记录。closed_at 为空即活跃。"""
+
     model_config = ConfigDict(frozen=True)
 
     id: str

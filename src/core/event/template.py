@@ -16,6 +16,8 @@ class CompiledObservable:
 
 
 class CompiledRule:
+    """编译后的规则：规则名 + 条件树 + 命中时跑的算子挂载（rule_hit）。"""
+
     def __init__(
         self, name: str, tree: ConditionTree, hook_defs: tuple[OperatorMountDef, ...]
     ) -> None:
@@ -79,4 +81,5 @@ class EventTemplate:
         return self._template_def.target_ids
 
     def hooks_at(self, mount_point: MountPoint) -> tuple[OperatorMountDef, ...]:
+        """挂在某个挂载点上的子事件级算子，按声明顺序。"""
         return tuple(h for h in self._hooks if h.mount_point == mount_point)

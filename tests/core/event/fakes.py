@@ -54,8 +54,8 @@ class InMemoryEventRepository:
             None,
         )
 
-    def save(self, instance: EventRecord) -> None:
-        self.items[instance.id] = instance
+    def save(self, record: EventRecord) -> None:
+        self.items[record.id] = record
 
     def history(self, parent_id: str, template_id: str) -> list[EventRecord]:
         return sorted(

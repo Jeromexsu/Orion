@@ -68,18 +68,22 @@ class ParentEvent:
         return self._name
 
     def target_ids(self) -> frozenset[str]:
+        """目标命名空间。"""
         return frozenset(self._targets)
 
     def templates(self) -> list[EventTemplate]:
+        """各模板当前运行的版本（不含挂起版本）。"""
         return [s.template for s in self._runners.values()]
 
     def runner(self, template_id: str) -> EventRunner:
+        """某个模板的 runner。不存在抛 TemplateNotFoundError。"""
         try:
             return self._runners[template_id]
         except KeyError:
             raise TemplateNotFoundError(template_id) from None
 
     def to_record(self) -> ParentEventRecord:
+        """当前状态的持久化记录。"""
         return ParentEventRecord(
             id=self._id,
             name=self._name,
@@ -90,13 +94,14 @@ class ParentEvent:
     # ------------------------------------------------------------ 目标命名空间
 
     def add_target(self, target_id: str) -> None:
-        """把静态目标加入命名空间。目标必须已存在。"""
+        """把静态目标加入命名空间并写库。目标不存在抛 TargetNotFoundError；已在命名空间里忽略。"""
         self._services.target_manager.get_target(target_id)
         if target_id not in self._targets:
             self._targets.add(target_id)
             self._save()
 
     def remove_target(self, target_id: str) -> None:
+        """从命名空间移除并写库。仍被某个模板（含挂起版本）观测抛 TargetStillReferencedError；不在其中忽略。"""
         if target_id not in self._targets:
             return
         users = [tid for tid, s in self._runners.items() if target_id in s.target_ids()]
@@ -108,10 +113,12 @@ class ParentEvent:
     # ------------------------------------------------------------ 模板
 
     def upsert_template(self, template_def: TemplateDef) -> EventTemplate:
-        """检查命名空间与版本（只看定义）→ 编译 → 保存定义 → 启动 runner 或交给已有 runner。
+        """检查命名空间与版本（只看定义）→ 编译 → 保存定义 → 启动 runner 或交给已有 runner。返回编译好的模板。
 
         只看定义就能做的检查放在编译之前：不白做编译，也不会为越界的模板创建可观测目标。
         新版本交给已有 runner 时按「下个周期生效」挂起或立即切换。
+        越界抛 TemplateScopeError；版本不大于现有版本抛 TemplateVersionError；编译失败抛 TemplateCompileError。
+        任一检查失败时什么都不写。
         """
         self._check_namespace(template_def)
         runner = self._runners.get(template_def.id)
@@ -130,6 +137,10 @@ class ParentEvent:
         return template
 
     def remove_template(self, template_id: str) -> None:
+        """移除模板：runner 关闭活跃子事件、取消订阅、删除开启条件状态，然后写库。
+
+        不存在抛 TemplateNotFoundError。模板定义的历史版本保留在模板仓库里。
+        """
         runner = self._runners.pop(template_id, None)
         if runner is None:
             raise TemplateNotFoundError(template_id)

@@ -16,21 +16,24 @@ class ParentEventManager:
         self._parents: dict[str, ParentEvent] = {}
 
     def create(self, parent_id: str, name: str) -> ParentEvent:
+        """新建空的父事件（无目标、无模板）并写库。ID 已存在抛 DuplicateParentEventError。"""
         repository = self._services.parent_event_repository
         if parent_id in self._parents or repository.get(parent_id) is not None:
             raise DuplicateParentEventError(parent_id)
         parent = ParentEvent(parent_id, name, self._services, self._runtime)
-        self._services.parent_event_repository.upsert(parent.to_record())
+        repository.upsert(parent.to_record())
         self._parents[parent_id] = parent
         return parent
 
     def get(self, parent_id: str) -> ParentEvent:
+        """已加载的父事件。不存在抛 ParentEventNotFoundError。"""
         try:
             return self._parents[parent_id]
         except KeyError:
             raise ParentEventNotFoundError(parent_id) from None
 
     def parents(self) -> list[ParentEvent]:
+        """全部已加载的父事件。"""
         return list(self._parents.values())
 
     def digest_all(self) -> list[str]:

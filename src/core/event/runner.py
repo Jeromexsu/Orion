@@ -107,9 +107,11 @@ class EventRunner:
         return {oid: obs.target.name for oid, obs in self._observables.items()}
 
     def history(self) -> list[EventRecord]:
+        """这个模板在本父事件下的全部子事件记录（含活跃的），按开启时间排序。"""
         return self._runtime.event_repository.history(self._parent_id, self._template.id)
 
     def to_ref(self) -> TemplateRef:
+        """父事件记录里的模板引用：当前版本 + 挂起版本。"""
         return TemplateRef(
             template_id=self._template.id,
             version=self._template.version,
@@ -119,6 +121,9 @@ class EventRunner:
     # ------------------------------------------------------------ Referencer
 
     def on_observation(self, envelope: ObservationEnvelope) -> None:
+        """Dispatcher 回调。评估开启条件并保存其状态；无活跃子事件且命中时开新子事件；
+        然后把这条观测交给活跃子事件处理并存档；子事件关闭则结束本周期（有挂起版本就切换）。
+        """
         if envelope.observable_id not in self._observables:
             return
 
@@ -147,7 +152,7 @@ class EventRunner:
     # ------------------------------------------------------------ 版本 / 生命周期
 
     def check_version(self, version: int) -> None:
-        """新版本号必须大于当前版本和挂起版本。"""
+        """新版本号必须大于当前版本和挂起版本，否则抛 TemplateVersionError。无副作用。"""
         latest = self._pending.version if self._pending else self._template.version
         if version <= latest:
             raise TemplateVersionError(
@@ -163,7 +168,7 @@ class EventRunner:
             self._on_change()
 
     def close_active(self, reason: str) -> None:
-        """手动关闭当前子事件（如分析师判定本周期结束），之后按挂起版本切换。"""
+        """手动关闭当前子事件（如分析师判定本周期结束）并存档，之后按挂起版本切换。没有活跃子事件时忽略。"""
         if self._active is None:
             return
         self._active.close(reason)

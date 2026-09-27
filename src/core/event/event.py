@@ -24,7 +24,10 @@ def _now() -> datetime:
 
 
 class Event:
-    """子事件：模板的一次运行（一个周期）。状态变更的唯一入口是 update_status，只由它自己（经 ProgressContext）调用。"""
+    """子事件：模板的一次运行（一个周期）。由 EventRunner 创建、喂数据、存档。
+
+    状态变更的唯一入口是 update_status，只经 ProgressContext 由推进类算子调用。
+    """
 
     def __init__(
         self,
@@ -34,7 +37,9 @@ class Event:
         target_names: Callable[[], Mapping[str, str]],
     ) -> None:
         if (record.template_id, record.template_version) != (template.id, template.version):
-            raise ValueError(f"instance {record.id} does not belong to template {template.id} v{template.version}")
+            raise ValueError(
+                f"event {record.id} does not belong to template {template.id} v{template.version}"
+            )
         self._id = record.id
         self._parent_id = record.parent_id
         self._template = template
@@ -57,7 +62,7 @@ class Event:
         target_names: Callable[[], Mapping[str, str]],
         cycle: int,
     ) -> "Event":
-        """新建子事件并跑 created 钩子。"""
+        """新建子事件并跑 created 钩子，返回它。不写库（由 runner 存档）。"""
         record = EventRecord(
             id=uuid4().hex,
             parent_id=parent_id,
@@ -68,9 +73,9 @@ class Event:
             condition_state={},
             opened_at=_now(),
         )
-        instance = cls(record, template, runtime, target_names)
-        instance._run_hooks(template.hooks_at("created"), Trigger(mount_point="created"))
-        return instance
+        event = cls(record, template, runtime, target_names)
+        event._run_hooks(template.hooks_at("created"), Trigger(mount_point="created"))
+        return event
 
     # ------------------------------------------------------------ 只读
 
@@ -95,6 +100,7 @@ class Event:
         return self._closed_at is not None
 
     def to_record(self) -> EventRecord:
+        """当前状态的持久化记录。"""
         return EventRecord(
             id=self._id,
             parent_id=self._parent_id,
@@ -111,7 +117,11 @@ class Event:
     # ------------------------------------------------------------ 管道
 
     def process(self, envelope: ObservationEnvelope) -> None:
-        """前置钩子 → 逐条规则跑条件树 → 合并 state_patch → 命中则跑规则钩子 → 后置钩子 → shouldClose。"""
+        """处理一条观测：pre 钩子 → 逐条规则跑条件树、合并条件状态、命中则跑规则钩子 → post 钩子
+        → 状态表示收敛（should_close）就关闭。
+
+        只改内存，不写库（由 runner 存档）。已关闭抛 EventClosedError。
+        """
         if self.is_closed:
             raise EventClosedError(self._id)
 
@@ -133,8 +143,10 @@ class Event:
             self.close("converged")
 
     def update_status(self, patch: dict[str, Any]) -> None:
-        """状态变更的唯一入口。之后跑 status_updated 钩子；
-        钩子里再调 update_status 只合并、不再触发钩子，避免无限递归。"""
+        """状态变更的唯一入口：把 patch 合并进状态，之后跑 status_updated 钩子。
+
+        钩子里再调 update_status 只合并、不再触发钩子，避免无限递归。已关闭抛 EventClosedError。
+        """
         if self.is_closed:
             raise EventClosedError(self._id)
         self._status.update(patch)
@@ -150,10 +162,11 @@ class Event:
             self._in_status_hooks = False
 
     def should_close(self) -> bool:
+        """推进类算子是否已把状态 CLOSE_STATUS_KEY 置为 True。"""
         return self._status.get(CLOSE_STATUS_KEY) is True
 
     def close(self, reason: str) -> None:
-        """跑 closed 钩子后关闭。重复关闭忽略。"""
+        """跑 closed 钩子后关闭。重复关闭忽略。不写库（由 runner 存档）。"""
         if self.is_closed:
             return
         self._run_hooks(self._template.hooks_at("closed"), Trigger(mount_point="closed"))
@@ -181,7 +194,7 @@ class Event:
                 operator.run(trigger, ctx)
             except Exception:
                 logger.exception(
-                    "operator %s failed at %s on instance %s",
+                    "operator %s failed at %s on event %s",
                     mount.operator,
                     trigger.mount_point,
                     self._id,

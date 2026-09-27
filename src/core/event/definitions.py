@@ -37,6 +37,8 @@ class ObservableDef(BaseModel):
 
 
 class RuleDef(BaseModel):
+    """规则：子事件运行期间，条件命中时跑哪些算子。"""
+
     model_config = ConfigDict(frozen=True)
 
     name: str                   # 模板内唯一，条件状态按它分组
