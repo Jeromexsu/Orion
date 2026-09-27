@@ -30,6 +30,7 @@ class EventRunner:
         template: EventTemplate,
         runtime: EventRuntime,
         on_change: Callable[[], None],
+        target_name: Callable[[str], str],
         *,
         pending: EventTemplate | None = None,
         open_state: dict[str, Any] | None = None,
@@ -39,6 +40,7 @@ class EventRunner:
         self._template = template
         self._runtime = runtime
         self._on_change = on_change        # 模板版本变化时通知父事件（再由父事件通知 manager 存档）
+        self._target_name = target_name    # 目标 ID → 展示名，由父事件提供（runner 不接触 TargetManager）
         self._pending = pending
         self._open_state: dict[str, Any] = open_state or {}
         self._active = active
@@ -51,9 +53,10 @@ class EventRunner:
         template: EventTemplate,
         runtime: EventRuntime,
         on_change: Callable[[], None],
+        target_name: Callable[[str], str],
     ) -> "EventRunner":
         """新装入模板：订阅并开始评估开启条件。模板须已编译通过（可观测目标声明已校验）。"""
-        runner = cls(parent_id, template, runtime, on_change)
+        runner = cls(parent_id, template, runtime, on_change, target_name)
         runner._sync_subscriptions()
         return runner
 
@@ -65,6 +68,7 @@ class EventRunner:
         pending: EventTemplate | None,
         runtime: EventRuntime,
         on_change: Callable[[], None],
+        target_name: Callable[[str], str],
     ) -> "EventRunner":
         """重启恢复：读回开启条件状态、接回活跃子事件、重新订阅。模板由父事件编译好传入。不写库。"""
         runner = cls(
@@ -72,6 +76,7 @@ class EventRunner:
             template,
             runtime,
             on_change,
+            target_name,
             pending=pending,
             open_state=runtime.runner_state_repository.get(parent_id, template.id),
         )
@@ -104,7 +109,10 @@ class EventRunner:
 
     def target_names(self) -> dict[str, str]:
         """订阅中的可观测目标 ID → 目标展示名，给钩子上下文用。"""
-        return {oid: obs.target.name for oid, obs in self._subscribed_observables.items()}
+        return {
+            oid: self._target_name(obs.target_id)
+            for oid, obs in self._subscribed_observables.items()
+        }
 
     def history(self) -> list[EventRecord]:
         """这个模板在本父事件下的全部子事件记录（含活跃的），按开启时间排序。"""

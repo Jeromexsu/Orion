@@ -6,12 +6,9 @@ from core.target import (
     ObservableTarget,
     Observation,
     ObservationEnvelope,
-    ObservedPoint,
     Target,
     TargetManager,
-    UnsupportedObservedPointError,
     UnsupportedUpstreamError,
-    observed_point,
 )
 from plugins.observed_points.position import Position, PositionObservation
 from tests.core.target.conftest import Subscriber
@@ -47,44 +44,23 @@ def test_accepts_only_its_observation_class(manager: TargetManager, plane: Targe
     assert not obs.accepts(Other(x=1))
 
 
-def test_rebind_target_rejects_other_id(manager: TargetManager, plane: Target) -> None:
-    obs = manager.get_observable(plane.id, "position")
-    with pytest.raises(ValueError):
-        obs.rebind_target(plane.model_copy(update={"id": "t2"}))
-
-
 # ---------------------------------------------------------------- 构造与按上游订阅
 
 
-class FuelObservation(Observation):
-    litres: float
+def test_constructor_keeps_only_the_target_id(plane: Target) -> None:
+    obs = ObservableTarget(plane.id, Position)
+    assert (obs.target_id, obs.observed_point, obs.id) == ("t1", Position, "t1:position")
 
 
-@observed_point("fuel", observation=FuelObservation)
-class Fuel(ObservedPoint): ...
-
-
-def test_constructor_validates_observed_point_and_upstreams(plane: Target) -> None:
-    with pytest.raises(UnsupportedObservedPointError):
-        ObservableTarget(plane, Fuel, ["adsb"])
-    with pytest.raises(UnsupportedUpstreamError):
-        ObservableTarget(plane, Position, [])
-    obs = ObservableTarget(plane, Position, ["adsb", "radar"])
-    assert obs.observed_point is Position
-    assert obs.id == "t1:position"
-
-
-def test_subscribe_validates_upstreams(plane: Target) -> None:
-    obs = ObservableTarget(plane, Position, ["adsb", "radar"])
+def test_subscribe_needs_an_upstream(plane: Target) -> None:
+    obs = ObservableTarget(plane.id, Position)
     with pytest.raises(UnsupportedUpstreamError):
         obs.subscribe(Subscriber(), [])
-    with pytest.raises(UnsupportedUpstreamError):
-        obs.subscribe(Subscriber(), ["adsb", "satellite"])
     assert not obs.is_active
 
 
 def test_routing_by_upstream(plane: Target) -> None:
-    obs = ObservableTarget(plane, Position, ["adsb", "radar", "satellite"])
+    obs = ObservableTarget(plane.id, Position)
     a, b = Subscriber(), Subscriber()
     obs.subscribe(a, ["adsb"])
     obs.subscribe(b, ["adsb", "radar"])
@@ -130,5 +106,4 @@ def test_publish_rejects_foreign_envelopes(manager: TargetManager, plane: Target
 
     with pytest.raises(ValueError, match="cannot publish"):
         obs.publish(envelope("other:position", "adsb"))
-    with pytest.raises(ValueError, match="no upstream"):
-        obs.publish(envelope(obs.id, "satellite"))
+    assert obs.publish(envelope(obs.id, "satellite")) == 0   # 没人订阅的上游：谁也不推

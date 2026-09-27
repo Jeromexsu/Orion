@@ -76,7 +76,7 @@ def test_collector_end_to_end() -> None:
     )
 
     observable = manager.get_observable("t1", "position")
-    assert observable.upstreams == ("openSky",)
+    assert manager.inspect_observable("t1", "position")[1] == ("openSky",)
     sub = Subscriber()
     observable.subscribe(sub, ["openSky"])
 

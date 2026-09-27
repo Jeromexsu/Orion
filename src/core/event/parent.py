@@ -63,7 +63,7 @@ class ParentEvent:
                 else None
             )
             parent._runners[ref.template_id] = EventRunner.restore(
-                parent.id, template, pending, runtime, parent._changed
+                parent.id, template, pending, runtime, parent._changed, parent._target_name
             )
         return parent
 
@@ -150,7 +150,7 @@ class ParentEvent:
         # kick off new runner if there is no runner for the compiled template
         if runner is None:
             self._runners[template.id] = EventRunner.start(
-                self._id, template, self._runtime, self._changed
+                self._id, template, self._runtime, self._changed, self._target_name
             )
             self._changed()
         else:

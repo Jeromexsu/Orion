@@ -98,7 +98,7 @@ def test_registry_is_upstream_catalog(env: Env) -> None:
     plane = env.manager.get_target("t1")
     assert env.registry.upstreams_for(plane, Position) == ["adsb"]
     assert env.registry.upstreams_for(plane, Fuel) == []
-    assert env.observable().upstreams == ("adsb",)
+    assert env.manager.inspect_observable("t1", "position")[1] == ("adsb",)
     with pytest.raises(DuplicateUpstreamAdapterError):
         env.registry.register(FakeUpstreamAdapter("adsb"))
     with pytest.raises(UnknownUpstreamAdapterError):
@@ -112,6 +112,17 @@ def test_upstreams_match_by_query_keys(env: Env) -> None:
     # 查询要 icao24：没有这个值的目标用不了这个上游
     assert env.registry.upstreams_for(no_icao, Position) == ["adsb"]
     assert env.registry.upstreams_for(with_icao, Position) == ["adsb", "mode-s"]
+
+
+def test_available_upstreams_follow_the_current_target(env: Env) -> None:
+    """可观测目标不缓存目标：目标补上 icao24 后，可用上游随之变化，同一个可观测目标照用。"""
+    env.registry.register(FakeUpstreamAdapter("mode-s", query_key_sets=(frozenset({Icao24}),)))
+    obs = env.observable()
+    assert env.manager.inspect_observable("t1", "position")[1] == ("adsb",)
+
+    env.manager.upsert_target(Aircraft(id="t1", name="x", registration="B-2447", icao24="780abc"))
+    assert env.manager.inspect_observable("t1", "position")[1] == ("adsb", "mode-s")
+    assert env.observable() is obs
 
 
 def test_one_upstream_several_query_ways() -> None:
@@ -222,7 +233,7 @@ def test_only_subscribed_upstreams_are_fetched_and_routed(env: Env) -> None:
     radar = FakeUpstreamAdapter("radar")
     env.registry.register(radar)
     obs = env.observable()
-    assert obs.upstreams == ("adsb", "radar")
+    assert env.manager.inspect_observable("t1", "position")[1] == ("adsb", "radar")
 
     adsb_only, both = Subscriber(), Subscriber()
     obs.subscribe(adsb_only, ["adsb"])
@@ -321,7 +332,9 @@ def test_one_adapter_serves_several_observed_points() -> None:
     )
 
     position, fuel = manager.get_observable("k1", "position"), manager.get_observable("k1", "fuel")
-    assert position.upstreams == fuel.upstreams == ("provider",)
+    assert manager.inspect_observable("k1", "position")[1] == ("provider",)
+    assert manager.inspect_observable("k1", "fuel")[1] == ("provider",)
+    assert (position.target_id, fuel.target_id) == ("k1", "k1")
     at_position, at_fuel = Subscriber(), Subscriber()
     position.subscribe(at_position, ["provider"])
     fuel.subscribe(at_fuel, ["provider"])

@@ -76,22 +76,6 @@ since 之前的不返回），等往外分插件任务时再搭。
 - 是否也开放给 hil（能提议的钩子提议「开启本周期」，经分析师确认），即加入白名单动作；
 - 记录谁、为什么手动开启，便于审计。
 
-### 9. 可观测目标的可用上游是快照，会过时
-
-**发现于**：审阅 `ObservableTarget.__init__` 时。**状态**：已记下，暂不改。
-
-可观测目标创建时由 `TargetManager` 问 `UpstreamCatalog` 得到可用上游，之后不再刷新：
-
-| 之后发生的事 | 现在的表现 |
-|---|---|
-| 目标记录更新，不再能提供某上游要的查询键 | 仍留在 `upstreams` 里；collector 采集时 `choose_query` 为 None，每轮记一条警告并跳过 |
-| 目标记录更新，新能提供某上游要的查询键 | 新可用的上游**不加进来**，模板订阅它会被拒绝；要等重启重建可观测目标 |
-| 运行中注册了新的上游适配器 | 同上（目前 bootstrap 启动时一次注册完，尚不会发生） |
-
-可能的做法：`TargetManager.upsert_target` 在 `rebind_target` 时重新问 `UpstreamCatalog`，刷新 `upstreams`——新可用的加进来；
-不再可用的移出，已有的订阅关系保留（collector 只采集「可用且有人订阅」的上游，自然停采，目标记录恢复后自动恢复）。
-改动只在 `upsert_target` / `rebind_target` 两处。
-
 ### 10. 判断方式的 `requires` 靠字段名对齐观测
 
 **发现于**：审阅 `OnEnter` 时。**状态**：已记下，暂不改；出现第二个观察点并需要复用同一判断方式时再做。
@@ -171,6 +155,14 @@ class RadarAdapter(UpstreamAdapter): ...
 
 ## 已决
 
+- **可观测目标不缓存目标**（原待决第 9 条「可用上游是快照，会过时」）：
+  - 根源：可观测目标缓存了目标对象和由它派生的可用上游，两份数据就得维护一致（`rebind_target`、快照过时）。
+  - 现在只存目标 ID、观察点、订阅关系；用到目标时按 `target_id` 从 `TargetManager` 现读（collector 采集时取查询键、
+    runner 取展示名），可用上游按当前的目标现算（`inspect_observable`，模板编译时校验）。`rebind_target` 与
+    `upstreams` 去掉；`subscribe` 不再校验可用上游（事先由编译查），采集时目标已不满足的上游照旧由 collector 跳过。
+  - runner 取目标名改由父事件传入 `target_name`（runner 不接触 `TargetManager`）。
+  - 下一步（未做）：target 拆成 observation / target / observable 三个模块；删目标时「有没有人在用」的检查是
+    引用完整性问题，拆分时再定由谁守。
 - **报告按来源滚动**（report 审阅）：
   - 修 bug：`digest()` 原来覆盖本父事件「最近一份草稿」，不管是谁写的，会把 `closeReport` 写的关闭报告覆盖成汇总。
     报告加来源 `source`（汇总是 `"digest"`，钩子写的是挂载名）；滚动逻辑从父事件挪进 report：

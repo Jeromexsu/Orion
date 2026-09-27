@@ -94,7 +94,8 @@ def test_shared_observed_point_across_types() -> None:
 
     plane, ship = m.get_observable("a1", "position"), m.get_observable("s1", "position")
     assert plane.observed_point is ship.observed_point is Position
-    assert (plane.upstreams, ship.upstreams) == (("adsb",), ("ais",))
+    assert m.inspect_observable("a1", "position")[1] == ("adsb",)
+    assert m.inspect_observable("s1", "position")[1] == ("ais",)
 
 
 def test_target_type_must_be_declared() -> None:
@@ -179,7 +180,7 @@ def test_get_observable_is_singleton(
     b = manager.get_observable(plane.id, "position")
     assert a is b
     assert a.id == "t1:position"
-    assert a.upstreams == ("adsb",)
+    assert a.target_id == plane.id
     assert observables.items[a.id] is a
 
 
@@ -231,10 +232,11 @@ def test_active_observables_follow_subscribers(manager: TargetManager, plane: Ta
     assert manager.active_observables() == []
 
 
-def test_upsert_target_rebinds_live_observable(manager: TargetManager, plane: Target) -> None:
+def test_observable_reads_the_current_target(manager: TargetManager, plane: Target) -> None:
+    """可观测目标只存目标 ID：目标更新后，经它读到的就是新目标，不需要通知。"""
     obs = manager.get_observable(plane.id, "position")
     manager.upsert_target(plane.model_copy(update={"registration": "B-9999"}))
-    assert obs.target.query_values() == {Registration: "B-9999"}
+    assert manager.get_target(obs.target_id).query_values() == {Registration: "B-9999"}
 
 
 def test_remove_target_in_use_rejected(manager: TargetManager, plane: Target) -> None:

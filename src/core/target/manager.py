@@ -46,7 +46,7 @@ class TargetManager:
     def upsert_target(self, target: Target) -> Target:
         """新建或更新目标，返回传入的目标。属性校验在构造 Target 子类时已完成。
 
-        写库；已存在的可观测目标换上新记录（rebind_target）。
+        写库。可观测目标只存目标 ID，用到目标时现读，所以不用通知它们。
         类不是该类型名注册的类抛 UnknownTargetTypeError；改变已有目标的类型抛 TargetTypeChangeError。
         """
         if type(target) is not self._target_type_registry.get(target.type):
@@ -60,10 +60,6 @@ class TargetManager:
             )
 
         self._target_repository.upsert(target.to_record())
-        for point in type(target).observed_points:
-            live = self._live.get(ObservableTarget.make_id(target.id, point.name))
-            if live is not None:
-                live.rebind_target(target)
         return target
 
     def get_target(self, target_id: str) -> Target:
@@ -100,12 +96,9 @@ class TargetManager:
     ) -> tuple[type[ObservedPoint], tuple[str, ...]]:
         """只查询、不创建：返回 (观察点, 可用上游)。检查与 get_observable 相同，不通过时抛同样的异常。
 
+        可用上游按目标当前的查询键现算（问 UpstreamCatalog），不缓存。
         给只需要校验的调用方（如模板编译）用，避免为最终被拒绝的模板创建可观测目标。
         """
-        live = self._live.get(ObservableTarget.make_id(target_id, observed_point))
-        if live is not None:
-            return live.observed_point, live.upstreams
-
         point = self._target_type_registry.get_observed_point(observed_point)
         target = self.get_target(target_id)
         if point not in type(target).observed_points:
@@ -121,15 +114,16 @@ class TargetManager:
         """取（必要时创建）唯一的 ObservableTarget。observed_point 是观察点名。
 
         首次创建时放进内存单例表并写库；检查与 inspect_observable 相同，不通过时抛同样的异常。
-        上游列表由这里问 UpstreamCatalog 得到；调用方随后自行 subscribe(subscriber, upstreams)。
+        可观测目标不带可用上游；调用方先用 inspect_observable 查，再自行 subscribe(subscriber, upstreams)。
         """
         key = ObservableTarget.make_id(target_id, observed_point)
         live = self._live.get(key)
         if live is not None:
             return live
 
-        point, upstreams = self.inspect_observable(target_id, observed_point)
-        observable = ObservableTarget(self.get_target(target_id), point, upstreams)
+        # 检查：目标存在、支持该观察点、有可用上游
+        point, _ = self.inspect_observable(target_id, observed_point)
+        observable = ObservableTarget(target_id, point)
         self._live[key] = observable
         self._observable_target_repository.upsert(observable)
         return observable

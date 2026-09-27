@@ -14,7 +14,7 @@
 | 查询方式 | `UpstreamAdapter.query_key_sets` 的一项 | 一组联立的查询键；目标能提供这组里的全部查询键，就能用这种方式查。UpstreamAdapter 只能拿到查询键范围内的目标信息 |
 | 上游 | `upstream`（名字，如 `opensky`） | 一个外部数据提供方，可以服务多个观察点；按名字标识，订阅、游标、路由都用这个名字 |
 | 上游适配器 | `UpstreamAdapter` 的子类（如 `OpenSkyAdapter`） | 接入一个上游的插件，`name` 就是上游名：声明服务哪些观察点（`observed_points`）、支持哪些查询方式（`query_key_sets`）；把查询键翻译成上游 API 的参数（如 `Icao24` → `ICAO`），把上游响应翻译成观测 |
-| 可观测目标（obs） | `ObservableTarget` | 封装好的「具体目标 + 一个观察点」，ID 形如 `t1:position`；持有全部可用上游（服务该观察点且目标能提供其某种查询方式的上游）和订阅关系，全局唯一，由 `TargetManager` 创建 |
+| 可观测目标（obs） | `ObservableTarget` | 对一个目标在一个观察点上的引用，ID 形如 `t1:position`；只存目标 ID、观察点和订阅关系，全局唯一，由 `TargetManager` 创建。不缓存目标和可用上游（服务该观察点且目标能提供其某种查询方式的上游），用到时按当前的目标现算 |
 | 订阅 | `ObservableTarget.subscribe(订阅者, 上游集合)` | 订阅者指定要哪些上游；可观测目标按上游把数据路由给订阅者 |
 | 发布 | `ObservableTarget.publish(观测外壳)` | 可观测目标把一条观测推给订阅了其上游的订阅者，逐个隔离异常；collector 采集后调用 |
 | 观测外壳 | `ObservationEnvelope` | 一次观测连同来源信息：`observable_id`、`upstream`、`observation`（观测实例）、`occurred_at`、`source_id`、`raw`。collector 产出，在采集 → 分发 → 条件判断的管道里流动 |

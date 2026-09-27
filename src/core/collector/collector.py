@@ -103,7 +103,8 @@ class Collector:
         adapter = self._upstream_adapter_registry.get(upstream)
 
         # build query based on target fields required by upstream adapter
-        query = adapter.choose_query(observable.target.query_values())
+        target = self._target_manager.get_target(observable.target_id)   # 当前的目标，不是快照
+        query = adapter.choose_query(target.query_values())
 
         # target fields not satisfied upstream adapter requirement
         if query is None:

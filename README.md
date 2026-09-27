@@ -114,20 +114,21 @@ sequenceDiagram
 | `Observation` 子类（如 `PositionObservation`） | 观测：观察点返回的数据，字段即形状 | 开发者（和观察点放在一起） |
 | `QueryKey` 子类（如 `Icao24`） | 查询键：拿什么去查一个目标，名字 + 取值的类型与格式 | 开发者（`plugins/query_keys/`） |
 | `UpstreamAdapter`（上游） | 接入一个数据提供方（上游，如 OpenSky）：服务哪些观察点（`observed_points`，可多个）、支持哪些查询方式（`query_key_sets`，每种是一组查询键，目标能提供其一即可），把查询键翻译成上游 API、把响应翻译成观测 | 开发者（`plugins/upstream_adapters/`） |
-| `ObservableTarget`（obs） | 目标实例 + 观察点 + 可用上游，全局唯一；订阅者按上游订阅（`subscribe`），它把观测发布（`publish`）给订阅了该上游的订阅者 | `TargetManager` 按需创建 |
+| `ObservableTarget`（obs） | 对目标的引用（只存目标 ID）+ 观察点 + 订阅关系，全局唯一；订阅者按上游订阅（`subscribe`），它把观测发布（`publish`）给订阅了该上游的订阅者。不缓存目标，也不缓存可用上游：用到时按当前的目标现读、现算 | `TargetManager` 按需创建 |
 | `ObservationEnvelope` | 观测的外壳：来源信息（可观测目标、上游、发生时间、去重 ID）+ 观测实例 | collector 产出 |
 
 ```mermaid
 graph LR
-  T["Target 实例<br/>（如 B-2447）"] --> OT["ObservableTarget<br/>t1:position"]
+  T["Target 实例<br/>（如 B-2447）"] -. 按 ID 引用 .-> OT["ObservableTarget<br/>t1:position"]
   P["ObservedPoint<br/>Position"] --> OT
-  U["可用上游<br/>adsb, radar"] --> OT
+  T -. 当前的查询键 .-> U["可用上游（现算）<br/>adsb, radar"]
   P -. 返回 .-> OB["PositionObservation"]
   OT -. 采集产出 .-> ENV["ObservationEnvelope<br/>来源信息 + 观测"]
   OB -. 装在 .-> ENV
 ```
 
 可用上游 = 服务该观察点、且目标能提供其某种查询方式要的全部查询键（字段有值）的 UpstreamAdapter。
+每次用到都按目标当前的查询键现算（`TargetManager.inspect_observable`），目标更新后自然生效。
 一个上游 = 一个数据提供方，可以服务多个观察点（`fetch` 按 `observed_point` 分支）；模板里写的上游名就是提供方的名字。
 游标、订阅、路由都按（可观测目标, 上游）组织，可观测目标里已带观察点，所以同一上游的不同观察点互不干扰。
 上游不认识目标类型：同一个上游可以对飞机按 `Icao24`、对船按 `Mmsi` 查询。
@@ -187,7 +188,7 @@ collector 与 event 互不认识，只在可观测目标这里会合。
 | event · 父事件 | `TargetManager.get_target` | 确认目标存在、取展示名 |
 | event · 模板编译器 | `TargetManager.inspect_observable` / `get_observable` | 先只检查（不创建），全部通过后取得 / 创建可观测目标 |
 | event · runner | `ObservableTarget.subscribe` / `unsubscribe`；回调 `Subscriber.on_observation` | 按上游订阅；收观测 |
-| collector | `TargetManager.active_observables`；`ObservableTarget.active_upstreams` / `accepts` / `publish`；`Target.query_values` | 找要采集的可观测目标和上游；检查观测类型；发布；取目标能提供的查询键 |
+| collector | `TargetManager.active_observables`；`ObservableTarget.active_upstreams` / `accepts` / `publish`；`Target.query_values` | 找要采集的可观测目标和上游；检查观测类型；发布；采集时按 `target_id` 取当前的目标及其查询键 |
 
 要别人提供的：`UpstreamCatalog`（collector 的 `UpstreamAdapterRegistry` 实现，bootstrap 注入）、`TargetRepository`、
 `ObservableTargetRepository`（持久化层实现）。
@@ -208,7 +209,7 @@ collector 与 event 互不认识，只在可观测目标这里会合。
 |---|---|---|
 | `Collector.collect()` | 调度器 | 运行时，定时：对全部活跃可观测目标采集一轮 |
 | `Collector.collect_one(observable)` | 调度器 / 以后的「手动刷新」 | 运行时，按需：立即采集一个可观测目标 |
-| `UpstreamAdapterRegistry.upstreams_for()`（即 target 的 `UpstreamCatalog`） | `TargetManager` | 运行时，创建可观测目标时问「哪些上游能观测它」。target 只认协议，bootstrap 注入 |
+| `UpstreamAdapterRegistry.upstreams_for()`（即 target 的 `UpstreamCatalog`） | `TargetManager` | 运行时，查可观测目标时问「哪些上游能观测它」（按当前的目标现算）。target 只认协议，bootstrap 注入 |
 | `UpstreamAdapterRegistry.register()` | bootstrap | 启动时注册全部上游适配器 |
 
 要别人提供的（collector 定义接口，持久化层实现）：`CursorRepository`（每个（可观测目标, 上游）一个游标）、

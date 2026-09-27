@@ -1,11 +1,10 @@
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from typing import Protocol
 
 from core.target.data import ObservationEnvelope
-from core.target.errors import UnsupportedObservedPointError, UnsupportedUpstreamError
+from core.target.errors import UnsupportedUpstreamError
 from core.target.observed_point import Observation, ObservedPoint
-from core.target.target import Target
 
 logger = logging.getLogger(__name__)
 
@@ -22,28 +21,21 @@ class Subscriber(Protocol):
 
 
 class ObservableTarget:
-    """具体目标实例 + 一个观察点，全局唯一（只由 TargetManager 创建）。
+    """A reference to a target at one observed point, plus who subscribes to which
+    upstreams. Globally unique; created only by TargetManager.
 
-    upstreams 是 TargetManager 问 UpstreamCatalog 得到的全部可用上游。
-    订阅者 subscribe 时指定要哪些上游，对象内部维护路由：某个上游的数据
-    只推给订阅了该上游的订阅者。某个上游没人订阅就不采集。
-    订阅关系只在内存里，不持久化——重启后由 event 模块重新订阅。
+    Holds only the target ID, never the target itself: whoever needs the target (its
+    query values, its name) reads the current one from TargetManager, so a target
+    update needs no notification here. Which upstreams are available is not kept
+    either; it is worked out from the current target when needed.
+
+    Subscriptions live in memory only, not persisted: after a restart the event module
+    subscribes again.
     """
 
-    def __init__(
-        self, target: Target, observed_point: type[ObservedPoint], upstreams: Sequence[str]
-    ) -> None:
-        if observed_point not in type(target).observed_points:
-            raise UnsupportedObservedPointError(
-                f"{target.type} cannot be observed at {observed_point.name!r}"
-            )
-        if not upstreams:
-            raise UnsupportedUpstreamError(
-                f"no upstream for {target.id} at {observed_point.name!r}"
-            )
-        self._target = target
+    def __init__(self, target_id: str, observed_point: type[ObservedPoint]) -> None:
+        self._target_id = target_id
         self._observed_point = observed_point
-        self._upstreams = tuple(upstreams)
         self._subscriptions: dict[Subscriber, frozenset[str]] = {}
 
     @staticmethod
@@ -62,21 +54,16 @@ class ObservableTarget:
 
     @property
     def id(self) -> str:
-        return ObservableTarget.make_id(self._target.id, self._observed_point.name)
+        return ObservableTarget.make_id(self._target_id, self._observed_point.name)
 
     @property
-    def target(self) -> Target:
-        return self._target
+    def target_id(self) -> str:
+        return self._target_id
 
     @property
     def observed_point(self) -> type[ObservedPoint]:
         """观察点：决定这个可观测目标的观测形状。"""
         return self._observed_point
-
-    @property
-    def upstreams(self) -> tuple[str, ...]:
-        """全部可用上游。"""
-        return self._upstreams
 
     @property
     def is_active(self) -> bool:
@@ -85,18 +72,15 @@ class ObservableTarget:
     # ------------------------------------------------------------ 订阅
 
     def subscribe(self, subscriber: Subscriber, upstreams: Iterable[str]) -> None:
-        """订阅指定上游。同一订阅者再次 subscribe 会用新的上游集合替换旧的。
+        """订阅指定上游。同一订阅者再次 subscribe 会用新的上游集合替换旧的。只改内存，不写库。
 
-        上游为空或不在可用上游里抛 UnsupportedUpstreamError。只改内存，不写库。
+        不检查上游是否可用：那取决于当时的目标，由调用方事先查（模板编译时经
+        TargetManager.inspect_observable）；采集时目标已不满足的上游由 collector 跳过。
+        上游为空抛 UnsupportedUpstreamError。
         """
         wanted = frozenset(upstreams)
         if not wanted:
             raise UnsupportedUpstreamError(f"{self.id}: subscribe to at least one upstream")
-        unknown = wanted - set(self._upstreams)
-        if unknown:
-            raise UnsupportedUpstreamError(
-                f"{self.id}: {sorted(unknown)} not in available upstreams {list(self._upstreams)}"
-            )
         self._subscriptions[subscriber] = wanted
 
     def unsubscribe(self, subscriber: Subscriber) -> None:
@@ -130,13 +114,10 @@ class ObservableTarget:
             Number of subscribers that raised.
 
         Raises:
-            ValueError: If the envelope belongs to another observable target or
-                comes from an upstream this observable target does not have.
+            ValueError: If the envelope belongs to another observable target.
         """
         if envelope.observable_id != self.id:
             raise ValueError(f"{self.id} cannot publish an envelope of {envelope.observable_id}")
-        if envelope.upstream not in self._upstreams:
-            raise ValueError(f"{self.id} has no upstream {envelope.upstream!r}")
         failures = 0
         for subscriber in self.subscribers_for(envelope.upstream):
             try:
@@ -147,18 +128,11 @@ class ObservableTarget:
         return failures
 
     def active_upstreams(self) -> tuple[str, ...]:
-        """至少有一个订阅者的上游，按可用上游的顺序。collector 只采集这些。"""
-        subscribed = frozenset[str]().union(*self._subscriptions.values())
-        return tuple(u for u in self._upstreams if u in subscribed)
+        """至少有一个订阅者的上游，按名字排序。collector 只采集这些。"""
+        return tuple(sorted(frozenset[str]().union(*self._subscriptions.values())))
 
     # ------------------------------------------------------------ 采集辅助
 
     def accepts(self, observation: Observation) -> bool:
         """这个观测是不是本观察点的观测类（或其子类）的实例。"""
         return isinstance(observation, self._observed_point.observation)
-
-    def rebind_target(self, target: Target) -> None:
-        """目标记录更新后换上新记录。只应由 TargetManager 调用。"""
-        if target.id != self._target.id:
-            raise ValueError(f"cannot rebind {self.id} to target {target.id}")
-        self._target = target
