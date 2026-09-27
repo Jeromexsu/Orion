@@ -52,6 +52,9 @@ class Collector:
     def collect_one(self, observable: ObservableTarget) -> list[ObservationEnvelope]:
         """Collect new observations of one observable target from its active upstreams.
 
+        Called by collect for every active observable target; also usable on demand
+        to collect one observable target immediately (e.g. a manual refresh).
+
         Active upstreams are those with at least one subscriber. Each is collected
         with its own cursor; an upstream that raises is logged and skipped without
         affecting the others. After all active upstreams are done, the new

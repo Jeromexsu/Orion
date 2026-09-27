@@ -151,6 +151,26 @@ class Aircraft(Target):
 `query` 是 UpstreamAdapter 得到目标信息的唯一途径：UpstreamAdapter 看不到目标本身、目标类型和字段名。挑查询方式的
 `choose_query` 是基类方法，只接收目标能提供的查询键；判断可用上游和实际采集都用它，两处结果一致。
 
+### collector：采集
+
+对外的窗口（按使用方）：
+
+| 窗口 | 谁用 | 何时 |
+|---|---|---|
+| `Collector.collect()` | 调度器 | 运行时，定时：对全部活跃可观测目标采集一轮 |
+| `Collector.collect_one(observable)` | 调度器 / 以后的「手动刷新」 | 运行时，按需：立即采集一个可观测目标 |
+| `UpstreamAdapterRegistry.upstreams_for()`（即 target 的 `UpstreamCatalog`） | `TargetManager` | 运行时，创建可观测目标时问「哪些上游能观测它」。target 只认协议，bootstrap 注入 |
+| `UpstreamAdapterRegistry.register()` | bootstrap | 启动时注册全部上游适配器 |
+
+要别人提供的（collector 定义接口，持久化层实现）：`CursorRepository`（每个（可观测目标, 上游）一个游标）、
+`ObservationRepository`（已采集观测，只增不改）。
+
+扩展点只有一个：继承 `UpstreamAdapter`，放在 `plugins/upstream_adapters/`——声明需要什么输入（`query_key_sets`）、
+能提供什么输出（`observed_points`），实现怎么查（`fetch`）。见上节「输入这一侧的分工」和 `plugins/upstream_adapters/opensky.py`。
+
+内部分工：`Collector.collect` → `collect_one`（一个可观测目标的全部活跃上游，拉完按时间顺序 `publish`）→
+`_collect_upstream`（一个上游：挑查询 → `fetch` → 检查观测类型、去重 → 落库、推进游标）。
+
 ### event：父事件、模板、子事件
 
 ```mermaid
