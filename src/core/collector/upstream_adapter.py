@@ -5,7 +5,8 @@ from typing import Any, TypeVar
 
 from pydantic import BaseModel, ConfigDict, SerializeAsAny
 
-from core.target import Observation, ObservedPoint, QueryKey
+from core.observation import Observation, ObservedPoint
+from core.target import QueryKey
 
 Query = dict[type[QueryKey], Any]
 """这次查询：查询键 → 取值，如 {Icao24: "780a3b"}。由 collector 按上游挑出的查询方式组装。"""

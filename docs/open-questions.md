@@ -11,9 +11,10 @@
 
 ### 2. `ObservableTargetRepository` 是否保留
 
-它按文档第九节返回 `ObservableTarget` 活对象；`TargetManager` 只在创建时写入、删除目标时移除，
-从未读取——重启恢复靠 event 模块重新订阅。选项：保留 / 改为存纯数据记录 / 去掉。
-**状态**：等审阅到 `core/target/repository.py` 和 `manager.py` 时决定。
+它按文档第九节返回 `ObservableTarget` 活对象；`ObservableTargetManager` 只在创建时写入、删除目标时移除，
+从未读取——重启恢复靠 event 模块重新订阅。可观测目标现在只存目标 ID、观察点（订阅关系本就不存），
+存下来的东西几乎都能从目标和模板推出来。选项：保留 / 改为存纯数据记录 / 去掉。
+**状态**：待定（`core/observable/repository.py`）。
 
 ### 3. UpstreamAdapter 与 Target 子类的对应关系只靠约定
 
@@ -40,20 +41,20 @@ since 之前的不返回），等往外分插件任务时再搭。
 **影响范围**：`condition_engine/definitions.py`（LeafDef）、`condition_engine/tree.py`（LeafNode）、判断方式插件接口；
 方案 3 则主要在 target / collector。
 
-### 5. 条件引擎依赖 target 的前提（观察项）
+### 5. 条件引擎依赖 observation 的前提（观察项）
 
 **状态**：暂维持现状，满足触发条件时重新评估。
 
-条件引擎依赖 target，只依赖一个数据类型 `Observation`（不碰 `TargetManager`、`ObservableTarget`）。维持的理由：
+条件引擎只依赖 observation 模块（`Observation`、`ObservationEnvelope`）；target 拆分后已不依赖目标。维持的理由：
 `LeafDef.observable` 本就是可观测目标 ID，条件在概念上就是「对可观测目标的观测做判断」，原 Protocol 只是把
-这层关联藏了起来；target 是最底层、最稳定的模块，无环；回退只需在条件引擎内重新引入输入 Protocol。
+这层关联藏了起来；observation 是最底层、最稳定的模块，无环；回退只需在条件引擎内重新引入输入 Protocol。
 
 代价：条件引擎与「观测」的形状绑定；判断方式只拿观测和发生时间（`evaluate(observation, occurred_at, state, criteria)`），来源信息不交出去；
 `Observation` 的变更会波及条件引擎和判断方式插件；与设计文档「条件引擎零依赖」不一致。
 
 **触发重新评估的条件**：出现要判断「非观测类输入」的需求（如一段新闻文本、一条人工录入的线索，
 设计文档 `EvalResult.extracted` 提到的「命中的关键词、地点」可能属于此类）。届时条件引擎应改回
-定义自己的输入 Protocol，依赖不再指向 target。
+定义自己的输入 Protocol，依赖不再指向 observation。
 
 ### 6. 观测外壳的持久化
 
@@ -155,14 +156,23 @@ class RadarAdapter(UpstreamAdapter): ...
 
 ## 已决
 
+- **target 拆成 observation / target / observable 三个模块**：
+  - observation（零依赖）：观察点、观测、观测外壳——观测长什么样，与目标无关。
+  - target（→ observation）：目标类型、目标实例、查询键、`TargetTypeRegistry`、`TargetManager`。
+  - observable（→ target、observation）：`ObservableTarget`、单例表 `ObservableTargetManager`、`UpstreamCatalog`、
+    `ObservableTargetRepository`。可观测目标是对目标的引用（只存 ID）+ 观察点 + 订阅，不是目标的增强版。
+  - 删目标时「有没有人在用」是引用完整性问题：target 定义 `TargetReferrer`（`references` / `release`），引用方实现，
+    bootstrap 用 `TargetManager.add_referrer` 接上（不走构造参数：引用方自己要用 `TargetManager`）。目前唯一的引用方是
+    `ObservableTargetManager`（有订阅者不能删，删时丢掉该目标的可观测目标）。父事件的命名空间也引用目标，以后可以同样接上。
+  - 效果：condition_engine 只依赖 observation（第 5 条的「依赖 target」不复存在）；hooks 只依赖 observation；
+    collector 依赖 observable 找活跃可观测目标、依赖 target 取当前目标的查询键。
 - **可观测目标不缓存目标**（原待决第 9 条「可用上游是快照，会过时」）：
   - 根源：可观测目标缓存了目标对象和由它派生的可用上游，两份数据就得维护一致（`rebind_target`、快照过时）。
   - 现在只存目标 ID、观察点、订阅关系；用到目标时按 `target_id` 从 `TargetManager` 现读（collector 采集时取查询键、
     runner 取展示名），可用上游按当前的目标现算（`inspect_observable`，模板编译时校验）。`rebind_target` 与
     `upstreams` 去掉；`subscribe` 不再校验可用上游（事先由编译查），采集时目标已不满足的上游照旧由 collector 跳过。
   - runner 取目标名改由父事件传入 `target_name`（runner 不接触 `TargetManager`）。
-  - 下一步（未做）：target 拆成 observation / target / observable 三个模块；删目标时「有没有人在用」的检查是
-    引用完整性问题，拆分时再定由谁守。
+  - 下一步见下条「target 拆成三个模块」。
 - **报告按来源滚动**（report 审阅）：
   - 修 bug：`digest()` 原来覆盖本父事件「最近一份草稿」，不管是谁写的，会把 `closeReport` 写的关闭报告覆盖成汇总。
     报告加来源 `source`（汇总是 `"digest"`，钩子写的是挂载名）；滚动逻辑从父事件挪进 report：

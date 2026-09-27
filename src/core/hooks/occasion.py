@@ -10,7 +10,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.condition_engine import EvalResult
-from core.target import ObservationEnvelope
+from core.observation import ObservationEnvelope
 
 
 class CreatedOccasion(BaseModel):

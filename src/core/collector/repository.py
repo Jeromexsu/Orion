@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Protocol
 
-from core.target import ObservationEnvelope
+from core.observation import ObservationEnvelope
 
 
 class CursorRepository(Protocol):

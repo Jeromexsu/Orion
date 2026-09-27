@@ -1,10 +1,10 @@
+from core.observation import ObservedPoint, observed_point_name
 from core.target.errors import (
     DuplicateObservedPointError,
     DuplicateTargetTypeError,
     UnknownObservedPointError,
     UnknownTargetTypeError,
 )
-from core.target.observed_point import ObservedPoint, observed_point_name
 from core.target.target import Target, type_name
 
 

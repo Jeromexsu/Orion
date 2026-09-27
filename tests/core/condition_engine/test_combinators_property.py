@@ -19,7 +19,7 @@ from core.condition_engine import (
     Outcome,
     evaluator,
 )
-from core.target import Observation
+from core.observation import Observation
 from tests.core.condition_engine.conftest import compile_, make_envelope
 
 outcomes = st.sampled_from([HIT, MISS, NOT_APPLICABLE])

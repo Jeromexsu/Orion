@@ -6,7 +6,7 @@ from typing import Any, ClassVar, Self, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from core.target.observed_point import ObservedPoint, observed_point_name
+from core.observation import ObservedPoint, observed_point_name
 from core.target.query_key import QueryKey, query_key_name, validate_query_value
 
 _BASE_FIELDS = frozenset({"id", "type", "name", "aliases"})

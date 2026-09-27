@@ -1,52 +1,23 @@
-
 import pytest
 from pydantic import ValidationError
 
+from core.observation import Observation, ObservedPoint, observed_point
 from core.target import (
     DuplicateObservedPointError,
     DuplicateTargetTypeError,
-    NoUpstreamError,
-    Observation,
-    ObservedPoint,
     Target,
     TargetInUseError,
     TargetManager,
     TargetNotFoundError,
     TargetTypeChangeError,
     TargetTypeRegistry,
-    UnknownObservedPointError,
     UnknownTargetTypeError,
-    UnsupportedObservedPointError,
-    observed_point,
     target_type,
     type_name,
 )
 from plugins.observed_points.position import Position
-from plugins.query_keys.registration import Registration
 from plugins.target.aircraft import Aircraft
-from tests.core.target.conftest import Subscriber
-from tests.core.target.fakes import (
-    InMemoryObservableTargetRepository,
-    InMemoryTargetRepository,
-    StaticUpstreamCatalog,
-)
-
-
-class DraughtObservation(Observation):
-    metres: float
-
-
-@observed_point("draught", observation=DraughtObservation)
-class Draught(ObservedPoint):
-    """船特有的观察点：吃水。"""
-
-
-@target_type("ship", observed_points=[Position, Draught])
-class Ship(Target):
-    """船和飞机共用 Position 观察点。"""
-
-    mmsi: str
-
+from tests.core.target.fakes import Draught, InMemoryTargetRepository, Ship
 
 # ---------------------------------------------------------------- 类型
 
@@ -77,25 +48,6 @@ def test_observed_point_name_clash_rejected(target_types: TargetTypeRegistry) ->
         target_types.register(Car)
     with pytest.raises(UnknownTargetTypeError):  # 注册失败不留半截
         target_types.get("car")
-
-
-def test_shared_observed_point_across_types() -> None:
-    upstreams = StaticUpstreamCatalog(
-        {("aircraft", "position"): ["adsb"], ("ship", "position"): ["ais"]}
-    )
-    target_types = TargetTypeRegistry()
-    target_types.register(Aircraft)
-    target_types.register(Ship)
-    m = TargetManager(
-        target_types, InMemoryTargetRepository(), InMemoryObservableTargetRepository(), upstreams
-    )
-    m.upsert_target(Aircraft(id="a1", name="x", registration="B-1"))
-    m.upsert_target(Ship(id="s1", name="y", mmsi="412000000"))
-
-    plane, ship = m.get_observable("a1", "position"), m.get_observable("s1", "position")
-    assert plane.observed_point is ship.observed_point is Position
-    assert m.inspect_observable("a1", "position")[1] == ("adsb",)
-    assert m.inspect_observable("s1", "position")[1] == ("ais",)
 
 
 def test_target_type_must_be_declared() -> None:
@@ -170,89 +122,37 @@ def test_find_by_alias(manager: TargetManager, plane: Target) -> None:
     assert manager.find_by_alias("nope") is None
 
 
-# ---------------------------------------------------------------- 可观测目标
+# ---------------------------------------------------------------- 引用方
 
 
-def test_get_observable_is_singleton(
-    manager: TargetManager, plane: Target, observables: InMemoryObservableTargetRepository
+class FakeReferrer:
+    def __init__(self, *refs: str) -> None:
+        self.refs = list(refs)
+        self.released: list[str] = []
+
+    def references(self, target_id: str) -> list[str]:
+        return self.refs
+
+    def release(self, target_id: str) -> None:
+        self.released.append(target_id)
+
+
+def test_remove_target_asks_every_referrer_first(
+    manager: TargetManager, plane: Target, targets: InMemoryTargetRepository
 ) -> None:
-    a = manager.get_observable(plane.id, "position")
-    b = manager.get_observable(plane.id, "position")
-    assert a is b
-    assert a.id == "t1:position"
-    assert a.target_id == plane.id
-    assert observables.items[a.id] is a
-
-
-def test_inspect_observable_does_not_create(
-    manager: TargetManager, plane: Target, observables: InMemoryObservableTargetRepository
-) -> None:
-    point, upstreams = manager.inspect_observable(plane.id, "position")
-    assert (point, upstreams) == (Position, ("adsb",))
-    assert observables.items == {}
-    with pytest.raises(UnknownObservedPointError):
-        manager.inspect_observable(plane.id, "fuel")
-
-
-def test_get_observable_errors(
-    manager: TargetManager, target_types: TargetTypeRegistry, plane: Target
-) -> None:
-    with pytest.raises(TargetNotFoundError):
-        manager.get_observable("missing", "position")
-    with pytest.raises(UnknownObservedPointError):
-        manager.get_observable(plane.id, "fuel")
-    target_types.register(Ship)
-    with pytest.raises(UnsupportedObservedPointError):  # 吃水是船的观察点，飞机不能被这样观测
-        manager.get_observable(plane.id, "draught")
-
-
-def test_get_observable_without_upstream() -> None:
-    target_types = TargetTypeRegistry()
-    target_types.register(Aircraft)
-    m = TargetManager(
-        target_types,
-        InMemoryTargetRepository(),
-        InMemoryObservableTargetRepository(),
-        StaticUpstreamCatalog({}),
-    )
-    m.upsert_target(Aircraft(id="t1", name="x", registration="B"))
-    with pytest.raises(NoUpstreamError):
-        m.get_observable("t1", "position")
-
-
-def test_active_observables_follow_subscribers(manager: TargetManager, plane: Target) -> None:
-    obs = manager.get_observable(plane.id, "position")
-    assert manager.active_observables() == []
-
-    sub = Subscriber()
-    obs.subscribe(sub, ["adsb"])
-    assert manager.active_observables() == [obs]
-
-    obs.unsubscribe(sub)
-    assert manager.active_observables() == []
-
-
-def test_observable_reads_the_current_target(manager: TargetManager, plane: Target) -> None:
-    """可观测目标只存目标 ID：目标更新后，经它读到的就是新目标，不需要通知。"""
-    obs = manager.get_observable(plane.id, "position")
-    manager.upsert_target(plane.model_copy(update={"registration": "B-9999"}))
-    assert manager.get_target(obs.target_id).query_values() == {Registration: "B-9999"}
-
-
-def test_remove_target_in_use_rejected(manager: TargetManager, plane: Target) -> None:
-    obs = manager.get_observable(plane.id, "position")
-    obs.subscribe(Subscriber(), ["adsb"])
-    with pytest.raises(TargetInUseError):
+    idle, busy = FakeReferrer(), FakeReferrer("t1:position")
+    manager.add_referrer(idle)
+    manager.add_referrer(busy)
+    with pytest.raises(TargetInUseError, match="t1:position"):
         manager.remove_target(plane.id)
+    assert plane.id in targets.items and idle.released == []   # 有人在用：什么都不动
 
-
-def test_remove_target_clears_observables(
-    manager: TargetManager,
-    plane: Target,
-    targets: InMemoryTargetRepository,
-    observables: InMemoryObservableTargetRepository,
-) -> None:
-    obs = manager.get_observable(plane.id, "position")
+    busy.refs.clear()
     manager.remove_target(plane.id)
     assert plane.id not in targets.items
-    assert obs.id not in observables.items
+    assert idle.released == busy.released == [plane.id]
+
+
+def test_remove_missing_target(manager: TargetManager) -> None:
+    with pytest.raises(TargetNotFoundError):
+        manager.remove_target("missing")

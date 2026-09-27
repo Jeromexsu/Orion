@@ -19,7 +19,7 @@ from core.hooks import (
     Occasion,
     RuleHitOccasion,
 )
-from core.target import ObservationEnvelope
+from core.observation import ObservationEnvelope
 
 logger = logging.getLogger(__name__)
 

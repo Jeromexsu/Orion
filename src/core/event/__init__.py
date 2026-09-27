@@ -6,7 +6,7 @@
 - 运行：每个模板一个 EventRunner，订阅可观测目标、评估开启条件、管理子事件（Event，同一模板最多一个活跃）。
 对外：ParentEventManager 是入口；TemplateDef 等定义是纯数据（前端 / API 构造）；
       ParentEventServices / EventRuntime 是 bootstrap 装配的依赖包。
-依赖：target、condition_engine、hooks、report（不直接依赖 collector / hil，分别经订阅回调和 ProposalSink 连接）。
+依赖：observation、target、observable、condition_engine、hooks、report（不直接依赖 collector / hil，分别经订阅回调和 ProposalSink 连接）。
 关系图见 README「架构」一节。
 """
 

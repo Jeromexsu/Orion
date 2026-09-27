@@ -27,13 +27,9 @@ from core.event import (
 )
 from core.hil import HilManager, ProposalRepository
 from core.hooks import HookRegistry, MountCompiler
+from core.observable import ObservableTargetManager, ObservableTargetRepository
 from core.report import ReportManager, ReportRepository
-from core.target import (
-    ObservableTargetRepository,
-    TargetManager,
-    TargetRepository,
-    TargetTypeRegistry,
-)
+from core.target import TargetManager, TargetRepository, TargetTypeRegistry
 from plugins.condition_engine.on_enter import OnEnter
 from plugins.hooks.close_report import CloseReport
 from plugins.hooks.count_hits import CountHits
@@ -78,6 +74,7 @@ class App:
         self,
         target_type_registry: TargetTypeRegistry,
         target_manager: TargetManager,
+        observable_target_manager: ObservableTargetManager,
         upstream_adapter_registry: UpstreamAdapterRegistry,
         collector: Collector,
         condition_compiler: ConditionCompiler,
@@ -88,6 +85,7 @@ class App:
     ) -> None:
         self.target_type_registry = target_type_registry
         self.target_manager = target_manager
+        self.observable_target_manager = observable_target_manager
         self.upstream_adapter_registry = upstream_adapter_registry
         self.collector = collector
         self.condition_compiler = condition_compiler
@@ -104,15 +102,18 @@ def build_app(repos: Repositories) -> App:
 
     target_type_registry = TargetTypeRegistry()
     target_type_registry.register(Aircraft)
-    target_manager = TargetManager(
+    target_manager = TargetManager(target_type_registry, repos.target_repository)
+    observable_target_manager = ObservableTargetManager(
         target_type_registry,
-        repos.target_repository,
+        target_manager,
         repos.observable_target_repository,
         upstream_adapter_registry,
     )
+    target_manager.add_referrer(observable_target_manager)   # 有订阅者的目标不能删
 
     collector = Collector(
         target_manager,
+        observable_target_manager,
         upstream_adapter_registry,
         repos.cursor_repository,
         repos.observation_repository,
@@ -135,7 +136,7 @@ def build_app(repos: Repositories) -> App:
             target_manager=target_manager,
             template_repository=repos.template_repository,
             template_compiler=TemplateCompiler(
-                condition_compiler, MountCompiler(hook_registry), target_manager
+                condition_compiler, MountCompiler(hook_registry), observable_target_manager
             ),
             report_manager=report_manager,
         ),
@@ -155,6 +156,7 @@ def build_app(repos: Repositories) -> App:
     return App(
         target_type_registry=target_type_registry,
         target_manager=target_manager,
+        observable_target_manager=observable_target_manager,
         upstream_adapter_registry=upstream_adapter_registry,
         collector=collector,
         condition_compiler=condition_compiler,

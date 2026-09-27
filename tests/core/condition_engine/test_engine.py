@@ -17,7 +17,7 @@ from core.condition_engine import (
     EvaluatorRegistry,
     evaluator,
 )
-from core.target import Observation
+from core.observation import Observation
 from plugins.condition_engine.on_enter import OnEnter
 from tests.core.condition_engine.conftest import (
     SQUARE,

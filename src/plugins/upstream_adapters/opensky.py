@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from core.collector import FetchedRecord, Query, UpstreamAdapter, upstream_adapter
-from core.target import ObservedPoint
+from core.observation import ObservedPoint
 from plugins.observed_points.position import Position, PositionObservation
 from plugins.query_keys.icao24 import Icao24
 

@@ -6,7 +6,7 @@ from core.condition_engine.definitions import BranchDef, ConditionDef, LeafDef
 from core.condition_engine.errors import ConditionCompileError, UnknownEvaluatorError
 from core.condition_engine.registry import EvaluatorRegistry
 from core.condition_engine.tree import BranchNode, ConditionNode, ConditionTree, LeafNode
-from core.target import Observation
+from core.observation import Observation
 
 DeclaredObservables = Mapping[str, type[Observation]]
 """Observable target ID (e.g. "t1:position") -> the observation class it produces.

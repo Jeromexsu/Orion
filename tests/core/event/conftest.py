@@ -17,8 +17,10 @@ from core.hooks import (
     Occasion,
     hook,
 )
+from core.observable import ObservableTargetManager
+from core.observation import ObservationEnvelope
 from core.report import ReportManager
-from core.target import ObservationEnvelope, TargetManager, TargetTypeRegistry
+from core.target import TargetManager, TargetTypeRegistry
 from plugins.condition_engine.on_enter import OnEnter
 from plugins.hooks.close_report import CloseReport
 from plugins.hooks.count_hits import CountHits
@@ -31,12 +33,9 @@ from tests.core.event.fakes import (
     InMemoryTemplateRepository,
     RecordingSink,
 )
+from tests.core.observable.fakes import InMemoryObservableTargetRepository, StaticUpstreamCatalog
 from tests.core.report.fakes import InMemoryReportRepository
-from tests.core.target.fakes import (
-    InMemoryObservableTargetRepository,
-    InMemoryTargetRepository,
-    StaticUpstreamCatalog,
-)
+from tests.core.target.fakes import InMemoryTargetRepository
 
 SQUARE = [(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0)]
 ALL_MOUNTS: frozenset[MountPoint] = frozenset(
@@ -85,7 +84,7 @@ class Boom(Hook[NoParams]):
 class Env:
     def __init__(self) -> None:
         self.target_repo = InMemoryTargetRepository()
-        self.targets = self.make_targets()
+        self.targets, self.observables = self.make_targets()
         for tid, name in (("t1", "MU5101"), ("t2", "CA1501")):
             self.targets.upsert_target(Aircraft(id=tid, name=name, registration=tid))
 
@@ -106,41 +105,51 @@ class Env:
             runner_state_repository=self.runner_states,
             proposal_sink=self.sink,
         )
-        self.services = self.make_services(self.targets)
+        self.services = self.make_services(self.targets, self.observables)
         self.parent_events = ParentEventManager(self.parents, self.services, self.runtime)
         self._seq = count()
 
-    def make_targets(self) -> TargetManager:
-        """新的 TargetManager 共用同一个目标仓库——模拟重启时内存状态清空。
+    def make_targets(self) -> tuple[TargetManager, ObservableTargetManager]:
+        """新的 TargetManager / ObservableTargetManager 共用同一个目标仓库——模拟重启时内存状态清空。
 
         可观测目标仓库每次新建，记在 observable_repo 上，测试据此检查有没有创建可观测目标。
         """
         self.observable_repo = InMemoryObservableTargetRepository()
         target_types = TargetTypeRegistry()
         target_types.register(Aircraft)
-        targets = TargetManager(
+        targets = TargetManager(target_types, self.target_repo)
+        observables = ObservableTargetManager(
             target_types,
-            self.target_repo,
+            targets,
             self.observable_repo,
             StaticUpstreamCatalog({("aircraft", "position"): ["adsb", "radar"]}),
         )
-        return targets
+        targets.add_referrer(observables)
+        return targets, observables
 
-    def make_services(self, targets: TargetManager) -> ParentEventServices:
+    def make_services(
+        self, targets: TargetManager, observables: ObservableTargetManager
+    ) -> ParentEventServices:
         evaluator_registry = EvaluatorRegistry()
         evaluator_registry.register(OnEnter())
         return ParentEventServices(
             target_manager=targets,
             template_repository=self.templates,
             template_compiler=TemplateCompiler(
-                ConditionCompiler(evaluator_registry), MountCompiler(self.hook_registry), targets
+                ConditionCompiler(evaluator_registry),
+                MountCompiler(self.hook_registry),
+                observables,
             ),
             report_manager=self.reports,
         )
 
-    def make_parent_events(self, targets: TargetManager) -> ParentEventManager:
-        """用给定的 TargetManager 组装一套新的父事件管理器——模拟重启（仓库共用）。"""
-        return ParentEventManager(self.parents, self.make_services(targets), self.runtime)
+    def make_parent_events(
+        self, targets: TargetManager, observables: ObservableTargetManager
+    ) -> ParentEventManager:
+        """用给定的两个 manager 组装一套新的父事件管理器——模拟重启（仓库共用）。"""
+        return ParentEventManager(
+            self.parents, self.make_services(targets, observables), self.runtime
+        )
 
     def envelope(
         self,

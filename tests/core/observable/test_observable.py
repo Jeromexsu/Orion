@@ -2,20 +2,17 @@ from datetime import UTC, datetime
 
 import pytest
 
-from core.target import (
-    ObservableTarget,
-    Observation,
-    ObservationEnvelope,
-    Target,
-    TargetManager,
-    UnsupportedUpstreamError,
-)
+from core.observable import ObservableTarget, ObservableTargetManager, UnsupportedUpstreamError
+from core.observation import Observation, ObservationEnvelope
+from core.target import Target
 from plugins.observed_points.position import Position, PositionObservation
-from tests.core.target.conftest import Subscriber
+from tests.core.observable.fakes import Subscriber
 
 
-def test_subscribe_is_idempotent_and_unsubscribe_tolerant(manager: TargetManager, plane: Target) -> None:
-    obs = manager.get_observable(plane.id, "position")
+def test_subscribe_is_idempotent_and_unsubscribe_tolerant(
+    observable_manager: ObservableTargetManager, plane: Target
+) -> None:
+    obs = observable_manager.get_observable(plane.id, "position")
     sub = Subscriber()
     obs.subscribe(sub, ["adsb"])
     obs.subscribe(sub, ["adsb"])
@@ -25,8 +22,10 @@ def test_subscribe_is_idempotent_and_unsubscribe_tolerant(manager: TargetManager
     assert not obs.is_active
 
 
-def test_subscribers_is_a_snapshot(manager: TargetManager, plane: Target) -> None:
-    obs = manager.get_observable(plane.id, "position")
+def test_subscribers_is_a_snapshot(
+    observable_manager: ObservableTargetManager, plane: Target
+) -> None:
+    obs = observable_manager.get_observable(plane.id, "position")
     a, b = Subscriber(), Subscriber()
     obs.subscribe(a, ["adsb"])
     obs.subscribe(b, ["adsb"])
@@ -35,11 +34,13 @@ def test_subscribers_is_a_snapshot(manager: TargetManager, plane: Target) -> Non
     assert snapshot == frozenset({a, b})
 
 
-def test_accepts_only_its_observation_class(manager: TargetManager, plane: Target) -> None:
+def test_accepts_only_its_observation_class(
+    observable_manager: ObservableTargetManager, plane: Target
+) -> None:
     class Other(Observation):
         x: int
 
-    obs = manager.get_observable(plane.id, "position")
+    obs = observable_manager.get_observable(plane.id, "position")
     assert obs.accepts(PositionObservation(lat=31.2, lon=121.3))
     assert not obs.accepts(Other(x=1))
 
@@ -92,8 +93,10 @@ def test_envelope_serializes_the_concrete_observation() -> None:
     assert envelope.model_dump()["observation"] == {"lat": 1.0, "lon": 2.0, "altitude_m": None}
 
 
-def test_publish_rejects_foreign_envelopes(manager: TargetManager, plane: Target) -> None:
-    obs = manager.get_observable(plane.id, "position")
+def test_publish_rejects_foreign_envelopes(
+    observable_manager: ObservableTargetManager, plane: Target
+) -> None:
+    obs = observable_manager.get_observable(plane.id, "position")
 
     def envelope(observable_id: str, upstream: str) -> ObservationEnvelope:
         return ObservationEnvelope(

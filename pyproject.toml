@@ -29,9 +29,11 @@ include = ["src", "tests"]
 extraPaths = ["src"]
 pythonVersion = "3.11"
 typeCheckingMode = "standard"
-# 核心六个模块开 strict；report 的 strict 状态待定
+# 核心模块开 strict；report 的 strict 状态待定
 strict = [
+    "src/core/observation",
     "src/core/target",
+    "src/core/observable",
     "src/core/collector",
     "src/core/event",
     "src/core/condition_engine",
@@ -62,27 +64,51 @@ modules = ["api", "persistence"]
 
 
 # ---- core 模块之间的依赖（接口定义在依赖方，数据定义在所属模块）
-#   最底层：target、hil、report —— 不依赖其他 core 模块
-#   collector、condition_engine → target
-#   hooks → target、condition_engine、hil（Occasion 引用 ObservationEnvelope / EvalResult，上下文引用 Proposal）
-#   event     → target、condition_engine、hooks、report（不依赖 collector / hil）
+#   最底层：observation、hil、report —— 不依赖其他 core 模块
+#   target      → observation（目标类型声明观察点）
+#   observable  → target、observation（可观测目标 = 对目标的引用 + 观察点）
+#   collector   → observable、target、observation
+#   condition_engine → observation（只看观测，不关心目标）
+#   hooks → observation、condition_engine、hil（Occasion 引用 ObservationEnvelope / EvalResult，上下文引用 Proposal）
+#   event → observation、target、observable、condition_engine、hooks、report（不依赖 collector / hil）
 
 [[tool.importlinter.contracts]]
-name = "target 零依赖"
+name = "observation 零依赖"
 type = "forbidden"
-source_modules = ["core.target"]
+source_modules = ["core.observation"]
 forbidden_modules = [
-    "core.collector", "core.event", "core.condition_engine",
-    "core.hooks", "core.hil", "core.report",
+    "core.target", "core.observable", "core.collector",
+    "core.condition_engine", "core.hooks", "core.event",
+    "core.hil", "core.report",
 ]
 
 [[tool.importlinter.contracts]]
-name = "condition_engine 只依赖 target（ObservationEnvelope）"
+name = "target 只依赖 observation"
+type = "forbidden"
+source_modules = ["core.target"]
+forbidden_modules = [
+    "core.observable", "core.collector", "core.condition_engine",
+    "core.hooks", "core.event", "core.hil",
+    "core.report",
+]
+
+[[tool.importlinter.contracts]]
+name = "observable 只依赖 target / observation"
+type = "forbidden"
+source_modules = ["core.observable"]
+forbidden_modules = [
+    "core.collector", "core.condition_engine", "core.hooks",
+    "core.event", "core.hil", "core.report",
+]
+
+[[tool.importlinter.contracts]]
+name = "condition_engine 只依赖 observation（只看观测，不关心目标）"
 type = "forbidden"
 source_modules = ["core.condition_engine"]
 forbidden_modules = [
-    "core.collector", "core.event",
-    "core.hooks", "core.hil", "core.report",
+    "core.target", "core.observable", "core.collector",
+    "core.hooks", "core.event", "core.hil",
+    "core.report",
 ]
 
 [[tool.importlinter.contracts]]
@@ -90,8 +116,9 @@ name = "hil 零依赖（白名单动作由 bootstrap 注入）"
 type = "forbidden"
 source_modules = ["core.hil"]
 forbidden_modules = [
-    "core.target", "core.collector", "core.event",
-    "core.condition_engine", "core.hooks", "core.report",
+    "core.observation", "core.target", "core.observable",
+    "core.collector", "core.condition_engine", "core.hooks",
+    "core.event", "core.report",
 ]
 
 [[tool.importlinter.contracts]]
@@ -99,24 +126,28 @@ name = "report 零依赖"
 type = "forbidden"
 source_modules = ["core.report"]
 forbidden_modules = [
-    "core.target", "core.collector", "core.event",
-    "core.condition_engine", "core.hooks", "core.hil",
+    "core.observation", "core.target", "core.observable",
+    "core.collector", "core.condition_engine", "core.hooks",
+    "core.event", "core.hil",
 ]
 
 [[tool.importlinter.contracts]]
-name = "collector 只依赖 target"
+name = "collector 只依赖 observable / target / observation"
 type = "forbidden"
 source_modules = ["core.collector"]
 forbidden_modules = [
-    "core.event", "core.condition_engine",
-    "core.hooks", "core.hil", "core.report",
+    "core.condition_engine", "core.hooks", "core.event",
+    "core.hil", "core.report",
 ]
 
 [[tool.importlinter.contracts]]
-name = "hooks 只依赖 target / condition_engine / hil"
+name = "hooks 只依赖 observation / condition_engine / hil"
 type = "forbidden"
 source_modules = ["core.hooks"]
-forbidden_modules = ["core.collector", "core.event", "core.report"]
+forbidden_modules = [
+    "core.target", "core.observable", "core.collector",
+    "core.event", "core.report",
+]
 
 [[tool.importlinter.contracts]]
 name = "event 不直接依赖 collector / hil（数据由可观测目标 publish 给 runner，提议经 ProposalSink 流出）"

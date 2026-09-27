@@ -40,8 +40,8 @@ def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list
 - 按职责给类起名：
   - `*Manager`：管数据——运行期间不断变化、要存库的业务数据的生命周期，不只是增删改查，还有状态流转和规则
     （如「有订阅者不能删目标」「已发出的报告不能改」）。它是有自己数据的模块的入口，仓库注入在它身上，用仓库存取；
-    规则在 manager 里，不在仓库里（`TargetManager` 管目标实例和可观测目标，`ParentEventManager`、`HilManager`、
-    `ReportManager`）。没有自己数据的模块没有 manager。入口做的事能用一个动词说清时可以用动词名词化（`Collector`）。
+    规则在 manager 里，不在仓库里（`TargetManager` 管目标实例，`ObservableTargetManager` 管可观测目标，`ParentEventManager`、
+    `HilManager`、`ReportManager`）。没有自己数据的模块没有 manager。入口做的事能用一个动词说清时可以用动词名词化（`Collector`）。
   - `*Registry`：管插件——数据（模板 JSON、库里的记录）里只有名字，注册表把名字变回写框架时还不知道的插件。
     要不要注册表只看数据里会不会出现它的名字：查询键只在代码里按类引用，所以没有；观察点在模板里按名字引用，
     所以有（从目标类型的声明收集）。一种插件的注册表只有 `register` / `get` / 列出全部（外加注册时的声明检查）；启动时由

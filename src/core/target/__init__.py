@@ -1,37 +1,24 @@
-"""目标：静态目标、观察点、可观测目标。
+"""目标：静态目标——目标类型、目标记录、查询键。
 
-负责：目标类型与目标记录；观察点（输出契约：观测的形状）；查询键（输入契约：拿什么去查）；
-      可观测目标（目标 + 观察点，全局唯一）及其订阅路由。
-对外：TargetManager 是入口（目标记录、可观测目标）；TargetTypeRegistry 是目标类型 / 观察点的注册表；
-      Target / ObservedPoint / Observation / QueryKey 是插件继承的基类；
-      ObservationEnvelope 是在管道里流动的观测外壳。
-依赖：无（最底层）。上游目录 UpstreamCatalog 由 collector 实现、bootstrap 注入。
-扩展点：plugins/target/ 下继承 Target；plugins/observed_points/ 下继承 ObservedPoint + Observation；
-        plugins/query_keys/ 下继承 QueryKey。
+负责：目标类型（插件，声明能在哪些观察点被观测、哪些字段提供哪些查询键）与目标记录的生命周期；
+      查询键（输入契约：拿什么去查一个目标）。
+对外：TargetManager 是入口（目标实例的增删改查）；TargetTypeRegistry 是目标类型的注册表（顺带收集观察点）；
+      Target / QueryKey 是插件继承的基类；TargetReferrer 是引用目标的一方要实现的接口（删目标前被问）。
+依赖：observation（目标类型声明观察点）。
+扩展点：plugins/target/ 下继承 Target；plugins/query_keys/ 下继承 QueryKey。
 """
 
-from core.target.data import ObservationEnvelope
 from core.target.errors import (
     DuplicateObservedPointError,
     DuplicateTargetTypeError,
-    NoUpstreamError,
     TargetError,
     TargetInUseError,
     TargetNotFoundError,
     TargetTypeChangeError,
     UnknownObservedPointError,
     UnknownTargetTypeError,
-    UnsupportedObservedPointError,
-    UnsupportedUpstreamError,
 )
 from core.target.manager import TargetManager
-from core.target.observable import ObservableTarget, Subscriber
-from core.target.observed_point import (
-    Observation,
-    ObservedPoint,
-    observed_point,
-    observed_point_name,
-)
 from core.target.query_key import (
     QueryKey,
     provides,
@@ -39,38 +26,27 @@ from core.target.query_key import (
     query_key_name,
     validate_query_value,
 )
+from core.target.referrer import TargetReferrer
 from core.target.registry import TargetTypeRegistry
-from core.target.repository import ObservableTargetRepository, TargetRepository
+from core.target.repository import TargetRepository
 from core.target.target import Target, TargetRecord, target_type, type_name
-from core.target.upstream import UpstreamCatalog
 
 __all__ = [
     "DuplicateObservedPointError",
     "DuplicateTargetTypeError",
-    "Observation",
-    "ObservationEnvelope",
-    "NoUpstreamError",
-    "ObservableTarget",
-    "ObservableTargetRepository",
-    "ObservedPoint",
     "QueryKey",
-    "Subscriber",
     "Target",
     "TargetError",
     "TargetInUseError",
     "TargetManager",
-    "TargetTypeRegistry",
     "TargetNotFoundError",
     "TargetRecord",
+    "TargetReferrer",
     "TargetRepository",
     "TargetTypeChangeError",
+    "TargetTypeRegistry",
     "UnknownObservedPointError",
     "UnknownTargetTypeError",
-    "UnsupportedObservedPointError",
-    "UnsupportedUpstreamError",
-    "UpstreamCatalog",
-    "observed_point",
-    "observed_point_name",
     "provides",
     "query_key",
     "query_key_name",

@@ -1,6 +1,7 @@
 from core.collector.errors import DuplicateUpstreamAdapterError, UnknownUpstreamAdapterError
 from core.collector.upstream_adapter import UpstreamAdapter, validate_declaration
-from core.target import ObservedPoint, Target
+from core.observation import ObservedPoint
+from core.target import Target
 
 
 class UpstreamAdapterRegistry:

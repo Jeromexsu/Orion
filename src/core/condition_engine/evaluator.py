@@ -7,7 +7,7 @@ from typing import Any, ClassVar, Generic, Literal, TypeVar, get_args, get_origi
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.target import Observation
+from core.observation import Observation
 
 HIT = "命中"
 MISS = "未命中"

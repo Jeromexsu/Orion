@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, SerializeAsAny
 
-from core.target.observed_point import Observation
+from core.observation.observed_point import Observation
 
 
 class ObservationEnvelope(BaseModel):

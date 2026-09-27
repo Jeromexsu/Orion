@@ -13,7 +13,7 @@ from core.condition_engine.evaluator import (
     Evaluator,
     Outcome,
 )
-from core.target import ObservationEnvelope
+from core.observation import ObservationEnvelope
 
 TreeState = Mapping[str, Mapping[str, Any]]
 """整棵树的状态：叶子路径（如 "root/1"）→ 该叶子的状态。"""

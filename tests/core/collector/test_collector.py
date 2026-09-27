@@ -12,16 +12,13 @@ from core.collector import (
     UpstreamAdapterRegistry,
     upstream_adapter,
 )
+from core.observable import ObservableTarget, ObservableTargetManager
+from core.observation import Observation, ObservationEnvelope, ObservedPoint, observed_point
 from core.target import (
-    ObservableTarget,
-    Observation,
-    ObservationEnvelope,
-    ObservedPoint,
     QueryKey,
     Target,
     TargetManager,
     TargetTypeRegistry,
-    observed_point,
     provides,
     query_key,
     target_type,
@@ -36,8 +33,8 @@ from tests.core.collector.fakes import (
     InMemoryCursorRepository,
     InMemoryObservationRepository,
 )
-from tests.core.target.conftest import Subscriber
-from tests.core.target.fakes import InMemoryObservableTargetRepository, InMemoryTargetRepository
+from tests.core.observable.fakes import InMemoryObservableTargetRepository, Subscriber
+from tests.core.target.fakes import InMemoryTargetRepository
 
 
 class FuelObservation(Observation):
@@ -74,19 +71,19 @@ class Env:
         self.registry.register(self.adsb)
         target_types = TargetTypeRegistry()
         target_types.register(Aircraft)
-        self.manager = TargetManager(
-            target_types,
-            InMemoryTargetRepository(), InMemoryObservableTargetRepository(), self.registry
+        self.manager = TargetManager(target_types, InMemoryTargetRepository())
+        self.observables = ObservableTargetManager(
+            target_types, self.manager, InMemoryObservableTargetRepository(), self.registry
         )
         self.manager.upsert_target(Aircraft(id="t1", name="x", registration="B-2447"))
         self.cursors = InMemoryCursorRepository()
         self.observations = InMemoryObservationRepository()
         self.collector = Collector(
-            self.manager, self.registry, self.cursors, self.observations
+            self.manager, self.observables, self.registry, self.cursors, self.observations
         )
 
     def observable(self) -> ObservableTarget:
-        return self.manager.get_observable("t1", "position")
+        return self.observables.get_observable("t1", "position")
 
 
 @pytest.fixture
@@ -98,7 +95,7 @@ def test_registry_is_upstream_catalog(env: Env) -> None:
     plane = env.manager.get_target("t1")
     assert env.registry.upstreams_for(plane, Position) == ["adsb"]
     assert env.registry.upstreams_for(plane, Fuel) == []
-    assert env.manager.inspect_observable("t1", "position")[1] == ("adsb",)
+    assert env.observables.inspect_observable("t1", "position")[1] == ("adsb",)
     with pytest.raises(DuplicateUpstreamAdapterError):
         env.registry.register(FakeUpstreamAdapter("adsb"))
     with pytest.raises(UnknownUpstreamAdapterError):
@@ -118,10 +115,10 @@ def test_available_upstreams_follow_the_current_target(env: Env) -> None:
     """可观测目标不缓存目标：目标补上 icao24 后，可用上游随之变化，同一个可观测目标照用。"""
     env.registry.register(FakeUpstreamAdapter("mode-s", query_key_sets=(frozenset({Icao24}),)))
     obs = env.observable()
-    assert env.manager.inspect_observable("t1", "position")[1] == ("adsb",)
+    assert env.observables.inspect_observable("t1", "position")[1] == ("adsb",)
 
     env.manager.upsert_target(Aircraft(id="t1", name="x", registration="B-2447", icao24="780abc"))
-    assert env.manager.inspect_observable("t1", "position")[1] == ("adsb", "mode-s")
+    assert env.observables.inspect_observable("t1", "position")[1] == ("adsb", "mode-s")
     assert env.observable() is obs
 
 
@@ -233,7 +230,7 @@ def test_only_subscribed_upstreams_are_fetched_and_routed(env: Env) -> None:
     radar = FakeUpstreamAdapter("radar")
     env.registry.register(radar)
     obs = env.observable()
-    assert env.manager.inspect_observable("t1", "position")[1] == ("adsb", "radar")
+    assert env.observables.inspect_observable("t1", "position")[1] == ("adsb", "radar")
 
     adsb_only, both = Subscriber(), Subscriber()
     obs.subscribe(adsb_only, ["adsb"])
@@ -321,19 +318,20 @@ def test_one_adapter_serves_several_observed_points() -> None:
     registry.register(provider)
     target_types = TargetTypeRegistry()
     target_types.register(Tanker)
-    manager = TargetManager(
-        target_types,
-        InMemoryTargetRepository(), InMemoryObservableTargetRepository(), registry
+    manager = TargetManager(target_types, InMemoryTargetRepository())
+    observables = ObservableTargetManager(
+        target_types, manager, InMemoryObservableTargetRepository(), registry
     )
     manager.upsert_target(Tanker(id="k1", name="x", registration="B-1"))
     cursors = InMemoryCursorRepository()
     collector = Collector(
-        manager, registry, cursors, InMemoryObservationRepository()
+        manager, observables, registry, cursors, InMemoryObservationRepository()
     )
 
-    position, fuel = manager.get_observable("k1", "position"), manager.get_observable("k1", "fuel")
-    assert manager.inspect_observable("k1", "position")[1] == ("provider",)
-    assert manager.inspect_observable("k1", "fuel")[1] == ("provider",)
+    position = observables.get_observable("k1", "position")
+    fuel = observables.get_observable("k1", "fuel")
+    assert observables.inspect_observable("k1", "position")[1] == ("provider",)
+    assert observables.inspect_observable("k1", "fuel")[1] == ("provider",)
     assert (position.target_id, fuel.target_id) == ("k1", "k1")
     at_position, at_fuel = Subscriber(), Subscriber()
     position.subscribe(at_position, ["provider"])

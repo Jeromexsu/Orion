@@ -3,7 +3,7 @@
 负责：ConditionDef --ConditionCompiler.compile--> ConditionTree；ConditionTree.evaluate(观测外壳, 状态) → EvalResult。
       纯计算：不存状态、不订阅；状态由调用方保管，结果的 state 是新状态（None 表示没变）。
 对外：ConditionCompiler、ConditionTree、EvalResult（命中 / 未命中 / 不适用）、Evaluator、EvaluatorRegistry。
-依赖：target（只用 ObservationEnvelope，见 docs/open-questions.md 第 5 条）。
+依赖：observation（只看观测和观测外壳，见 docs/open-questions.md 第 5 条）。
 扩展点：plugins/condition_engine/ 下继承 Evaluator（一种判断方式）。
 """
 

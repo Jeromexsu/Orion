@@ -7,7 +7,7 @@
 对外：Hook、hook、HookContext、EventHandle、Occasion 及各挂载点的时机类型、HookRegistry、
       MountDef / Mount / MountCompiler、
       ProposalSink（提议的去处，由 hil 实现）。
-依赖：target（ObservationEnvelope）、condition_engine（EvalResult）、hil（Proposal）。
+依赖：observation（ObservationEnvelope）、condition_engine（EvalResult）、hil（Proposal）。
 扩展点：plugins/hooks/ 下继承 Hook[参数模型]，用 @hook 声明。
 """
 

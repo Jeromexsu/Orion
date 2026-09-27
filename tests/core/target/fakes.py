@@ -1,8 +1,8 @@
-"""target 仓库接口的内存替身。"""
+"""target 仓库接口的内存替身，以及测试用的目标类型。"""
 
-from collections.abc import Sequence
-
-from core.target import ObservableTarget, ObservedPoint, Target, TargetRecord
+from core.observation import Observation, ObservedPoint, observed_point
+from core.target import Target, TargetRecord, target_type
+from plugins.observed_points.position import Position
 
 
 class InMemoryTargetRepository:
@@ -22,29 +22,17 @@ class InMemoryTargetRepository:
         return next((t for t in self.items.values() if alias in t.aliases), None)
 
 
-class InMemoryObservableTargetRepository:
-    def __init__(self) -> None:
-        self.items: dict[str, ObservableTarget] = {}
-
-    def get(self, key: str) -> ObservableTarget | None:
-        return self.items.get(key)
-
-    def upsert(self, observable: ObservableTarget) -> None:
-        self.items[observable.id] = observable
-
-    def remove(self, key: str) -> None:
-        self.items.pop(key, None)
-
-    def list_active(self) -> list[ObservableTarget]:
-        return [o for o in self.items.values() if o.is_active]
+class DraughtObservation(Observation):
+    metres: float
 
 
-class StaticUpstreamCatalog:
-    def __init__(self, table: dict[tuple[str, str], list[str]]) -> None:
-        self.table = table
+@observed_point("draught", observation=DraughtObservation)
+class Draught(ObservedPoint):
+    """船特有的观察点：吃水。"""
 
-    def upstreams_for(
-        self, target: Target, observed_point: type[ObservedPoint]
-    ) -> Sequence[str]:
-        """table 按 (目标类型名, 观察点名) 配置。"""
-        return self.table.get((target.type, observed_point.name), [])
+
+@target_type("ship", observed_points=[Position, Draught])
+class Ship(Target):
+    """船和飞机共用 Position 观察点。"""
+
+    mmsi: str

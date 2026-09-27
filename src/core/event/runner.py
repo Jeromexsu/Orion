@@ -9,7 +9,8 @@ from core.event.event import Event
 from core.event.records import EventRecord, TemplateRef
 from core.event.runtime import EventRuntime
 from core.event.template import EventTemplate
-from core.target import ObservableTarget, ObservationEnvelope
+from core.observable import ObservableTarget
+from core.observation import ObservationEnvelope
 
 logger = logging.getLogger(__name__)
 

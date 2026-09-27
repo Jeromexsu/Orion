@@ -21,7 +21,7 @@ from core.hooks import (
     UnknownHookError,
     hook,
 )
-from core.target import ObservationEnvelope
+from core.observation import ObservationEnvelope
 from plugins.hooks.count_hits import CountHits, CountHitsParams
 from plugins.observed_points.position import PositionObservation
 

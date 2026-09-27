@@ -20,6 +20,7 @@ def test_collect_drives_sub_event_to_close() -> None:
     upstream_adapter_registry.register(adsb)
     collector = Collector(
         env.targets,
+        env.observables,
         upstream_adapter_registry,
         InMemoryCursorRepository(),
         InMemoryObservationRepository(),

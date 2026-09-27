@@ -1,7 +1,7 @@
 from core.condition_engine import ConditionTree
 from core.event.definitions import ObservableDef, TemplateDef
 from core.hooks import Mount, MountPoint
-from core.target import ObservableTarget
+from core.observable import ObservableTarget
 
 
 class CompiledObservable:

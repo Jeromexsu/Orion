@@ -2,7 +2,8 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from core.collector import FetchedRecord, Query, UpstreamAdapter
-from core.target import ObservationEnvelope, ObservedPoint, QueryKey
+from core.observation import ObservationEnvelope, ObservedPoint
+from core.target import QueryKey
 from plugins.observed_points.position import Position
 from plugins.query_keys.registration import Registration
 

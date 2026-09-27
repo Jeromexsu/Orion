@@ -1,6 +1,6 @@
 """示例观察点：位置。飞机、船、车等都可以在这个观察点被观测。新增观察点照这个写。"""
 
-from core.target import Observation, ObservedPoint, observed_point
+from core.observation import Observation, ObservedPoint, observed_point
 
 
 class PositionObservation(Observation):

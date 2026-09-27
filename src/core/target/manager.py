@@ -2,40 +2,30 @@ from collections.abc import Mapping
 from typing import Any
 
 from core.target.errors import (
-    NoUpstreamError,
     TargetInUseError,
     TargetNotFoundError,
     TargetTypeChangeError,
     UnknownTargetTypeError,
-    UnsupportedObservedPointError,
 )
-from core.target.observable import ObservableTarget
-from core.target.observed_point import ObservedPoint
+from core.target.referrer import TargetReferrer
 from core.target.registry import TargetTypeRegistry
-from core.target.repository import ObservableTargetRepository, TargetRepository
+from core.target.repository import TargetRepository
 from core.target.target import Target, TargetRecord
-from core.target.upstream import UpstreamCatalog
 
 
 class TargetManager:
-    """target 模块的入口：管目标记录和可观测目标。保证每个 (目标, 观察点) 只有一个 ObservableTarget 实例。
+    """target 模块的入口：管目标实例（目标记录）的生命周期。
 
-    目标类型和观察点由 TargetTypeRegistry 管（构造时注入），这里只查。
+    目标类型由 TargetTypeRegistry 管（构造时注入），这里只查。引用目标的模块（如可观测目标）
+    经 TargetReferrer 接入，删除前逐个问过。
     """
 
     def __init__(
-        self,
-        target_type_registry: TargetTypeRegistry,
-        target_repository: TargetRepository,
-        observable_target_repository: ObservableTargetRepository,
-        upstream_catalog: UpstreamCatalog,
+        self, target_type_registry: TargetTypeRegistry, target_repository: TargetRepository
     ) -> None:
         self._target_type_registry = target_type_registry
         self._target_repository = target_repository
-        self._observable_target_repository = observable_target_repository
-        self._upstream_catalog = upstream_catalog
-        # 内存里的单例表：订阅者集合只存在这些对象上
-        self._live: dict[str, ObservableTarget] = {}
+        self._referrers: list[TargetReferrer] = []
 
     # ------------------------------------------------------------ 目标
 
@@ -46,7 +36,7 @@ class TargetManager:
     def upsert_target(self, target: Target) -> Target:
         """新建或更新目标，返回传入的目标。属性校验在构造 Target 子类时已完成。
 
-        写库。可观测目标只存目标 ID，用到目标时现读，所以不用通知它们。
+        写库。引用目标的一方只存目标 ID、用到时现读，所以不用通知它们。
         类不是该类型名注册的类抛 UnknownTargetTypeError；改变已有目标的类型抛 TargetTypeChangeError。
         """
         if type(target) is not self._target_type_registry.get(target.type):
@@ -75,62 +65,31 @@ class TargetManager:
         return self._restore(record) if record is not None else None
 
     def remove_target(self, target_id: str) -> None:
-        """删除目标及其所有可观测目标（内存与仓库）。
+        """Remove a target (stored), once no referrer still uses it.
 
-        不存在抛 TargetNotFoundError；任一可观测目标仍有订阅者抛 TargetInUseError，此时什么都不删。
+        Asks every referrer first; if any still uses the target, raises and removes
+        nothing. Otherwise lets each referrer release what it keeps for the target,
+        then removes the record.
+
+        Raises:
+            TargetNotFoundError: If it does not exist.
+            TargetInUseError: If a referrer still uses it.
         """
-        target = self.get_target(target_id)
-        keys = [ObservableTarget.make_id(target_id, p.name) for p in type(target).observed_points]
-        in_use = [k for k in keys if (live := self._live.get(k)) is not None and live.is_active]
+        self.get_target(target_id)
+        in_use = [ref for referrer in self._referrers for ref in referrer.references(target_id)]
         if in_use:
-            raise TargetInUseError(f"{target_id} still subscribed via {in_use}")
-        for key in keys:
-            self._live.pop(key, None)
-            self._observable_target_repository.remove(key)
+            raise TargetInUseError(f"{target_id} is still used by {in_use}")
+        for referrer in self._referrers:
+            referrer.release(target_id)
         self._target_repository.remove(target_id)
 
-    # ------------------------------------------------------------ 可观测目标
+    def add_referrer(self, referrer: TargetReferrer) -> None:
+        """Ask this referrer before removing any target. bootstrap calls it once per referrer.
 
-    def inspect_observable(
-        self, target_id: str, observed_point: str
-    ) -> tuple[type[ObservedPoint], tuple[str, ...]]:
-        """只查询、不创建：返回 (观察点, 可用上游)。检查与 get_observable 相同，不通过时抛同样的异常。
-
-        可用上游按目标当前的查询键现算（问 UpstreamCatalog），不缓存。
-        给只需要校验的调用方（如模板编译）用，避免为最终被拒绝的模板创建可观测目标。
+        Not a constructor argument because referrers usually need this TargetManager
+        themselves.
         """
-        point = self._target_type_registry.get_observed_point(observed_point)
-        target = self.get_target(target_id)
-        if point not in type(target).observed_points:
-            raise UnsupportedObservedPointError(
-                f"{target.type} cannot be observed at {observed_point!r}"
-            )
-        upstreams = self._upstream_catalog.upstreams_for(target, point)
-        if not upstreams:
-            raise NoUpstreamError(f"no upstream can observe {target_id} at {observed_point!r}")
-        return point, tuple(upstreams)
-
-    def get_observable(self, target_id: str, observed_point: str) -> ObservableTarget:
-        """取（必要时创建）唯一的 ObservableTarget。observed_point 是观察点名。
-
-        首次创建时放进内存单例表并写库；检查与 inspect_observable 相同，不通过时抛同样的异常。
-        可观测目标不带可用上游；调用方先用 inspect_observable 查，再自行 subscribe(subscriber, upstreams)。
-        """
-        key = ObservableTarget.make_id(target_id, observed_point)
-        live = self._live.get(key)
-        if live is not None:
-            return live
-
-        # 检查：目标存在、支持该观察点、有可用上游
-        point, _ = self.inspect_observable(target_id, observed_point)
-        observable = ObservableTarget(target_id, point)
-        self._live[key] = observable
-        self._observable_target_repository.upsert(observable)
-        return observable
-
-    def active_observables(self) -> list[ObservableTarget]:
-        """subscribers() 非空的 ObservableTarget，collector 只采集这些。"""
-        return [o for o in self._live.values() if o.is_active]
+        self._referrers.append(referrer)
 
     # ------------------------------------------------------------ 内部
 

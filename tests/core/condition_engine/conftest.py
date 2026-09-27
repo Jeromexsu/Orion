@@ -17,7 +17,7 @@ from core.condition_engine import (
     EvaluatorRegistry,
     evaluator,
 )
-from core.target import Observation, ObservationEnvelope
+from core.observation import Observation, ObservationEnvelope
 from plugins.condition_engine.on_enter import OnEnter
 
 _condition_def: TypeAdapter[ConditionDef] = TypeAdapter(ConditionDef)

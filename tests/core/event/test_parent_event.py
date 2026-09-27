@@ -53,7 +53,7 @@ def test_namespace_holds_static_targets_only(env: Env) -> None:
     parent.add_target("t1")
     assert parent.target_ids() == {"t1"}
     assert env.parents.items["p1"].targets == ["t1"]
-    assert env.targets.active_observables() == []  # 父事件不订阅任何东西
+    assert env.observables.active_observables() == []  # 父事件不订阅任何东西
     with pytest.raises(TargetNotFoundError):
         parent.add_target("ghost")
 
@@ -98,7 +98,7 @@ def test_remove_target_observed_by_template(env: Env) -> None:
 def test_slot_subscribes_per_observation(env: Env) -> None:
     parent = make_parent(env, upstreams=["radar"])
     runner = parent.runner("enter-zone")
-    (obs,) = env.targets.active_observables()
+    (obs,) = env.observables.active_observables()
     assert obs.subscribers() == {runner}
     assert obs.subscription(runner) == {"radar"}
     assert runner.target_names() == {"t1:position": "MU5101"}
@@ -225,7 +225,7 @@ def test_new_version_waits_for_current_cycle(env: Env) -> None:
     runner.close_active("season_over")  # 周期结束 → 切换到 v2、重新订阅、开启条件状态清空
     assert (runner.template.version, runner.pending) == (2, None)
     assert runner.open_state == {}
-    (obs,) = env.targets.active_observables()
+    (obs,) = env.observables.active_observables()
     assert obs.subscription(runner) == {"radar"}
     ref = env.parents.items["p1"].templates[0]
     assert (ref.version, ref.pending_version) == (2, None)
@@ -247,7 +247,7 @@ def test_remove_template_disposes_slot(env: Env) -> None:
 
     parent.remove_template("enter-zone")
     assert env.events.items[instance.id].close_reason == "template_removed"
-    assert env.targets.active_observables() == []
+    assert env.observables.active_observables() == []
     assert env.runner_states.get("p1", "enter-zone") is None
     with pytest.raises(TemplateNotFoundError):
         parent.remove_template("enter-zone")
@@ -265,12 +265,12 @@ def test_restore(env: Env) -> None:
     parent.upsert_template(TemplateDef.model_validate(template(version=2)))  # 挂起
 
     # 模拟重启：新的 TargetManager（订阅关系为空）+ 同一批仓库
-    targets = env.make_targets()
-    events = env.make_parent_events(targets)
+    targets, observables = env.make_targets()
+    events = env.make_parent_events(targets, observables)
     assert events.restore() == []
 
     restored = events.get("p1").runner("enter-zone")
-    (obs,) = targets.active_observables()
+    (obs,) = observables.active_observables()
     assert obs.subscription(restored) == {"adsb"}
     assert restored.template.version == 1
     assert restored.pending is not None and restored.pending.version == 2

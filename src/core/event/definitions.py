@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from core.condition_engine import ConditionDef
 from core.hooks import MountDef
-from core.target import ObservableTarget
+from core.observable import ObservableTarget
 
 
 class ObservableDef(BaseModel):
