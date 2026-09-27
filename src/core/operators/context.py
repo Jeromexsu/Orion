@@ -36,6 +36,7 @@ class ProgressContext(BaseContext):
         self._update_status = update_status
 
     def update_status(self, patch: dict[str, Any]) -> None:
+        """把 patch 合并进子事件状态（写库），随后触发 status_updated 钩子。"""
         self._update_status(patch)
 
 
@@ -49,6 +50,7 @@ class SuggestContext(BaseContext):
         self._suggest = suggest
 
     def suggest(self, item: Suggestion) -> None:
+        """提交一条建议给 hil，等分析师确认；不直接改任何东西。"""
         self._suggest(item)
 
 

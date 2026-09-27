@@ -20,6 +20,14 @@ MountPoint = Literal["created", "closed", "pre", "rule_hit", "status_updated", "
 
 
 class Trigger(BaseModel):
+    """算子被调用的原因。各挂载点带的内容：
+
+    - created / closed：只有 mount_point
+    - pre / post：envelope（这一条观测）
+    - rule_hit：envelope + result（命中的规则的求值结果）
+    - status_updated：patch（这次合并进状态的内容）
+    """
+
     model_config = ConfigDict(frozen=True)
 
     mount_point: MountPoint
