@@ -42,7 +42,7 @@ class EventRunner:
         self._pending = pending
         self._open_state: dict[str, Any] = open_state or {}
         self._active = active
-        self._observables: dict[str, ObservableTarget] = {}
+        self._subscribed_observables: dict[str, ObservableTarget] = {}
 
     @classmethod
     def start(
@@ -104,7 +104,7 @@ class EventRunner:
 
     def target_names(self) -> dict[str, str]:
         """订阅中的可观测目标 ID → 目标展示名，给算子上下文用。"""
-        return {oid: obs.target.name for oid, obs in self._observables.items()}
+        return {oid: obs.target.name for oid, obs in self._subscribed_observables.items()}
 
     def history(self) -> list[EventRecord]:
         """这个模板在本父事件下的全部子事件记录（含活跃的），按开启时间排序。"""
@@ -125,7 +125,7 @@ class EventRunner:
         然后把这条观测交给活跃子事件处理并存档；子事件关闭则结束本周期（有挂起版本就切换）。
         """
         # not my observable, return
-        if envelope.observable_id not in self._observables:
+        if envelope.observable_id not in self._subscribed_observables:
             return
 
         # evaluate the open condition on every observation and keep its state up to date
@@ -187,9 +187,9 @@ class EventRunner:
             self._active.close(reason)
             self._runtime.event_repository.save(self._active.to_record())
             self._active = None
-        for observable in self._observables.values():
+        for observable in self._subscribed_observables.values():
             observable.unsubscribe(self)
-        self._observables = {}
+        self._subscribed_observables = {}
         self._runtime.runner_state_repository.remove(self._parent_id, self._template.id)
 
     # ------------------------------------------------------------ 内部
@@ -214,10 +214,10 @@ class EventRunner:
         for c in self._template.compiled_observables:
             c.observable.subscribe(self, c.upstreams)
             subscribed[c.observable.id] = c.observable
-        for oid, observable in self._observables.items():
+        for oid, observable in self._subscribed_observables.items():
             if oid not in subscribed:
                 observable.unsubscribe(self)
-        self._observables = subscribed
+        self._subscribed_observables = subscribed
 
     def _restore_active(self) -> Event | None:
         record = self._runtime.event_repository.find_active(self._parent_id, self._template.id)
