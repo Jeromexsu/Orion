@@ -5,27 +5,23 @@ from typing import Any
 from uuid import uuid4
 
 from core.condition_engine import HIT
-from core.event.definitions import OperatorMountDef
 from core.event.errors import EventClosedError
 from core.event.records import EventRecord
 from core.event.runtime import EventRuntime
-from core.event.template import EventTemplate
+from core.event.template import EventTemplate, Hook
 from core.operators import (
     ClosedOccasion,
     CreatedOccasion,
+    EventHandle,
     ObservationOccasion,
     Occasion,
+    OperatorContext,
     RuleHitOccasion,
     StatusUpdatedOccasion,
-    build_context,
 )
 from core.target import ObservationEnvelope
 
 logger = logging.getLogger(__name__)
-
-# 推进类算子把这个状态键置为 True 表示子事件收敛、该关闭了
-CLOSE_STATUS_KEY = "closed"
-
 
 def _now() -> datetime:
     return datetime.now(UTC)
@@ -34,7 +30,8 @@ def _now() -> datetime:
 class Event:
     """子事件：模板的一次运行（一个周期）。由 EventRunner 创建、喂数据、存档。
 
-    状态变更的唯一入口是 update_status，只经 ProgressContext 由推进类算子调用。
+    状态变更的唯一入口是 update_status；它和关闭请求只经 EventHandle（ctx.event）由声明了
+    scopes={"event"} 的算子调用。
     """
 
     def __init__(
@@ -64,6 +61,7 @@ class Event:
         self._closed_at = closed_at
         self._close_reason = close_reason
         self._in_status_hooks = False
+        self._close_requested: str | None = None   # 算子请求关闭的原因，本条观测处理完才关闭
 
     @classmethod
     def open(
@@ -149,7 +147,7 @@ class Event:
 
     def process(self, envelope: ObservationEnvelope) -> None:
         """处理一条观测：pre 钩子 → 逐条规则跑条件树、合并条件状态、命中则跑规则钩子 → post 钩子
-        → 状态表示收敛（should_close）就关闭。
+        → 有算子请求关闭（ctx.event.close）就关闭。
 
         只改内存，不写库（由 runner 存档）。已关闭抛 EventClosedError。
         """
@@ -167,17 +165,15 @@ class Event:
             if result.state is not None:
                 self._condition_state[rule.name] = result.state
             if result.outcome == HIT:
-                self._run_hooks(
-                    rule.hook_defs, RuleHitOccasion(envelope=envelope, result=result)
-                )
+                self._run_hooks(rule.hooks, RuleHitOccasion(envelope=envelope, result=result))
 
         self._run_hooks(
             self._template.hooks_at("post"),
             ObservationOccasion(mount_point="post", envelope=envelope),
         )
 
-        if self.should_close():
-            self.close("converged")
+        if self._close_requested is not None:
+            self.close(self._close_requested)
 
     def update_status(self, patch: dict[str, Any]) -> None:
         """状态变更的唯一入口：把 patch 合并进状态，之后跑 status_updated 钩子。
@@ -198,9 +194,15 @@ class Event:
         finally:
             self._in_status_hooks = False
 
-    def should_close(self) -> bool:
-        """推进类算子是否已把状态 CLOSE_STATUS_KEY 置为 True。"""
-        return self._status.get(CLOSE_STATUS_KEY) is True
+    def request_close(self, reason: str) -> None:
+        """Ask to close once the current observation has been processed.
+
+        Called by operators through ctx.event.close. Closing right away would stop the
+        remaining rules and post hooks mid-observation; process closes at its end.
+        The first request's reason wins.
+        """
+        if self._close_requested is None:
+            self._close_requested = reason
 
     def close(self, reason: str) -> None:
         """跑 closed 钩子后关闭。重复关闭忽略。不写库（由 runner 存档）。"""
@@ -212,27 +214,34 @@ class Event:
 
     # ------------------------------------------------------------ 内部
 
-    def _run_hooks(self, mounts: tuple[OperatorMountDef, ...], occasion: Occasion) -> None:
-        """按挂载顺序同步执行，每个算子单独隔离异常。
-        TODO: 标记为异步的输出类算子改为入队（见设计文档第三节）。"""
-        for mount in mounts:
-            operator = self._runtime.operator_registry.get(mount.operator)
-            ctx = build_context(
-                operator.category,
+    def _run_hooks(self, hooks: tuple[Hook, ...], occasion: Occasion) -> None:
+        """Run hooks in mount order, each isolated: one that raises is logged, the rest run.
+
+        Each operator gets a context built from its declaration: ctx.event only with
+        scopes={"event"}, ctx.propose only with proposes=True.
+        TODO: run operators whose only scope is "external" asynchronously (design doc §3).
+        """
+        for hook in hooks:
+            operator = hook.operator
+            ctx = OperatorContext(
+                params=hook.params,
                 state=self._status,
-                params=mount.params,
                 target_names=self._target_names(),
-                update_status=self.update_status,
-                suggest=self._runtime.suggestion_sink.receive,
                 parent_id=self._parent_id,
                 event_id=self._id,
+                event=(
+                    EventHandle(self.update_status, self.request_close)
+                    if "event" in operator.scopes
+                    else None
+                ),
+                propose=self._runtime.suggestion_sink.receive if operator.proposes else None,
             )
             try:
                 operator.run(occasion, ctx)
             except Exception:
                 logger.exception(
                     "operator %s failed at %s on event %s",
-                    mount.operator,
+                    operator.name,
                     occasion.mount_point,
                     self._id,
                 )

@@ -1,56 +1,120 @@
+"""The operator extension point: the Operator base class and @operator."""
+
 from abc import ABC, abstractmethod
-from typing import Generic, Literal, TypeVar
+from collections.abc import Callable, Iterable
+from typing import Any, ClassVar, Generic, Literal, TypeVar, get_args, get_origin
 
 from pydantic import BaseModel
 
-from core.operators.context import BaseContext
+from core.operators.context import OperatorContext
 from core.operators.occasion import Occasion
-
-# 四类算子：推进（改状态）/ 输出（报告、通知）/ 发现（启发）/ 校正（校准）
-Category = Literal["progress", "output", "discover", "calibrate"]
-
-# 可挂的层级：父事件级、子事件级
-Level = Literal["parent", "event"]
 
 # 挂载点是核心结构事实，固定这几个：
 #   生命周期 created / closed · 数据进入 pre（不算条件，启发算子专用）
 #   条件命中 rule_hit · 状态变更后 status_updated · 后置 post
 MountPoint = Literal["created", "closed", "pre", "rule_hit", "status_updated", "post"]
 
-C = TypeVar("C", bound=BaseContext)
+# 作用域：算子影响哪一块。external 是系统外部（报告、通知）；event / parent / target 是监控运行状态
+Scope = Literal["external", "event", "parent", "target"]
+
+# 可以直接作用的作用域；parent / target 只能经审核（proposes=True）改动
+DIRECT_SCOPES: frozenset[Scope] = frozenset({"external", "event"})
+
+P = TypeVar("P", bound=BaseModel)
 
 
-class Operator(ABC, Generic[C]):
-    """算子基类。具体算子是插件，继承它，放在 plugins/operators/ 下：
+class NoParams(BaseModel):
+    """Parameters of an operator that takes none."""
 
-        class CountHits(Operator[ProgressContext]):
-            name = "count_hits"
-            category = "progress"
-            levels = frozenset({"event"})
-            mount_points = frozenset({"rule_hit"})
-            params_model = CountHitsParams
 
-            def run(self, occasion: Occasion, ctx: ProgressContext) -> None: ...
+class Operator(ABC, Generic[P]):
+    """算子：挂在子事件生命周期上的动作。每种一个子类，放在 plugins/operators/ 下，用 @operator 声明：
 
-    类属性的类型在这里声明，子类直接赋值即可。
-    category 决定运行时拿到哪种上下文：progress → ProgressContext，
-    discover / calibrate → SuggestContext，output → BaseContext。泛型参数 C 应与之一致。
+        @operator(mount_points={"rule_hit"}, scopes={"event"})
+        class CountHits(Operator[CountHitsParams]):
+            def run(self, occasion, ctx): ...
+
+    两个正交的维度：直接作用于哪些作用域（scopes，只能是 external / event），能不能提建议
+    （proposes，经审核后生效，影响哪个作用域由提议的动作决定）。什么都不声明的算子不影响系统。
+    name 默认类名首字母小写（CountHits → "countHits"）；参数模型取泛型参数（CountHitsParams）。
     """
 
-    name: str                           # 模板里按名字引用，发布后不改
-    category: Category                  # 算子类别，决定拿到哪种上下文
-    levels: frozenset[Level]            # 可以挂在哪些层级（父事件 / 子事件）
-    mount_points: frozenset[MountPoint]  # 可以挂在哪些挂载点
-    params_model: type[BaseModel]       # 挂载时的参数，如阈值
+    name: ClassVar[str]                             # 由 @operator 设置；模板里按名字引用
+    mount_points: ClassVar[frozenset[MountPoint]]   # 由 @operator 设置；可以挂在哪些挂载点
+    scopes: ClassVar[frozenset[Scope]]              # 由 @operator 设置；直接作用于哪些作用域
+    proposes: ClassVar[bool]                        # 由 @operator 设置；能否提建议（经审核）
+    params_model: ClassVar[type[BaseModel]]         # 由 @operator 设置；挂载参数的形状
 
     @abstractmethod
-    def run(self, occasion: Occasion, ctx: C) -> None:
+    def run(self, occasion: Occasion, ctx: OperatorContext[P]) -> None:
         """Run once.
 
         Args:
             occasion: Why it is being run — the mount point and what happened there;
                 match on its type to get the fields that mount point always has.
-            ctx: What it may do, decided by its category. Exceptions are isolated
-                and logged by the event.
+            ctx: The mount parameters, read-only information about the event, and the
+                capabilities it declared. Exceptions are isolated and logged by the event.
         """
         ...
+
+
+O = TypeVar("O", bound=Operator[Any])
+
+
+def operator(
+    *,
+    mount_points: Iterable[MountPoint],
+    scopes: Iterable[Scope] = (),
+    proposes: bool = False,
+    name: str | None = None,
+    params: type[BaseModel] | None = None,
+) -> Callable[[type[O]], type[O]]:
+    """Declare an operator.
+
+    Args:
+        mount_points: Where it can be mounted (at least one).
+        scopes: Scopes it affects directly: "external" (outputs, through channels
+            injected at construction) and/or "event" (gives ctx.event). "parent" and
+            "target" cannot be changed directly; use proposes.
+        proposes: Whether it may make proposals for review (gives ctx.propose).
+        name: Name templates refer to it by. Defaults to the class name with its first
+            letter lowered (CountHits -> "countHits").
+        params: The mount parameter model. Defaults to the generic argument of the base
+            (Operator[CountHitsParams] -> CountHitsParams).
+
+    Raises:
+        TypeError: If the declaration is incomplete or asks for a scope that can only
+            be changed through proposals.
+    """
+
+    def decorate(cls: type[O]) -> type[O]:
+        points = frozenset(mount_points)
+        if not points:
+            raise TypeError(f"{cls.__name__}: mount_points needs at least one mount point")
+        declared = frozenset(scopes)
+        indirect = sorted(declared - DIRECT_SCOPES)
+        if indirect:
+            raise TypeError(
+                f"{cls.__name__}: {indirect} can only be changed through proposals "
+                "(proposes=True), not directly"
+            )
+        model = params if params is not None else _params_argument(cls)
+        if model is None:
+            raise TypeError(f"{cls.__name__}: subclass Operator[SomeParams] or pass params=...")
+        cls.name = name if name is not None else cls.__name__[:1].lower() + cls.__name__[1:]
+        cls.mount_points = points
+        cls.scopes = declared
+        cls.proposes = proposes
+        cls.params_model = model
+        return cls
+
+    return decorate
+
+
+def _params_argument(cls: type[Any]) -> type[BaseModel] | None:
+    for base in getattr(cls, "__orig_bases__", ()):
+        if get_origin(base) is Operator:
+            (argument,) = get_args(base)
+            if isinstance(argument, type) and issubclass(argument, BaseModel):
+                return argument
+    return None

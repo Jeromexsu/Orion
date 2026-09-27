@@ -15,6 +15,7 @@ from core.event import (
     TemplateScopeError,
     TemplateVersionError,
 )
+from core.operators import NoParams, Occasion, Operator, OperatorContext, operator
 from core.target import TargetNotFoundError
 from tests.core.event.conftest import Env, mount, template
 
@@ -276,3 +277,34 @@ def test_restore_failure_is_isolated(env: Env) -> None:
     env.templates.items.clear()
     events = ParentEventManager(env.parents, env.services, env.runtime)
     assert events.restore() == ["p1"]
+
+
+def test_close_request_waits_for_the_rest_of_the_observation(env: Env) -> None:
+    """countHits 在 rule_hit 请求关闭；post 钩子照样跑完，之后才关闭。"""
+    parent = make_parent(
+        env, threshold=1, hooks=[mount("recorder", m) for m in ("post", "closed")]
+    )
+    runner = parent.runner("enter-zone")
+    runner.on_observation(env.envelope(20, 20))
+    runner.on_observation(env.envelope(5, 5))  # 进入：命中阈值 1 → 请求关闭
+    assert env.log.calls == [("recorder", "post"), ("recorder", "closed")]
+    (record,) = env.events.history("p1", "enter-zone")
+    assert record.close_reason == "converged"
+
+
+def test_undeclared_capability_is_isolated(env: Env) -> None:
+    """没声明 scopes={"event"} 的算子碰 ctx.event 会出错，但只影响它自己：状态不变、别的钩子照跑。"""
+
+    @operator(mount_points={"pre"})
+    class Sneaky(Operator[NoParams]):
+        def run(self, occasion: Occasion, ctx: OperatorContext[NoParams]) -> None:
+            ctx.event.update_status({"sneaky": True})
+
+    env.operator_registry.register(Sneaky())
+    parent = make_parent(env, hooks=[mount("sneaky", "pre"), mount("recorder", "pre")])
+    runner = parent.runner("enter-zone")
+    runner.on_observation(env.envelope(20, 20))
+    runner.on_observation(env.envelope(5, 5))
+    assert runner.active is not None
+    assert "sneaky" not in runner.active.status
+    assert env.log.calls == [("recorder", "pre")]

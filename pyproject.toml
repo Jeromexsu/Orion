@@ -64,7 +64,7 @@ modules = ["api", "persistence"]
 # ---- core 模块之间的依赖（接口定义在依赖方，数据定义在所属模块）
 #   最底层：target、hil、report —— 不依赖其他 core 模块
 #   collector、condition_engine → target
-#   operators → target、condition_engine、hil（Trigger 引用 DynamicData / EvalResult，SuggestContext 引用 Suggestion）
+#   operators → target、condition_engine、hil（Occasion 引用 ObservationEnvelope / EvalResult，上下文引用 Suggestion）
 #   event     → target、condition_engine、operators、report（不依赖 collector / hil）
 
 [[tool.importlinter.contracts]]
@@ -119,9 +119,19 @@ source_modules = ["core.operators"]
 forbidden_modules = ["core.collector", "core.event", "core.report"]
 
 [[tool.importlinter.contracts]]
-name = "event 不直接依赖 collector / hil（数据由 Dispatcher 推给 runner，建议经 SuggestionSink 流出）"
+name = "event 不直接依赖 collector / hil（数据由可观测目标 publish 给 runner，建议经 SuggestionSink 流出）"
 type = "forbidden"
 source_modules = ["core.event"]
 forbidden_modules = ["core.collector", "core.hil"]
 # 经 operators 间接到 hil（Suggestion 定义在 hil）是允许的；只禁止 event 直接 import
 allow_indirect_imports = "True"
+
+# ---- 插件只经扩展点和注入的依赖做事，不直接碰监控运行状态的管理者
+#   算子改子事件只能经上下文（ctx.event）；父事件 / 目标只能提建议（ctx.propose）。
+#   对外输出（如 core.report）由 bootstrap 构造时注入，允许依赖。
+
+[[tool.importlinter.contracts]]
+name = "插件不依赖 event / api / persistence"
+type = "forbidden"
+source_modules = ["plugins"]
+forbidden_modules = ["core.event", "api", "persistence"]

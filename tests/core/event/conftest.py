@@ -3,22 +3,19 @@ from itertools import count
 from typing import Any
 
 import pytest
-from pydantic import BaseModel
 
 from core.condition_engine import ConditionCompiler, EvaluatorRegistry
 from core.event import EventRuntime, ParentEventManager, ParentEventServices, TemplateCompiler
 from core.hil import Proposal, Suggestion
 from core.operators import (
-    BaseContext,
-    Category,
-    Level,
     MountPoint,
+    NoParams,
     ObservationOccasion,
     Occasion,
     Operator,
+    OperatorContext,
     OperatorRegistry,
-    ProgressContext,
-    SuggestContext,
+    operator,
 )
 from core.report import ReportManager
 from core.target import ObservationEnvelope, TargetManager
@@ -47,10 +44,6 @@ ALL_MOUNTS: frozenset[MountPoint] = frozenset(
 )
 
 
-class NoParams(BaseModel):
-    pass
-
-
 class Log:
     """被测算子共用的调用记录。"""
 
@@ -58,47 +51,32 @@ class Log:
         self.calls: list[tuple[str, MountPoint]] = []
 
 
-class Recorder(Operator[BaseContext]):
-    """输出类：只记录被调用的挂载点。"""
-
-    name = "recorder"
-    category: Category = "output"
-    levels: frozenset[Level] = frozenset({"event"})
-    mount_points = ALL_MOUNTS
-    params_model = NoParams
+@operator(mount_points=ALL_MOUNTS)
+class Recorder(Operator[NoParams]):
+    """什么都不声明：只记录被调用的挂载点，不影响系统。"""
 
     def __init__(self, log: Log) -> None:
         self.log = log
 
-    def run(self, occasion: Occasion, ctx: BaseContext) -> None:
+    def run(self, occasion: Occasion, ctx: OperatorContext[NoParams]) -> None:
         self.log.calls.append((self.name, occasion.mount_point))
 
 
-class Echo(Operator[ProgressContext]):
-    """推进类，挂在 status_updated：再次 update_status 用来验证不会无限递归。"""
+@operator(mount_points={"status_updated"}, scopes={"event"})
+class Echo(Operator[NoParams]):
+    """直接作用于子事件，挂在 status_updated：再次 update_status 用来验证不会无限递归。"""
 
-    name = "echo"
-    category: Category = "progress"
-    levels: frozenset[Level] = frozenset({"event"})
-    mount_points: frozenset[MountPoint] = frozenset({"status_updated"})
-    params_model = NoParams
-
-    def run(self, occasion: Occasion, ctx: ProgressContext) -> None:
-        ctx.update_status({"echoed": int(ctx.state.get("echoed", 0)) + 1})
+    def run(self, occasion: Occasion, ctx: OperatorContext[NoParams]) -> None:
+        ctx.event.update_status({"echoed": int(ctx.state.get("echoed", 0)) + 1})
 
 
-class Spotter(Operator[SuggestContext]):
-    """发现类，挂在 pre：每条数据都提一个建议。"""
+@operator(mount_points={"pre"}, proposes=True)
+class Spotter(Operator[NoParams]):
+    """只提建议，挂在 pre：每条数据都提一个建议。"""
 
-    name = "spotter"
-    category: Category = "discover"
-    levels: frozenset[Level] = frozenset({"event"})
-    mount_points: frozenset[MountPoint] = frozenset({"pre"})
-    params_model = NoParams
-
-    def run(self, occasion: Occasion, ctx: SuggestContext) -> None:
+    def run(self, occasion: Occasion, ctx: OperatorContext[NoParams]) -> None:
         assert isinstance(occasion, ObservationOccasion)  # 只挂在 pre：一定是观测到达
-        ctx.suggest(
+        ctx.propose(
             Suggestion(
                 source=self.name,
                 reason=f"saw {ctx.target_name(occasion.envelope.observable_id)}",
@@ -108,14 +86,9 @@ class Spotter(Operator[SuggestContext]):
         )
 
 
-class Boom(Operator[BaseContext]):
-    name = "boom"
-    category: Category = "output"
-    levels: frozenset[Level] = frozenset({"event"})
-    mount_points = ALL_MOUNTS
-    params_model = NoParams
-
-    def run(self, occasion: Occasion, ctx: BaseContext) -> None:
+@operator(mount_points=ALL_MOUNTS)
+class Boom(Operator[NoParams]):
+    def run(self, occasion: Occasion, ctx: OperatorContext[NoParams]) -> None:
         raise RuntimeError("boom")
 
 
@@ -141,7 +114,6 @@ class Env:
         self.runtime = EventRuntime(
             event_repository=self.events,
             runner_state_repository=self.runner_states,
-            operator_registry=self.operator_registry,
             suggestion_sink=self.sink,
         )
         self.services = self.make_services(self.targets)
@@ -229,7 +201,7 @@ def template(
             {
                 "name": "enter",
                 "condition_def": enter(observable, initial=True),
-                "hook_defs": [mount("count_hits", "rule_hit", threshold=threshold)],
+                "hook_defs": [mount("countHits", "rule_hit", threshold=threshold)],
             }
         ],
         "hook_defs": hooks or [],

@@ -3,6 +3,7 @@ from typing import Any
 import pytest
 
 from core.event import EventTemplate, TemplateCompileError, TemplateDef
+from plugins.operators.count_hits import CountHitsParams
 from tests.core.event.conftest import Env, enter, mount, template
 
 
@@ -14,7 +15,9 @@ def test_compile(env: Env) -> None:
     t = compile_(env, template(threshold=3))
     assert t.target_ids == {"t1"}
     assert [o.observable_id for o in t.observable_defs] == ["t1:position"]
-    assert t.rules[0].hook_defs[0].params == {"threshold": 3}
+    (hook,) = t.rules[0].hooks
+    assert hook.operator.name == "countHits"
+    assert hook.params == CountHitsParams(threshold=3)   # 编译好的是有类型的参数
 
 
 def test_observables_are_compiled_once(env: Env) -> None:
@@ -39,7 +42,7 @@ def test_open_condition_is_required(env: Env) -> None:
 
 
 def test_compile_collects_errors(env: Env) -> None:
-    raw = template(hooks=[mount("count_hits", "rule_hit"), mount("nope", "post")])
+    raw = template(hooks=[mount("countHits", "rule_hit"), mount("nope", "post")])
     raw["observable_defs"].append(dict(raw["observable_defs"][0]))
     raw["open_condition_def"] = enter("t2:position")  # 未在可观测目标声明里
     raw["rule_defs"].append(

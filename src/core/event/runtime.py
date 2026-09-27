@@ -1,6 +1,6 @@
 from core.event.compiler import TemplateCompiler
 from core.event.repository import EventRepository, RunnerStateRepository, TemplateRepository
-from core.operators import OperatorRegistry, SuggestionSink
+from core.operators import SuggestionSink
 from core.report import ReportManager
 from core.target import TargetManager
 
@@ -15,12 +15,10 @@ class EventRuntime:
         self,
         event_repository: EventRepository,
         runner_state_repository: RunnerStateRepository,
-        operator_registry: OperatorRegistry,
         suggestion_sink: SuggestionSink,
     ) -> None:
         self.event_repository = event_repository  # runner：存取子事件记录
         self.runner_state_repository = runner_state_repository  # runner：开启条件状态
-        self.operator_registry = operator_registry  # 子事件：跑算子
         self.suggestion_sink = suggestion_sink  # 子事件：算子提的建议
 
 

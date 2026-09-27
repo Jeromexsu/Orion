@@ -1,9 +1,8 @@
-"""示例推进类算子：规则命中时累加计数，达到阈值时标记收敛（子事件随之关闭）。"""
+"""示例算子：规则命中时累加计数，达到阈值时请求关闭子事件。直接作用于子事件，照这个写。"""
 
 from pydantic import BaseModel, Field
 
-from core.event import CLOSE_STATUS_KEY
-from core.operators import Occasion, Operator, ProgressContext
+from core.operators import Occasion, Operator, OperatorContext, operator
 
 
 class CountHitsParams(BaseModel):
@@ -12,20 +11,13 @@ class CountHitsParams(BaseModel):
     threshold: int = Field(default=1, ge=1)
 
 
-class CountHits(Operator[ProgressContext]):
-    """挂在 rule_hit：状态 hits +1，达到 threshold 时置 CLOSE_STATUS_KEY。"""
+@operator(mount_points={"rule_hit"}, scopes={"event"})
+class CountHits(Operator[CountHitsParams]):
+    """挂在 rule_hit：状态 hits +1，达到 threshold 时请求关闭（原因 "converged"）。"""
 
-    name = "count_hits"
-    category = "progress"
-    levels = frozenset({"event"})
-    mount_points = frozenset({"rule_hit"})
-    params_model = CountHitsParams
-
-    def run(self, occasion: Occasion, ctx: ProgressContext) -> None:
-        """经 update_status 改子事件状态。"""
-        params = CountHitsParams.model_validate(ctx.params)
+    def run(self, occasion: Occasion, ctx: OperatorContext[CountHitsParams]) -> None:
+        """Count one hit into the event's status; ask to close once the threshold is reached."""
         hits = int(ctx.state.get("hits", 0)) + 1
-        patch: dict[str, object] = {"hits": hits}
-        if hits >= params.threshold:
-            patch[CLOSE_STATUS_KEY] = True
-        ctx.update_status(patch)
+        ctx.event.update_status({"hits": hits})
+        if hits >= ctx.params.threshold:
+            ctx.event.close("converged")

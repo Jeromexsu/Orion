@@ -7,7 +7,7 @@
 ### 1. 子事件模型的遗留项
 
 第 1 条主体已决并实现（见「已决」），剩余：
-- 关闭条件是否在模板里显式声明（现沿用 `status["closed"]` 约定；年度事件「何时算结束」是关键问题）。
+- 关闭条件是否在模板里显式声明（现由声明了 `scopes={"event"}` 的算子经 `ctx.event.close(reason)` 请求关闭；年度事件「何时算结束」是关键问题）。
 
 ### 2. `ObservableTargetRepository` 是否保留
 
@@ -73,7 +73,7 @@ since 之前的不返回），等往外分插件任务时再搭。
 待定点——
 - 没有触发数据：`cycle` 由谁给（分析师指定 / 取当前年份），开启时的第一条观测从哪来（等下一条观测到来再处理）；
 - 已有活跃子事件时拒绝还是忽略；
-- 是否也开放给 hil（校正类算子提议「开启本周期」，经分析师确认），即加入白名单动作；
+- 是否也开放给 hil（提建议的算子提议「开启本周期」，经分析师确认），即加入白名单动作；
 - 记录谁、为什么手动开启，便于审计。
 
 ### 9. 可观测目标的可用上游是快照，会过时
@@ -139,48 +139,42 @@ class RadarAdapter(UpstreamAdapter): ...
 - 合并方式（相乘 / 取小）；组合节点（all / any）对可信度的合并规则是否要随之调整；
 - 同一观察点的不同观测（如有无高度）是否也影响可信度。
 
-### 12. 算子挂载编译后仍是纯数据
-
-**发现于**：审阅 `TemplateCompiler._bind` 时。**状态**：看完 operators 模块后与算子写法、上下文传参一起改。
-
-编译只校验挂载并把 `params` 规范化（校验后 `model_dump()` 回 dict），结果仍是 `OperatorMountDef`。与条件一侧不对称：
-
-| | 条件（叶子） | 算子挂载 |
-|---|---|---|
-| 编译结果 | `LeafNode`：持有判断方式实例 + 有类型的 `criteria` | 仍是 `OperatorMountDef`，`params` 是 dict |
-| 运行时找插件 | 已持有 | 每次 `operator_registry.get(name)` |
-| 运行时拿参数 | 有类型的实例 | dict，算子自己再 `model_validate` 一次 |
-
-另外 `CompiledRule.hook_defs`、`EventTemplate.hooks_at` 是运行时对象里装着 Def，违反命名约定。
-
-可能的做法：编译成运行时对象 `Hook`（算子实例 + 有类型的参数 + 挂载点）；`Event._run_hooks` 直接用 `hook.operator`，
-算子的 `run` 拿到有类型的参数。
-
-同一批要一起定的：
-- ~~`Trigger` 按挂载点分类型、改名 `Occasion`；`Category` / `Level` / `MountPoint` 挪到 `operator.py`~~ **已完成**，见「已决 · 算子的调用时机」。
-- **挂载检查移到模板编译器**：条件一侧「模板用法是否合法」由条件编译器做（`_compile_leaf`），注册表只注册、查找；
-  算子一侧却在注册表里（`OperatorRegistry.validate_mount`），编译器只调用。编成 `Hook` 时由模板编译器自己查算子、
-  核对层级 / 挂载点、解析参数，`validate_mount` 移出注册表。
-- 算子是否也改为装饰器声明（`@operator(...)`）；上下文里的 `params` 怎么传。
-
 ### 8. 其他（随审阅推进逐条确认）
 
 - 模板 ID 全局还是按父事件区分（现为全局：`TemplateRepository` 只按 template_id 存取）。
 - `EvalResult.outcome`、`Draft.status` 的中文字面值是否对外改为英文枚举。
-- 父事件级算子挂载由什么触发。
+- 父事件级算子：已去掉 `Level`（原「父事件级」挂载没有任何触发点）；真需要时按那时的需求重新设计挂载点和触发。
 - 校准钩子的挂载点（设计文档待办）。
-- 异步输出算子：`Operator` 加异步标记，依赖队列选型（Celery+Redis vs arq）。
+- 异步执行算子：只声明了 `external` 作用域的算子不读也不改监控状态，可以入队异步执行（`Event._run_hooks` 里的 TODO）；队列选型待定（Celery+Redis vs arq）。
 - `SubEventSlot.on_data()` 中实例 `process()` 中途异常：内存里的实例状态已部分改动但未存库，内存与库不一致。
 - report 模块是否开 pyright strict。
 - 设计文档第八、九节与代码同步。
 
 ## 已决
 
+- **算子按「作用域 × 是否提建议」声明**（原第 12 条，取代四个类别）：
+  - 两个正交的维度：直接作用于哪些**作用域**，能否**提建议**（经 hil 审核后生效，影响哪块由提议的动作决定）。
+  - 作用域：`external`（系统外部：报告、通知，直接生效；若有审核是外部模块自己的事）/ `event`（子事件：状态、关闭）/
+    `parent`（父事件：目标命名空间、模板）/ `target`（目标记录）。直接作用只开放 `external` 和 `event`，
+    `parent` / `target` 只能经提建议——`@operator` 声明时就拒绝。condition 不是作用域（无状态，条件状态由求值推进，
+    外部不该碰）；collector 的游标、观测也不开放。
+  - 声明：`@operator(mount_points=..., scopes=..., proposes=...)`，`name` 默认类名首字母小写，参数模型取泛型参数
+    `Operator[CountHitsParams]`。上下文 `OperatorContext` 按声明组装：`ctx.event`（`update_status`、`close`）要
+    `scopes={"event"}`，`ctx.propose` 要 `proposes=True`，用了没声明的能力抛 `UndeclaredCapabilityError`；只读信息
+    （参数、状态副本、目标名、父事件 / 子事件 ID）始终都有。对外输出通道构造时注入，不进上下文。
+    去掉 `Category`（推进 = `scopes={"event"}`，发现 / 校正 = `proposes=True`，输出 = `scopes={"external"}`）和 `Level`。
+  - 关闭：`ctx.event.close(reason)` 请求关闭，本条观测处理完（其余规则、post 钩子跑完）才关闭；取代 `status["closed"]` 魔法键。
+  - 挂载编译成 `Hook`（算子实例 + 有类型的参数 + 挂载点），挂载检查（算子存在、挂载点、参数）由模板编译器
+    `_compile_hook` 做，注册表只注册、查找；运行时不再按名字查算子，`EventRuntime` 不再持有算子注册表；
+    `CompiledRule.hooks` / `EventTemplate.hooks_at` 返回 `Hook`，运行时对象里不再装 Def。
+  - import-linter：插件不依赖 `core.event` / `api` / `persistence`——改子事件只能经上下文，父事件 / 目标只能提建议。
+  - 只声明 `external` 的算子不碰监控状态，可作为以后异步执行的依据。
+
 - **算子的调用时机 `Occasion`**（原 `Trigger`）：它只是一条记录——算子这次在哪个挂载点、因为什么被调用，附带当时的数据；
   按挂载点分类型组成可辨识联合（以 `mount_point` 区分），字段不再是「可能为 None」：`CreatedOccasion` /
   `ObservationOccasion`（pre、post：envelope）/ `RuleHitOccasion`（envelope + result）/ `StatusUpdatedOccasion`（patch）/
-  `ClosedOccasion`；`run(occasion, ctx)`，算子用 `match` / `isinstance` 分支。`Category` / `Level` / `MountPoint` 挪到
-  `operator.py`（描述算子本身），`trigger.py` 改为 `occasion.py`。
+  `ClosedOccasion`；`run(occasion, ctx)`，算子用 `match` / `isinstance` 分支。`MountPoint` 挪到 `operator.py`，
+  `trigger.py` 改为 `occasion.py`（`Category` / `Level` 后来去掉，见下条「算子按作用域 × 是否提建议声明」）。
   与原设想不同：「只挂 `rule_hit` 的算子直接声明只收 `RuleHitOccasion`」没有做——子类收窄参数类型违反覆写规则
   （pyright 报错），要做得让 `Operator` 再对时机类型泛型化，暂不值得。
 

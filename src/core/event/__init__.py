@@ -23,7 +23,7 @@ from core.event.errors import (
     TemplateScopeError,
     TemplateVersionError,
 )
-from core.event.event import CLOSE_STATUS_KEY, Event
+from core.event.event import Event
 from core.event.manager import ParentEventManager
 from core.event.parent import ParentEvent
 from core.event.records import EventRecord, ParentEventRecord, TemplateRef
@@ -35,10 +35,9 @@ from core.event.repository import (
 )
 from core.event.runner import EventRunner
 from core.event.runtime import EventRuntime, ParentEventServices
-from core.event.template import CompiledObservable, CompiledRule, EventTemplate
+from core.event.template import CompiledObservable, CompiledRule, EventTemplate, Hook
 
 __all__ = [
-    "CLOSE_STATUS_KEY",
     "CompiledObservable",
     "CompiledRule",
     "DuplicateParentEventError",
@@ -60,6 +59,7 @@ __all__ = [
     "Event",
     "EventRunner",
     "EventTemplate",
+    "Hook",
     "TargetStillReferencedError",
     "TemplateCompileError",
     "TemplateDef",

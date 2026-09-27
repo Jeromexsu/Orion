@@ -1,19 +1,20 @@
 from typing import Any
 
-from pydantic import BaseModel, ValidationError
-
-from core.operators.errors import DuplicateOperatorError, InvalidMountError, UnknownOperatorError
-from core.operators.operator import Level, MountPoint, Operator
+from core.operators.errors import DuplicateOperatorError, UnknownOperatorError
+from core.operators.operator import Operator
 
 
 class OperatorRegistry:
-    """算子注册表，按 Operator.name 索引。bootstrap 时注册插件。"""
+    """算子注册表，按 Operator.name 索引。bootstrap 时注册插件。
+
+    只注册和查找；模板里的挂载是否合法由模板编译器检查。
+    """
 
     def __init__(self) -> None:
         self._operators: dict[str, Operator[Any]] = {}
 
     def register(self, operator: Operator[Any]) -> None:
-        """类属性漏写抛 TypeError；名字重复抛 DuplicateOperatorError。"""
+        """没用 @operator 声明抛 TypeError；名字重复抛 DuplicateOperatorError。"""
         _check_declared(operator)
         if operator.name in self._operators:
             raise DuplicateOperatorError(operator.name)
@@ -30,30 +31,9 @@ class OperatorRegistry:
         """已注册的全部算子。"""
         return list(self._operators.values())
 
-    def validate_mount(
-        self, name: str, level: Level, mount_point: MountPoint, params: dict[str, Any]
-    ) -> BaseModel:
-        """模板挂载算子时的校验：层级、挂载点、参数。返回解析后的参数。
-
-        算子不存在抛 UnknownOperatorError；其余不合法抛 InvalidMountError。无副作用。
-        """
-        operator = self.get(name)
-        if level not in operator.levels:
-            raise InvalidMountError(f"{name} cannot mount at level {level!r}")
-        if mount_point not in operator.mount_points:
-            raise InvalidMountError(f"{name} cannot mount at {mount_point!r}")
-        try:
-            return operator.params_model.model_validate(params)
-        except ValidationError as e:
-            raise InvalidMountError(f"invalid params for {name}: {e}") from e
-
 
 def _check_declared(operator: Operator[Any]) -> None:
-    """Raise TypeError if the operator's class leaves a declaration out."""
-    missing = [
-        attr
-        for attr in ("name", "category", "levels", "mount_points", "params_model")
-        if not hasattr(operator, attr)
-    ]
-    if missing:
-        raise TypeError(f"{type(operator).__name__} must set {', '.join(missing)}")
+    """Raise TypeError unless the operator's class was declared with @operator."""
+    attrs = ("name", "mount_points", "scopes", "proposes", "params_model")
+    if not all(hasattr(operator, a) for a in attrs):
+        raise TypeError(f"{type(operator).__name__} must be declared with @operator(...)")

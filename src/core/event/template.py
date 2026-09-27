@@ -1,6 +1,10 @@
+from typing import Any
+
+from pydantic import BaseModel
+
 from core.condition_engine import ConditionTree
-from core.event.definitions import ObservableDef, OperatorMountDef, TemplateDef
-from core.operators import MountPoint
+from core.event.definitions import ObservableDef, TemplateDef
+from core.operators import MountPoint, Operator
 from core.target import ObservableTarget
 
 
@@ -15,21 +19,30 @@ class CompiledObservable:
         self.upstreams = upstreams
 
 
-class CompiledRule:
-    """编译后的规则：规则名 + 条件树 + 命中时跑的算子挂载（rule_hit）。"""
+class Hook:
+    """An operator mount, compiled: the operator itself, its validated parameters and
+    where it is mounted. Built by TemplateCompiler; the event runs it without looking
+    anything up."""
 
-    def __init__(
-        self, name: str, tree: ConditionTree, hook_defs: tuple[OperatorMountDef, ...]
-    ) -> None:
+    def __init__(self, operator: Operator[Any], params: BaseModel, mount_point: MountPoint) -> None:
+        self.operator = operator
+        self.params = params
+        self.mount_point = mount_point
+
+
+class CompiledRule:
+    """编译后的规则：规则名 + 条件树 + 命中时跑的钩子（rule_hit）。"""
+
+    def __init__(self, name: str, tree: ConditionTree, hooks: tuple[Hook, ...]) -> None:
         self.name = name
         self.tree = tree
-        self.hook_defs = hook_defs
+        self.hooks = hooks
 
 
 class EventTemplate:
     """编译好的模板：不可变、带版本。由 TemplateCompiler 构造。
 
-    持有解析好的可观测目标、开启条件树、每条规则的条件树和规范化后的算子挂载。
+    持有解析好的可观测目标、开启条件树、每条规则的条件树和编译好的钩子。
     """
 
     def __init__(
@@ -38,7 +51,7 @@ class EventTemplate:
         compiled_observables: tuple[CompiledObservable, ...],
         open_tree: ConditionTree,
         rules: tuple[CompiledRule, ...],
-        hooks: tuple[OperatorMountDef, ...],
+        hooks: tuple[Hook, ...],
     ) -> None:
         self._template_def = template_def
         self._compiled_observables = compiled_observables
@@ -80,6 +93,6 @@ class EventTemplate:
         """可观测目标声明里的静态目标 ID。"""
         return self._template_def.target_ids
 
-    def hooks_at(self, mount_point: MountPoint) -> tuple[OperatorMountDef, ...]:
-        """挂在某个挂载点上的子事件级算子，按声明顺序。"""
+    def hooks_at(self, mount_point: MountPoint) -> tuple[Hook, ...]:
+        """挂在某个挂载点上的模板级钩子，按声明顺序（rule_hit 钩子在各规则上）。"""
         return tuple(h for h in self._hooks if h.mount_point == mount_point)

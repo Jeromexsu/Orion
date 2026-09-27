@@ -10,5 +10,5 @@ class UnknownOperatorError(OperatorError):
     pass
 
 
-class InvalidMountError(OperatorError):
-    """算子不支持该层级/挂载点，或参数不合法。"""
+class UndeclaredCapabilityError(OperatorError):
+    """算子用了没有声明的能力（如没声明 scopes={"event"} 却访问 ctx.event）。"""

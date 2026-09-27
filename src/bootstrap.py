@@ -130,7 +130,6 @@ def build_app(repos: Repositories) -> App:
         EventRuntime(
             event_repository=repos.event_repository,
             runner_state_repository=repos.runner_state_repository,
-            operator_registry=operator_registry,
             suggestion_sink=hil_manager,
         ),
     )

@@ -38,7 +38,7 @@ def test_close_report_operator_writes_draft(env: Env) -> None:
     parent.add_target("t1")
     parent.upsert_template(
         TemplateDef.model_validate(
-            template(threshold=1, hooks=[mount("close_report", "closed", title="进入告警")])
+            template(threshold=1, hooks=[mount("closeReport", "closed", title="进入告警")])
         )
     )
     parent.runner("enter-zone").on_observation(env.envelope(20, 20))
@@ -47,4 +47,4 @@ def test_close_report_operator_writes_draft(env: Env) -> None:
     (draft,) = env.reports.list_by_parent("p1")
     assert draft.title == "进入告警"
     assert "涉及目标：MU5101" in draft.content
-    assert "'closed': True" in draft.content
+    assert "'hits': 1" in draft.content

@@ -1,84 +1,94 @@
-"""三种上下文，按最小权限给算子：运行时拿到的对象真的没有越权的方法。"""
+"""What an operator may see and do while it runs, built per run from its declaration."""
 
 from collections.abc import Callable, Mapping
 from copy import deepcopy
-from typing import TYPE_CHECKING, Any
+from typing import Any, Generic, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
+from pydantic import BaseModel
 
 from core.hil import Suggestion
+from core.operators.errors import UndeclaredCapabilityError
 
-if TYPE_CHECKING:  # operator.py imports this module, so import Category for typing only
-    from core.operators.operator import Category
-
-
-class BaseContext(BaseModel):
-    """只读上下文，输出类用。可随异步算子序列化进队列。"""
-
-    model_config = ConfigDict(frozen=True)
-
-    state: dict[str, Any]       # 子事件状态的副本，改了也不影响子事件
-    params: dict[str, Any]      # 挂载时的参数
-    target_names: dict[str, str] = Field(default_factory=dict[str, str])
-    parent_id: str | None = None        # 算子挂在哪个父事件 / 子事件上，报告类算子写草稿时用
-    event_id: str | None = None
-
-    def target_name(self, observable_id: str) -> str:
-        """目标展示名，报告类算子用。未知时退回 ID。"""
-        return self.target_names.get(observable_id, observable_id)
+P = TypeVar("P", bound=BaseModel)
 
 
-class ProgressContext(BaseContext):
-    """+update_status，推进（收敛）类用。必须同步执行：它改的是内存里的活对象。"""
+class EventHandle:
+    """What an operator with the event scope may do to the event it runs on."""
 
-    _update_status: Callable[[dict[str, Any]], None] = PrivateAttr()
-
-    def __init__(self, *, update_status: Callable[[dict[str, Any]], None], **data: Any) -> None:
-        super().__init__(**data)
+    def __init__(
+        self,
+        update_status: Callable[[dict[str, Any]], None],
+        request_close: Callable[[str], None],
+    ) -> None:
         self._update_status = update_status
+        self._request_close = request_close
 
     def update_status(self, patch: dict[str, Any]) -> None:
-        """把 patch 合并进子事件状态（写库），随后触发 status_updated 钩子。"""
+        """Merge patch into the event's status, then run the status_updated hooks."""
         self._update_status(patch)
 
+    def close(self, reason: str) -> None:
+        """Ask for the event to close.
 
-class SuggestContext(BaseContext):
-    """+suggest，发现/校正类用。"""
-
-    _suggest: Callable[[Suggestion], None] = PrivateAttr()
-
-    def __init__(self, *, suggest: Callable[[Suggestion], None], **data: Any) -> None:
-        super().__init__(**data)
-        self._suggest = suggest
-
-    def suggest(self, item: Suggestion) -> None:
-        """提交一条建议给 hil，等分析师确认；不直接改任何东西。"""
-        self._suggest(item)
+        The event closes once the current observation has been processed (its
+        remaining rules and post hooks still run), not in the middle of it.
+        """
+        self._request_close(reason)
 
 
-def build_context(
-    category: "Category",
-    *,
-    state: Mapping[str, Any],
-    params: Mapping[str, Any],
-    target_names: Mapping[str, str],
-    update_status: Callable[[dict[str, Any]], None],
-    suggest: Callable[[Suggestion], None],
-    parent_id: str | None = None,
-    event_id: str | None = None,
-) -> BaseContext:
-    """event 侧按算子类别构造对应的上下文：ctx = build_context(op.category, ...); op.run(occasion, ctx)。"""
-    common: dict[str, Any] = {
-        "state": deepcopy(dict(state)),
-        "params": deepcopy(dict(params)),
-        "target_names": dict(target_names),
-        "parent_id": parent_id,
-        "event_id": event_id,
-    }
-    match category:
-        case "progress":
-            return ProgressContext(update_status=update_status, **common)
-        case "discover" | "calibrate":
-            return SuggestContext(suggest=suggest, **common)
-        case "output":
-            return BaseContext(**common)
+class OperatorContext(Generic[P]):
+    """Everything an operator gets besides the occasion.
+
+    Always available, read-only: the mount parameters, a copy of the event's
+    status, target display names and where it runs. Capabilities exist only if
+    declared: ctx.event needs scopes={"event"}, ctx.propose needs proposes=True;
+    using an undeclared one raises UndeclaredCapabilityError. The external scope
+    has no capability here: output channels (reports, notifications) are injected
+    into the operator when it is constructed.
+    """
+
+    def __init__(
+        self,
+        *,
+        params: P,
+        state: Mapping[str, Any],
+        target_names: Mapping[str, str],
+        parent_id: str,
+        event_id: str,
+        event: EventHandle | None = None,
+        propose: Callable[[Suggestion], None] | None = None,
+    ) -> None:
+        self.params = params                # the mount's parameters, validated at compile time
+        self.state = deepcopy(dict(state))  # a copy: changing it does not change the event
+        self.parent_id = parent_id
+        self.event_id = event_id
+        self._target_names = dict(target_names)
+        self._event = event
+        self._propose = propose
+
+    def target_name(self, observable_id: str) -> str:
+        """Display name of the target behind an observable target; the ID if unknown."""
+        return self._target_names.get(observable_id, observable_id)
+
+    @property
+    def target_names(self) -> dict[str, str]:
+        """Observable target ID -> display name of its target, for the observable targets
+        the event subscribes to."""
+        return dict(self._target_names)
+
+    @property
+    def event(self) -> EventHandle:
+        """Change the event directly. Requires scopes={"event"}."""
+        if self._event is None:
+            raise UndeclaredCapabilityError("declare scopes={'event'} to change the event")
+        return self._event
+
+    def propose(self, suggestion: Suggestion) -> None:
+        """Send a proposal for review; nothing changes until an analyst accepts it.
+
+        What it would change (the parent event, a target, ...) is decided by the
+        proposed action. Requires proposes=True.
+        """
+        if self._propose is None:
+            raise UndeclaredCapabilityError("declare proposes=True to make proposals")
+        self._propose(suggestion)

@@ -226,7 +226,7 @@ graph LR
 | `EventTemplate` | 运行时对象，不可变 | 编译结果：runner 要订阅的 `compiled_observables`（`CompiledObservable`：可观测目标 + 要订阅的上游）、开启条件树、规则树、规范化后的算子挂载；持有原定义。不存库，每次从定义编译 |
 | `ParentEventManager` | 入口 | 创建、查找、重启恢复父事件；持有父事件仓库，父事件变更后经 `on_change` 回调这里存档 |
 | `ParentEventServices` | 依赖包 | 只有父事件用到的：`TargetManager`、模板仓库、模板编译器、报告管理器；由 `ParentEventManager` 交给父事件 |
-| `EventRuntime` | 依赖包 | runner 和子事件共用的：子事件仓库、开启条件状态仓库、算子注册表、建议去处；父事件转交给 runner |
+| `EventRuntime` | 依赖包 | runner 和子事件共用的：子事件仓库、开启条件状态仓库、建议去处；父事件转交给 runner（算子已编译进模板的钩子，运行时不再查注册表） |
 | `ParentEvent` | 静态（带运行时部件） | 目标命名空间 + 一组 runner + `digest()`。唯一调用 `TemplateCompiler` 的地方：装入模板时先按定义检查命名空间和版本，再编译、保存定义，然后交给 runner；重启时读回定义编译后交给 runner 恢复。自己不订阅、不接收数据，也不持久化自己（变更后调用 `on_change`） |
 | `EventRunner` | 有状态的活对象 | 持有模板和运行时依赖：按模板里解析好的可观测目标订阅（不接触 `TargetManager`）；每条观测都评估开启条件并持久化其状态；无活跃子事件且命中时实例化 `Event`；把观测交给活跃 `Event`；新版本挂起到当前子事件关闭后再切换；`dispose` 时取消订阅 |
 | `Event` | 有状态的活对象 | 一个周期（`cycle` = 开启时数据发生的年份）：跑规则和算子、维护业务状态和规则状态，收敛后关闭 |
@@ -286,12 +286,12 @@ graph LR
         ]
       },
       "hook_defs": [
-        {"operator": "count_hits", "mount_point": "rule_hit", "params": {"threshold": 3}}
+        {"operator": "countHits", "mount_point": "rule_hit", "params": {"threshold": 3}}
       ]
     }
   ],
   "hook_defs": [
-    {"operator": "close_report", "mount_point": "closed", "params": {"title": "东海方向进入"}}
+    {"operator": "closeReport", "mount_point": "closed", "params": {"title": "东海方向进入"}}
   ]
 }
 ```
@@ -362,6 +362,44 @@ class OnEnter(Evaluator[OnEnterCriteria]):
 | `evaluate(observation, occurred_at, state, criteria)` | 判断；只拿观测（副本）和发生时间，拿不到来源信息（upstream / source_id / raw）；不改传入的 `state`（只读），把本叶子的**完整**新状态放进结果的 `state`（不是变化量；没变就不填）；返回「不适用」时不得带 `state` |
 
 示例见 `plugins/condition_engine/on_enter.py`（进入区域，有状态）。
+
+### operators：算子
+
+算子是挂在子事件生命周期上的动作。它能做什么按两个正交的维度声明：
+
+| 作用域 | 管什么 | 直接作用 | 提建议（经 hil 审核） |
+|---|---|---|---|
+| `external` | 系统外部：报告、通知 | ✓（输出通道构造时注入） | —（若有审核是外部模块自己的事） |
+| `event` | 子事件：状态、关闭 | ✓（`ctx.event`） | ✓ |
+| `parent` | 父事件：目标命名空间、模板 | ✗ | ✓（`ctx.propose`） |
+| `target` | 目标记录：别名、属性 | ✗ | ✓（`ctx.propose`） |
+
+```python
+@operator(mount_points={"rule_hit"}, scopes={"event"})
+class CountHits(Operator[CountHitsParams]):          # name 默认 "countHits"，参数模型取泛型参数
+    def run(self, occasion, ctx):
+        ctx.event.update_status({"hits": n})
+        if n >= ctx.params.threshold:
+            ctx.event.close("converged")             # 请求关闭：本条观测处理完才关闭
+```
+
+- 上下文 `OperatorContext` 按声明组装：没声明的能力用了就抛 `UndeclaredCapabilityError`；只读信息（参数、状态副本、
+  目标名、父事件 / 子事件 ID）始终都有。
+- `occasion` 说明为什么被调用，按挂载点分类型：`CreatedOccasion` / `ObservationOccasion`（pre、post）/
+  `RuleHitOccasion` / `StatusUpdatedOccasion` / `ClosedOccasion`，字段都一定有值。
+- 插件不能 import `core.event`（import-linter 检查）：改子事件只能经上下文，父事件 / 目标只能提建议。
+
+#### operators 的窗口与扩展点
+
+| 使用方 | 窗口 | 时机 |
+|---|---|---|
+| bootstrap | `OperatorRegistry.register` | 启动时注册算子；没用 `@operator` 声明的拒绝 |
+| event · 模板编译器 | `OperatorRegistry.get` + 算子的声明 | 编译时把每个挂载检查并编译成 `Hook`（算子实例 + 有类型的参数 + 挂载点） |
+| event · 子事件 | `Operator.run(occasion, ctx)`、`OperatorContext` / `EventHandle` | 运行时在挂载点跑钩子；每个钩子单独隔离异常 |
+| hil | 实现 `SuggestionSink` | 接收 `ctx.propose` 提的建议 |
+
+扩展点只有一个：继承 `Operator[参数模型]` 并用 `@operator` 声明，放在 `plugins/operators/`。
+示例见 `plugins/operators/count_hits.py`（直接作用于子事件）和 `close_report.py`（对外输出，注入报告管理器）。
 
 ### 静态定义与运行时对象
 
