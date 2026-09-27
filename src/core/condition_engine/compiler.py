@@ -27,6 +27,11 @@ class ConditionCompiler:
     def compile(
         self, condition_def: ConditionDef, fields_by_observable: FieldsByObservable
     ) -> ConditionTree:
+        """编译并校验整棵树，返回 ConditionTree。
+
+        fields_by_observable：允许引用的可观测目标及其观测字段，由调用方（模板编译器）提供。
+        所有错误收集后一次性抛 ConditionCompileError，每条带节点路径（如 "root/1/0: ..."）。无副作用。
+        """
         errors: list[str] = []
         root = self._compile(condition_def, "root", fields_by_observable, errors)
         if errors or root is None:

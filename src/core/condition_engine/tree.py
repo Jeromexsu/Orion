@@ -22,17 +22,28 @@ def apply_state_patch(state: TreeState, patch: Mapping[str, Any]) -> dict[str, d
 
 
 class ConditionNode(ABC):
+    """条件树节点。path 是它在树里的位置（如 "root/1/0"），用作状态的键和报错定位。"""
+
     def __init__(self, path: str) -> None:
         self.path = path
 
     @abstractmethod
-    def evaluate(self, envelope: ObservationEnvelope, state: TreeState) -> EvalResult: ...
+    def evaluate(self, envelope: ObservationEnvelope, state: TreeState) -> EvalResult:
+        """对一条观测求值。state 是整棵树的状态；新状态放在结果的 state_patch 里，不改 state。"""
+        ...
 
     @abstractmethod
-    def observables(self) -> frozenset[str]: ...
+    def observables(self) -> frozenset[str]:
+        """这个节点（含子树）引用的可观测目标 ID。"""
+        ...
 
 
 class LeafNode(ConditionNode):
+    """叶子：一个可观测目标 + 一种判断方式 + 已解析的参数。
+
+    观测不属于这个可观测目标，或缺少判断方式需要的字段时，返回“不适用”，不调用判断方式。
+    """
+
     def __init__(
         self, path: str, observable: str, evaluator: Evaluator[Any], params: BaseModel
     ) -> None:
@@ -150,5 +161,5 @@ class ConditionTree:
         return self._root.evaluate(envelope, state)
 
     def observables(self) -> frozenset[str]:
-        """树里引用的全部 ObservableTarget ID，供 EventTemplate.validate 做范围检查。"""
+        """树里引用的全部可观测目标 ID。"""
         return self._root.observables()

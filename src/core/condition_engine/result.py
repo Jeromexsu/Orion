@@ -11,6 +11,8 @@ Outcome = Literal["命中", "未命中", "不适用"]
 
 
 class EvalResult(BaseModel):
+    """一次求值的结果：判断结论 + 附带信息 + 调用方需要保存的新状态。"""
+
     model_config = ConfigDict(frozen=True)
 
     # 三值，不是 bool——“不适用”是为了 not/any 不会因为无关数据误判

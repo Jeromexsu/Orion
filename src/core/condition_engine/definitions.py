@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 
 class LeafDef(BaseModel):
+    """叶子条件：对一个可观测目标，用一种判断方式、一组参数做判断。"""
+
     kind: Literal["leaf"] = "leaf"
     observable: str             # 可观测目标 ID，如 "t1:position"
     type: str                   # 判断方式，如 "onEnter"
@@ -13,6 +15,8 @@ class LeafDef(BaseModel):
 
 
 class OpDef(BaseModel):
+    """组合条件：all / any / not 组合子条件，三值逻辑见 tree.OpNode。"""
+
     kind: Literal["op"] = "op"
     op: Literal["all", "any", "not"]
     children: list["ConditionDef"]
