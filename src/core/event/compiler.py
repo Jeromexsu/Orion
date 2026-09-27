@@ -86,10 +86,10 @@ class TemplateCompiler:
         self, template_def: TemplateDef, errors: list[str]
     ) -> tuple[CompiledObservable, ...]:
         """编译可观测目标声明：解析出可观测目标，并检查目标与观察点存在、上游可用。"""
-        resolved: dict[str, CompiledObservable] = {}
+        compiled: dict[str, CompiledObservable] = {}
         for o in template_def.observable_defs:
             where = f"observable_def {o.observable_id!r}"
-            if o.observable_id in resolved:
+            if o.observable_id in compiled:
                 errors.append(f"{where}: duplicate")
                 continue
             try:
@@ -103,8 +103,8 @@ class TemplateCompiler:
                     f"{where}: upstreams {unavailable} not in available "
                     f"{list(observable.upstreams)}"
                 )
-            resolved[observable.id] = CompiledObservable(observable, frozenset(o.upstreams))
-        return tuple(resolved.values())
+            compiled[observable.id] = CompiledObservable(observable, frozenset(o.upstreams))
+        return tuple(compiled.values())
 
     def _bind(
         self, mount: OperatorMountDef, where: str, errors: list[str]
