@@ -105,6 +105,12 @@ since 之前的不返回），等往外分插件任务时再搭。
 
 ## 已决
 
+- **条件引用范围：event 决定范围，条件编译器按范围检查**（审阅 `_compile_leaf` 时讨论，不把范围检查挪到模板编译器）：
+  模板编译器根据可观测目标声明组装 `declared_observables`（范围 + 每个的观测类），条件编译器对每个叶子做一次查找，
+  同时完成「引用的可观测目标在不在范围里」和「观测有没有判断方式要的字段」。像编译器按调用方给的符号表检查标识符。
+  挪到模板编译器的代价：要重新遍历条件树收集叶子引用（即已删除的 `observables()`）；条件编译器取观测类时仍得处理
+  「查不到」，范围检查变成两处；错误失去节点路径。条件编译器不知道「模板」，只知道「给定的可引用清单」。
+
 - **条件节点统一为 kind + op + 操作对象**：`OpDef` / `OpNode` → `BranchDef` / `BranchNode`（`kind: "branch"`）；叶子的
   `type` → `op`（引用 `Evaluator.op`，原 `Evaluator.type`，顺带去掉了遮蔽内置 `type` 的写法）；条件留痕的 `"type"` 键 → `"op"`。
   叶子的参数叫 `criteria`（判定标准），`Evaluator.evaluate(envelope, state, criteria)`；算子挂载的 `params` 不变。
