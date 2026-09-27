@@ -16,8 +16,8 @@ class HilManager:
     白名单由 bootstrap 用 allow() 注册；新增建议来源算子不需要改这里。
     """
 
-    def __init__(self, suggestions: SuggestionRepository) -> None:
-        self._suggestions = suggestions
+    def __init__(self, suggestion_repository: SuggestionRepository) -> None:
+        self._suggestion_repository = suggestion_repository
         self._actions: dict[str, Action] = {}
 
     # ------------------------------------------------------------ 白名单
@@ -38,12 +38,12 @@ class HilManager:
             raise ActionNotAllowedError(
                 f"{suggestion.source} proposed {suggestion.proposal.action!r}"
             )
-        self._suggestions.save(suggestion)
+        self._suggestion_repository.save(suggestion)
 
     # ------------------------------------------------------------ 审核
 
     def pending(self) -> list[Suggestion]:
-        return self._suggestions.get_pending()
+        return self._suggestion_repository.get_pending()
 
     def accept(self, suggestion_id: str, args: Mapping[str, Any] | None = None) -> object:
         """接受建议并执行。args 是分析师在确认前改过的参数，覆盖提议里的同名参数。
@@ -55,16 +55,16 @@ class HilManager:
         if handler is None:
             raise ActionNotAllowedError(suggestion.proposal.action)
         result = handler(suggestion.proposal.target, {**suggestion.proposal.args, **(args or {})})
-        self._suggestions.mark_resolved(suggestion_id, accepted=True)
+        self._suggestion_repository.mark_resolved(suggestion_id, accepted=True)
         return result
 
     def reject(self, suggestion_id: str) -> None:
         """拒绝并记录，供以后统计各算子的采纳率。"""
         self._pending(suggestion_id)
-        self._suggestions.mark_resolved(suggestion_id, accepted=False)
+        self._suggestion_repository.mark_resolved(suggestion_id, accepted=False)
 
     def _pending(self, suggestion_id: str) -> Suggestion:
-        suggestion = self._suggestions.get_pending_by_id(suggestion_id)
+        suggestion = self._suggestion_repository.get_pending_by_id(suggestion_id)
         if suggestion is None:
             raise SuggestionNotFoundError(suggestion_id)
         return suggestion

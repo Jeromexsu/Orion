@@ -110,6 +110,11 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
   `EventTemplate.open_tree`、`EventTemplate.rules` 返回的 `CompiledRule`）。条件引擎契约
   `LeafDef` / `OpDef` 的 `children` 按设计文档第八节照抄，不改。
 
+- **依赖按具体类型命名**：构造参数、依赖字段一律用类型名的 snake_case，不用复数名词或抽象称呼——
+  `TargetManager` → `target_manager`、`TemplateRepository` → `template_repository`、
+  `EvaluatorRegistry` → `evaluator_registry`、`UpstreamCatalog` → `upstream_catalog`。
+  接口类型按接口名（`SuggestionSink` → `suggestion_sink`，实际装的是 `HilManager`）。
+  `bootstrap.Repositories` / `App` 的字段同样处理。
 - **event 模块命名**：`ParentEvent` 不变；`SubEventSlot` → `EventRunner`，`SubEventTemplate` →
   `EventTemplate`，`SubEventInstance` → `Event`（子事件）。随之：`InstanceRecord` / `InstanceRepository` /
   `InstanceClosedError` → `EventRecord` / `EventRepository` / `EventClosedError`；`SlotStateRepository` →

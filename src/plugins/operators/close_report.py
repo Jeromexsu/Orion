@@ -20,8 +20,8 @@ class CloseReport:
     mount_points: frozenset[MountPoint] = frozenset({"closed"})
     params_model = CloseReportParams
 
-    def __init__(self, reports: ReportManager) -> None:
-        self._reports = reports
+    def __init__(self, report_manager: ReportManager) -> None:
+        self._report_manager = report_manager
 
     def run(self, trigger: Trigger, ctx: BaseContext) -> None:
         if ctx.parent_id is None:
@@ -29,4 +29,4 @@ class CloseReport:
         params = CloseReportParams.model_validate(ctx.params)
         names = "、".join(ctx.target_names.values()) or "无"
         lines = [f"子事件 {ctx.event_id} 已关闭。", f"涉及目标：{names}", f"最终状态：{ctx.state}"]
-        self._reports.write(ctx.parent_id, title=params.title, content="\n".join(lines))
+        self._report_manager.write(ctx.parent_id, title=params.title, content="\n".join(lines))

@@ -16,7 +16,8 @@ class ParentEventManager:
         self._parents: dict[str, ParentEvent] = {}
 
     def create(self, parent_id: str, name: str) -> ParentEvent:
-        if parent_id in self._parents or self._services.parent_event_repository.get(parent_id) is not None:
+        repository = self._services.parent_event_repository
+        if parent_id in self._parents or repository.get(parent_id) is not None:
             raise DuplicateParentEventError(parent_id)
         parent = ParentEvent(parent_id, name, self._services, self._runtime)
         self._services.parent_event_repository.upsert(parent.to_record())

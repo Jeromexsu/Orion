@@ -18,11 +18,11 @@ class TemplateCompiler:
         self,
         condition_compiler: ConditionCompiler,
         operator_registry: OperatorRegistry,
-        targets: TargetManager,
+        target_manager: TargetManager,
     ) -> None:
         self._condition_compiler = condition_compiler
         self._operator_registry = operator_registry
-        self._targets = targets
+        self._target_manager = target_manager
 
     def compile(self, template_def: TemplateDef) -> EventTemplate:
         """编译并校验整个模板，所有错误一次收集进 TemplateCompileError。
@@ -91,7 +91,9 @@ class TemplateCompiler:
                 errors.append(f"{where}: duplicate")
                 continue
             try:
-                point, available = self._targets.inspect_observable(o.target_id, o.observed_point)
+                point, available = self._target_manager.inspect_observable(
+                    o.target_id, o.observed_point
+                )
             except TargetError as e:
                 errors.append(f"{where}: {e}")
                 continue
@@ -105,7 +107,7 @@ class TemplateCompiler:
         """全部校验通过后调用：取得（必要时创建）可观测目标，组装 runner 要订阅的项。"""
         return tuple(
             CompiledObservable(
-                self._targets.get_observable(o.target_id, o.observed_point),
+                self._target_manager.get_observable(o.target_id, o.observed_point),
                 frozenset(o.upstreams),
             )
             for o in template_def.observable_defs

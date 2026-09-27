@@ -21,8 +21,8 @@ class ConditionCompiler:
     校验：判断方式存在、引用的可观测目标在 fields_by_observable 里、它有判断方式需要的字段、参数合法。
     """
 
-    def __init__(self, registry: EvaluatorRegistry) -> None:
-        self._registry = registry
+    def __init__(self, evaluator_registry: EvaluatorRegistry) -> None:
+        self._evaluator_registry = evaluator_registry
 
     def compile(
         self, condition_def: ConditionDef, fields_by_observable: FieldsByObservable
@@ -60,10 +60,10 @@ class ConditionCompiler:
     def _compile_leaf(
         self, node: LeafDef, path: str, fields_by_observable: FieldsByObservable, errors: list[str]
     ) -> ConditionNode | None:
-        if not self._registry.has(node.type):
+        if not self._evaluator_registry.has(node.type):
             errors.append(f"{path}: unknown condition type {node.type!r}")
             return None
-        evaluator = self._registry.get(node.type)
+        evaluator = self._evaluator_registry.get(node.type)
 
         ok = True
         available = fields_by_observable.get(node.observable)

@@ -17,17 +17,17 @@ class ReportManager:
     edit() / send() 是分析师入口，由 API 层调用。
     """
 
-    def __init__(self, drafts: DraftRepository) -> None:
-        self._drafts = drafts
+    def __init__(self, draft_repository: DraftRepository) -> None:
+        self._draft_repository = draft_repository
 
     def get(self, draft_id: str) -> Draft:
-        draft = self._drafts.get(draft_id)
+        draft = self._draft_repository.get(draft_id)
         if draft is None:
             raise DraftNotFoundError(draft_id)
         return draft
 
     def list_by_parent(self, parent_id: str) -> list[Draft]:
-        return self._drafts.list_by_parent(parent_id)
+        return self._draft_repository.list_by_parent(parent_id)
 
     def write(
         self, parent_id: str, title: str, content: str, draft_id: str | None = None
@@ -50,7 +50,7 @@ class ReportManager:
             if current.status != DRAFT:
                 raise DraftLockedError(f"{draft_id} is {current.status}; machine writes stop")
             draft = self._bump(current, title=title, content=content)
-        self._drafts.upsert(draft)
+        self._draft_repository.upsert(draft)
         return draft
 
     def edit(self, draft_id: str, content: str, title: str | None = None) -> Draft:
@@ -59,7 +59,7 @@ class ReportManager:
         if current.status == SENT:
             raise DraftLockedError(f"{draft_id} was already sent")
         draft = self._bump(current, title=title or current.title, content=content, status=EDITING)
-        self._drafts.upsert(draft)
+        self._draft_repository.upsert(draft)
         return draft
 
     def send(self, draft_id: str) -> Draft:
@@ -67,7 +67,7 @@ class ReportManager:
         if current.status == SENT:
             raise DraftLockedError(f"{draft_id} was already sent")
         draft = current.model_copy(update={"status": SENT, "updated_at": _now()})
-        self._drafts.upsert(draft)
+        self._draft_repository.upsert(draft)
         return draft
 
     @staticmethod

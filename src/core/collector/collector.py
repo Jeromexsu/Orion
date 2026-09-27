@@ -19,22 +19,22 @@ class Collector:
 
     def __init__(
         self,
-        targets: TargetManager,
+        target_manager: TargetManager,
         adapter_registry: AdapterRegistry,
-        cursors: CursorRepository,
-        observations: ObservationRepository,
+        cursor_repository: CursorRepository,
+        observation_repository: ObservationRepository,
         dispatcher: Dispatcher,
     ) -> None:
-        self._targets = targets
+        self._target_manager = target_manager
         self._adapter_registry = adapter_registry
-        self._cursors = cursors
-        self._observations = observations
+        self._cursor_repository = cursor_repository
+        self._observation_repository = observation_repository
         self._dispatcher = dispatcher
 
     def collect(self) -> list[ObservationEnvelope]:
         """采集一轮，返回本轮新落库的数据。单个目标或上游失败不影响其他。"""
         collected: list[ObservationEnvelope] = []
-        for observable in self._targets.active_observables():
+        for observable in self._target_manager.active_observables():
             try:
                 collected.extend(self.collect_one(observable))
             except Exception:
@@ -63,14 +63,14 @@ class Collector:
             # 目标记录更新后可能不再满足这个上游的任何查询方式
             logger.warning("%s no longer satisfies any query of %s", observable.id, upstream)
             return []
-        cursor = self._cursors.get(observable.id, upstream)
+        cursor = self._cursor_repository.get(observable.id, upstream)
         since = datetime.fromisoformat(cursor) if cursor else None
         spec = observable.query_spec(query_fields, since)
         records = adapter.fetch(spec)
 
         new: list[ObservationEnvelope] = []
         for record in sorted(records, key=lambda r: r.occurred_at):
-            if self._observations.exists(record.source_id):
+            if self._observation_repository.exists(record.source_id):
                 continue
             try:
                 observation = observable.parse_observation(record.fields)
@@ -85,10 +85,11 @@ class Collector:
                 source_id=record.source_id,
                 raw=record.raw,
             )
-            self._observations.append(envelope)
+            self._observation_repository.append(envelope)
             new.append(envelope)
 
         # 先推进游标再分发：订阅者失败不应导致重复采集
         if new:
-            self._cursors.set(observable.id, upstream, max(e.occurred_at for e in new).isoformat())
+            latest = max(e.occurred_at for e in new)
+            self._cursor_repository.set(observable.id, upstream, latest.isoformat())
         return new

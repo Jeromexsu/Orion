@@ -27,13 +27,13 @@ class TargetManager:
 
     def __init__(
         self,
-        targets: TargetRepository,
-        observables: ObservableTargetRepository,
-        upstreams: UpstreamCatalog,
+        target_repository: TargetRepository,
+        observable_target_repository: ObservableTargetRepository,
+        upstream_catalog: UpstreamCatalog,
     ) -> None:
-        self._targets = targets
-        self._observables = observables
-        self._upstreams = upstreams
+        self._target_repository = target_repository
+        self._observable_target_repository = observable_target_repository
+        self._upstream_catalog = upstream_catalog
         self._types: dict[str, type[Target]] = {}
         self._observed_points: dict[str, type[ObservedPoint]] = {}
         # 内存里的单例表：订阅者集合只存在这些对象上
@@ -87,13 +87,13 @@ class TargetManager:
             raise UnknownTargetTypeError(
                 f"{type(target).__name__} is not the registered class for {target.type!r}"
             )
-        existing = self._targets.get(target.id)
+        existing = self._target_repository.get(target.id)
         if existing is not None and existing.type != target.type:
             raise TargetTypeChangeError(
                 f"target {target.id} is {existing.type}, cannot change to {target.type}"
             )
 
-        self._targets.upsert(target.to_record())
+        self._target_repository.upsert(target.to_record())
         for point in type(target).observed_points:
             live = self._live.get(observable_key(target.id, point.name))
             if live is not None:
@@ -101,13 +101,13 @@ class TargetManager:
         return target
 
     def get_target(self, target_id: str) -> Target:
-        record = self._targets.get(target_id)
+        record = self._target_repository.get(target_id)
         if record is None:
             raise TargetNotFoundError(target_id)
         return self._restore(record)
 
     def find_by_alias(self, alias: str) -> Target | None:
-        record = self._targets.find_by_alias(alias)
+        record = self._target_repository.find_by_alias(alias)
         return self._restore(record) if record is not None else None
 
     def remove_target(self, target_id: str) -> None:
@@ -119,8 +119,8 @@ class TargetManager:
             raise TargetInUseError(f"{target_id} still referenced via {in_use}")
         for key in keys:
             self._live.pop(key, None)
-            self._observables.remove(key)
-        self._targets.remove(target_id)
+            self._observable_target_repository.remove(key)
+        self._target_repository.remove(target_id)
 
     # ------------------------------------------------------------ 可观测目标
 
@@ -141,7 +141,7 @@ class TargetManager:
             raise UnsupportedObservedPointError(
                 f"{target.type} cannot be observed at {observed_point!r}"
             )
-        upstreams = self._upstreams.upstreams_for(target, point)
+        upstreams = self._upstream_catalog.upstreams_for(target, point)
         if not upstreams:
             raise NoUpstreamError(f"no upstream can observe {target_id} at {observed_point!r}")
         return point, tuple(upstreams)
@@ -159,7 +159,7 @@ class TargetManager:
         point, upstreams = self.inspect_observable(target_id, observed_point)
         observable = ObservableTarget(self.get_target(target_id), point, upstreams)
         self._live[key] = observable
-        self._observables.upsert(observable)
+        self._observable_target_repository.upsert(observable)
         return observable
 
     def find_observable(self, observable_id: str) -> ObservableTarget | None:
