@@ -11,9 +11,9 @@
 src/
   core/<module>/     # target, collector, event, condition_engine, hooks, hil, report
   plugins/<module>/  # 具体的 Target 子类 / ObservedPoint 子类 / UpstreamAdapter / Evaluator / Hook 实现
-  api/               # Web API 层（暂缓）
+  api/               # 入口层 · Web API（暂缓）；调度入口目录待定
   persistence/       # 仓库实现 · ORM（暂缓）
-  bootstrap.py       # 唯一的跨切面装配点
+  bootstrap.py       # 装配点：拼出 App 交给入口，自身不是入口
 ```
 
 ## 开发
@@ -29,7 +29,29 @@ uv run lint-imports   # 模块依赖边界
 
 ## 架构
 
+### 分层
+
+分层是分工的基础：每层只守住自己那一边的契约，就能分给不同的人独立开发。
+
+| 层 | 目录 | 负责 | 不负责 | 依赖 |
+|---|---|---|---|---|
+| 前端层 | （不在本仓库） | 界面：编辑目标和模板（按定义生成表单）、审核提议、编辑并发出报告、查看子事件 | 业务规则（校验以后端为准，前端校验只为体验） | Web API |
+| 入口层 | `api/`（暂缓）、调度（暂缓，目录待定） | 从外部驱动 core。Web API：把 core 的公开方法暴露成 HTTP（解析请求、转换错误码、鉴权）；调度：定时调 `Collector.collect`、`ParentEventManager.digest_all` 等 | 业务逻辑、直接读写数据库 | core（只调公开方法） |
+| core 层 | `core/` + `plugins/` | 全部业务：目标与采集、条件判断、父事件 / 子事件生命周期、钩子、提议审核、报告；定义仓库接口（存什么、怎么取） | HTTP、定时、数据库、ORM | 不依赖其他层（import-linter 强制）。`plugins/` 依赖 `core/` 的基类；上游适配器直接访问外部数据源 |
+| repo 层 | `persistence/`（暂缓） | 实现 core 定义的仓库接口：表结构、ORM、事务 | 业务判断（只存取纯数据） | core（实现它的接口）；与 `api/` 互不 import |
+
+`bootstrap.py` 不属于任何一层，也不是入口：它是装配点，把 repo 层的实现、plugins、core 各模块拼成 `App`（各个 Manager、注册表），
+交给入口使用。整个系统只有它知道所有具体实现。
+
+层与层之间的契约：
+
+- 前端 ↔ 入口层：Web API。
+- 入口层 ↔ core：core 的公开方法（各 `*Manager`、`Collector` 的方法）。
+- core ↔ repo 层：仓库接口（`*Repository` 协议）+ 纯数据定义（`*Def` / `*Record`）。
+
 ### 模块依赖
+
+core 层内部的展开。
 
 箭头表示「依赖」。依赖只能单向，由 import-linter 强制（规则见 `pyproject.toml`）。
 
