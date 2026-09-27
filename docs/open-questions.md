@@ -179,6 +179,8 @@ class RadarAdapter(UpstreamAdapter): ...
     与条件引擎的分工一致（`ConditionCompiler` 在 condition_engine，模板编译器调用它）。
   - 建议（suggestion）一律改叫提议：`Proposal` 拍平（原 `Suggestion` 套 `Proposal`，现在 `action` / `target` / `args`
     直接在 `Proposal` 上），`ProposalSink`、`ProposalRepository`、`ProposalNotFoundError`。
+- **`Hook.run(ctx, occasion, params)`**：上下文放第一位；参数从上下文里拿出来单独传（和判断方式的 `criteria`
+  一样放最后），类型就是 `Hook[参数模型]` 的泛型参数，`HookContext` 因此不再是泛型。
 - **钩子按「作用域 × 是否提议」声明**（原第 12 条，取代四个类别）：
   - 两个正交的维度：直接作用于哪些**作用域**，能否**提议**（经 hil 审核后生效，影响哪块由提议的动作决定）。
   - 作用域：`external`（系统外部：报告、通知，直接生效；若有审核是外部模块自己的事）/ `event`（子事件：状态、关闭）/

@@ -59,7 +59,7 @@ class Recorder(Hook[NoParams]):
     def __init__(self, log: Log) -> None:
         self.log = log
 
-    def run(self, occasion: Occasion, ctx: HookContext[NoParams]) -> None:
+    def run(self, ctx: HookContext, occasion: Occasion, params: NoParams) -> None:
         self.log.calls.append((self.name, occasion.mount_point))
 
 
@@ -67,7 +67,7 @@ class Recorder(Hook[NoParams]):
 class Echo(Hook[NoParams]):
     """直接作用于子事件，挂在 status_updated：再次 update_status 用来验证不会无限递归。"""
 
-    def run(self, occasion: Occasion, ctx: HookContext[NoParams]) -> None:
+    def run(self, ctx: HookContext, occasion: Occasion, params: NoParams) -> None:
         ctx.event.update_status({"echoed": int(ctx.state.get("echoed", 0)) + 1})
 
 
@@ -75,7 +75,7 @@ class Echo(Hook[NoParams]):
 class Spotter(Hook[NoParams]):
     """只提议，挂在 pre：每条数据都提一个提议。"""
 
-    def run(self, occasion: Occasion, ctx: HookContext[NoParams]) -> None:
+    def run(self, ctx: HookContext, occasion: Occasion, params: NoParams) -> None:
         assert isinstance(occasion, ObservationOccasion)  # 只挂在 pre：一定是观测到达
         ctx.propose(
             Proposal(
@@ -89,7 +89,7 @@ class Spotter(Hook[NoParams]):
 
 @hook(mount_points=ALL_MOUNTS)
 class Boom(Hook[NoParams]):
-    def run(self, occasion: Occasion, ctx: HookContext[NoParams]) -> None:
+    def run(self, ctx: HookContext, occasion: Occasion, params: NoParams) -> None:
         raise RuntimeError("boom")
 
 

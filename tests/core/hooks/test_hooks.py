@@ -38,13 +38,11 @@ class FakeEvent:
 
 
 def context(
-    params: Any = None,
     state: dict[str, Any] | None = None,
     event: EventHandle | None = None,
     propose: Any = None,
-) -> HookContext[Any]:
+) -> HookContext:
     return HookContext(
-        params=params if params is not None else NoParams(),
         state=state or {},
         target_names={"t1:position": "东航 MU5101"},
         parent_id="p1",
@@ -118,7 +116,7 @@ def test_parent_and_target_scopes_only_through_proposals() -> None:
 
             @hook(mount_points={"pre"}, scopes={scope})  # type: ignore[arg-type]
             class Direct(Hook[NoParams]):  # pyright: ignore[reportUnusedClass]
-                def run(self, occasion: Occasion, ctx: HookContext[NoParams]) -> None:
+                def run(self, ctx: HookContext, occasion: Occasion, params: NoParams) -> None:
                     pass
 
 
@@ -127,7 +125,7 @@ def test_declaration_needs_mount_points() -> None:
 
         @hook(mount_points=[])
         class Nowhere(Hook[NoParams]):  # pyright: ignore[reportUnusedClass]
-            def run(self, occasion: Occasion, ctx: HookContext[NoParams]) -> None:
+            def run(self, ctx: HookContext, occasion: Occasion, params: NoParams) -> None:
                 pass
 
 
@@ -146,7 +144,7 @@ def test_registry() -> None:
 
 def test_undeclared_hook_rejected_at_register() -> None:
     class Bare(Hook[NoParams]):
-        def run(self, occasion: Occasion, ctx: HookContext[NoParams]) -> None:
+        def run(self, ctx: HookContext, occasion: Occasion, params: NoParams) -> None:
             pass
 
     with pytest.raises(TypeError, match="@hook"):
@@ -187,8 +185,8 @@ def test_count_hits_counts_and_asks_to_close() -> None:
     event = FakeEvent()
     params = CountHitsParams(threshold=2)
 
-    count_hits.run(RULE_HIT, context(params, {"hits": 0}, event.handle()))
-    count_hits.run(RULE_HIT, context(params, {"hits": 1}, event.handle()))
+    count_hits.run(context({"hits": 0}, event.handle()), RULE_HIT, params)
+    count_hits.run(context({"hits": 1}, event.handle()), RULE_HIT, params)
 
     assert event.patches == [{"hits": 1}, {"hits": 2}]
     assert event.close_reasons == ["converged"]

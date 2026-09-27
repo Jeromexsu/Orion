@@ -226,7 +226,6 @@ class Event:
         for mount in mounts:
             hook = mount.hook
             ctx = HookContext(
-                params=mount.params,
                 state=self._status,
                 target_names=self._target_names(),
                 parent_id=self._parent_id,
@@ -239,7 +238,7 @@ class Event:
                 propose=self._runtime.proposal_sink.receive if hook.proposes else None,
             )
             try:
-                hook.run(occasion, ctx)
+                hook.run(ctx, occasion, mount.params)
             except Exception:
                 logger.exception(
                     "hook %s failed at %s on event %s",

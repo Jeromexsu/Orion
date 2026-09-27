@@ -38,7 +38,7 @@
 | 提议 | `proposes=True` → `ctx.propose(...)` | 交给 hil，分析师确认后才执行；影响哪个作用域由提议的动作决定 |
 | 挂载 | `MountDef`（定义）/ `Mount`（编译后，`MountCompiler`） | 在某个挂载点挂一个钩子，带参数；编译成持有钩子实例和有类型参数的 `Mount` |
 | 调用时机 | `Occasion`（`CreatedOccasion` / `ObservationOccasion` / `RuleHitOccasion` / `StatusUpdatedOccasion` / `ClosedOccasion`） | 钩子为什么被调用：在哪个挂载点、当时发生了什么 |
-| 钩子上下文 | `HookContext` | 钩子运行时拿到的：参数、只读信息，以及声明过的能力（`ctx.event`、`ctx.propose`） |
+| 钩子上下文 | `HookContext` | 钩子运行时拿到的：只读信息，以及声明过的能力（`ctx.event`、`ctx.propose`）；参数不在里面，单独传给 `run` |
 
 ## 条件（condition_engine）
 

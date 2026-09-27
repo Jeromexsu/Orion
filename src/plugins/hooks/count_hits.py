@@ -15,9 +15,9 @@ class CountHitsParams(BaseModel):
 class CountHits(Hook[CountHitsParams]):
     """挂在 rule_hit：状态 hits +1，达到 threshold 时请求关闭（原因 "converged"）。"""
 
-    def run(self, occasion: Occasion, ctx: HookContext[CountHitsParams]) -> None:
+    def run(self, ctx: HookContext, occasion: Occasion, params: CountHitsParams) -> None:
         """Count one hit into the event's status; ask to close once the threshold is reached."""
         hits = int(ctx.state.get("hits", 0)) + 1
         ctx.event.update_status({"hits": hits})
-        if hits >= ctx.params.threshold:
+        if hits >= params.threshold:
             ctx.event.close("converged")

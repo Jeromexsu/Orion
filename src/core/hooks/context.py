@@ -2,14 +2,10 @@
 
 from collections.abc import Callable, Mapping
 from copy import deepcopy
-from typing import Any, Generic, TypeVar
-
-from pydantic import BaseModel
+from typing import Any
 
 from core.hil import Proposal
 from core.hooks.errors import UndeclaredCapabilityError
-
-P = TypeVar("P", bound=BaseModel)
 
 
 class EventHandle:
@@ -36,11 +32,10 @@ class EventHandle:
         self._request_close(reason)
 
 
-class HookContext(Generic[P]):
-    """Everything a hook gets besides the occasion.
+class HookContext:
+    """What a hook gets about the event it runs on, besides the occasion and its parameters.
 
-    Always available, read-only: the mount parameters, a copy of the event's
-    status, target display names and where it runs. Capabilities exist only if
+    Always available, read-only: a copy of the event's status, target display names and where it runs. Capabilities exist only if
     declared: ctx.event needs scopes={"event"}, ctx.propose needs proposes=True;
     using an undeclared one raises UndeclaredCapabilityError. The external scope
     has no capability here: output channels (reports, notifications) are injected
@@ -50,7 +45,6 @@ class HookContext(Generic[P]):
     def __init__(
         self,
         *,
-        params: P,
         state: Mapping[str, Any],
         target_names: Mapping[str, str],
         parent_id: str,
@@ -58,7 +52,6 @@ class HookContext(Generic[P]):
         event: EventHandle | None = None,
         propose: Callable[[Proposal], None] | None = None,
     ) -> None:
-        self.params = params                # the mount's parameters, validated at compile time
         self.state = deepcopy(dict(state))  # a copy: changing it does not change the event
         self.parent_id = parent_id
         self.event_id = event_id
