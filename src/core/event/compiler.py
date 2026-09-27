@@ -6,7 +6,7 @@ from core.condition_engine import (
 )
 from core.event.definitions import OperatorMountDef, TemplateDef
 from core.event.errors import TemplateCompileError
-from core.event.template import CompiledRule, EventTemplate
+from core.event.template import CompiledObservable, CompiledRule, EventTemplate
 from core.operators import OperatorError, OperatorRegistry
 from core.target import TargetError, TargetManager
 
@@ -31,7 +31,11 @@ class TemplateCompiler:
         交给条件引擎，因此条件只能引用已声明的观测，且判断方式需要的字段必须存在。
         """
         errors: list[str] = []
-        fields_by_observable = self._resolve_observables(template_def, errors)
+        observables = self._resolve_observables(template_def, errors)
+        fields_by_observable = {
+            c.observable.id: set(c.observable.observed_point.observation.model_fields)
+            for c in observables
+        }
 
         def compile_tree(where: str, condition_def: ConditionDef) -> ConditionTree | None:
             try:
@@ -74,16 +78,18 @@ class TemplateCompiler:
 
         if errors or open_tree is None:
             raise TemplateCompileError(errors)
-        return EventTemplate(template_def, open_tree, tuple(rules), tuple(template_hooks))
+        return EventTemplate(
+            template_def, observables, open_tree, tuple(rules), tuple(template_hooks)
+        )
 
     def _resolve_observables(
         self, template_def: TemplateDef, errors: list[str]
-    ) -> dict[str, set[str]]:
-        """解析可观测目标声明，返回「可观测目标 ID → 它的观测有哪些字段」。"""
-        fields_by_observable: dict[str, set[str]] = {}
+    ) -> tuple[CompiledObservable, ...]:
+        """解析可观测目标声明：目标与观察点存在、上游可用。"""
+        resolved: dict[str, CompiledObservable] = {}
         for o in template_def.observable_defs:
             where = f"observable_def {o.observable_id!r}"
-            if o.observable_id in fields_by_observable:
+            if o.observable_id in resolved:
                 errors.append(f"{where}: duplicate")
                 continue
             try:
@@ -97,9 +103,8 @@ class TemplateCompiler:
                     f"{where}: upstreams {unavailable} not in available "
                     f"{list(observable.upstreams)}"
                 )
-            observation_model = observable.observed_point.observation
-            fields_by_observable[observable.id] = set(observation_model.model_fields)
-        return fields_by_observable
+            resolved[observable.id] = CompiledObservable(observable, frozenset(o.upstreams))
+        return tuple(resolved.values())
 
     def _bind(
         self, mount: OperatorMountDef, where: str, errors: list[str]

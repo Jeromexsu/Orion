@@ -25,10 +25,11 @@ from core.event.repository import (
 )
 from core.event.runner import EventRunner
 from core.event.runtime import EventRuntime
-from core.event.template import CompiledRule, EventTemplate
+from core.event.template import CompiledObservable, CompiledRule, EventTemplate
 
 __all__ = [
     "CLOSE_STATUS_KEY",
+    "CompiledObservable",
     "CompiledRule",
     "DuplicateParentEventError",
     "EventError",

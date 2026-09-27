@@ -1,6 +1,18 @@
 from core.condition_engine import ConditionTree
 from core.event.definitions import ObservableDef, OperatorMountDef, TemplateDef
 from core.operators import MountPoint
+from core.target import ObservableTarget
+
+
+class CompiledObservable:
+    """编译后的可观测目标声明：解析好的可观测目标 + 要订阅的上游。
+
+    只引用可观测目标（由 TargetManager 保证单例），不改它的状态；订阅由 runner 执行。
+    """
+
+    def __init__(self, observable: ObservableTarget, upstreams: frozenset[str]) -> None:
+        self.observable = observable
+        self.upstreams = upstreams
 
 
 class CompiledRule:
@@ -13,16 +25,21 @@ class CompiledRule:
 
 
 class EventTemplate:
-    """编译好的模板：不可变、带版本，持有开启条件树和每条规则的条件树。由 TemplateCompiler 构造。"""
+    """编译好的模板：不可变、带版本。由 TemplateCompiler 构造。
+
+    持有解析好的可观测目标、开启条件树、每条规则的条件树和规范化后的算子挂载。
+    """
 
     def __init__(
         self,
         template_def: TemplateDef,
+        observables: tuple[CompiledObservable, ...],
         open_tree: ConditionTree,
         rules: tuple[CompiledRule, ...],
         hooks: tuple[OperatorMountDef, ...],
     ) -> None:
         self._template_def = template_def
+        self._observables = observables
         self._open_tree = open_tree
         self._rules = rules
         self._hooks = hooks
@@ -42,6 +59,11 @@ class EventTemplate:
     @property
     def observable_defs(self) -> tuple[ObservableDef, ...]:
         return tuple(self._template_def.observable_defs)
+
+    @property
+    def observables(self) -> tuple[CompiledObservable, ...]:
+        """解析好的可观测目标及要订阅的上游，runner 据此订阅。"""
+        return self._observables
 
     @property
     def open_tree(self) -> ConditionTree:

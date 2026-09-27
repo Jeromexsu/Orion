@@ -198,12 +198,11 @@ class EventRunner:
         self._on_change()
 
     def _subscribe(self) -> None:
-        """按当前模板的可观测目标声明订阅；不再需要的可观测目标 release。"""
+        """按模板里解析好的可观测目标订阅；新版本不再需要的可观测目标 release。"""
         subscribed: dict[str, ObservableTarget] = {}
-        for o in self._template.observable_defs:
-            observable = self._runtime.targets.get_observable(o.target_id, o.observed_point)
-            observable.acquire(self, o.upstreams)
-            subscribed[observable.id] = observable
+        for c in self._template.observables:
+            c.observable.acquire(self, c.upstreams)
+            subscribed[c.observable.id] = c.observable
         for oid, observable in self._observables.items():
             if oid not in subscribed:
                 observable.release(self)
