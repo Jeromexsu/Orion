@@ -92,6 +92,31 @@ since 之前的不返回），等往外分插件任务时再搭。
 不再可用的移出，已有的订阅关系保留（collector 只采集「可用且有人订阅」的上游，自然停采，目标记录恢复后自动恢复）。
 改动只在 `upsert_target` / `rebind_target` 两处。
 
+### 10. 判断方式的 `requires` 靠字段名对齐观测
+
+**发现于**：审阅 `OnEnter` 时。**状态**：已记下，暂不改；出现第二个观察点并需要复用同一判断方式时再做。
+
+`Evaluator.requires` 是字段名字符串（如 `{"lat", "lon"}`），编写者得知道观测里字段恰好叫这个名字。写错不会静默——
+模板编译时报 `lacks fields`——但不同观察点对同一语义命名不同（`lat` / `latitude`）时，判断方式无法复用。
+
+可能的做法：仿照查询键，用观测的公共基类表达「能力」：
+
+```python
+class HasPosition(Observation):          # 能力：有经纬度
+    lat: float
+    lon: float
+
+class PositionObservation(HasPosition): ...
+class OnEnter(Evaluator[...]):
+    requires = HasPosition               # 要求一个类，不是一串字段名
+```
+
+编译时改为 `issubclass(观测类, HasPosition)`，靠 import 对齐；判断方式里可把观测当 `HasPosition` 用，类型检查器看得懂。
+待定点：
+- 能力怎么划分（位置、高度、速度……），划错了改起来费事；
+- 通用型判断方式（如「某字段大于某值」）字段名在判定标准里，需另加编译时检查（判定标准里的字段存在于观测类）；
+- 可为空字段（`altitude_m: float | None`）继承只保证「有这个字段」，运行时「为空则不适用」的检查仍要保留。
+
 ### 8. 其他（随审阅推进逐条确认）
 
 - 模板 ID 全局还是按父事件区分（现为全局：`TemplateRepository` 只按 template_id 存取）。
