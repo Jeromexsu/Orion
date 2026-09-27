@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from core.condition_engine import HIT
 from core.event.errors import EventClosedError
-from core.event.records import EventRecord
+from core.event.repository import EventRecord
 from core.event.runtime import EventRuntime
 from core.event.template import EventTemplate
 from core.hooks import (

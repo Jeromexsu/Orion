@@ -7,7 +7,7 @@ from core.event.errors import (
     TemplateNotFoundError,
     TemplateScopeError,
 )
-from core.event.records import ParentEventRecord
+from core.event.repository import ParentEventRecord
 from core.event.runner import EventRunner
 from core.event.runtime import EventRuntime, ParentEventServices
 from core.event.template import EventTemplate

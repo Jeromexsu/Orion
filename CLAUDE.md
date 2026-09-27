@@ -48,7 +48,8 @@ def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list
     bootstrap 注册，之后只读，注入给用它的一方。按它装的东西命名：目标类型的插件是类（`Aircraft`），所以叫
     `TargetTypeRegistry`，不叫 `TargetRegistry`（目标是这些类的实例，是数据，归 `TargetManager`）；其余插件是实例
     （`UpstreamAdapterRegistry`、`EvaluatorRegistry`、`HookRegistry`）。
-  - `*Repository`：只管数据怎么存取，协议定义在 core，由 repo 层实现。
+  - `*Repository`：只管数据怎么存取，协议定义在 core，由 repo 层实现。协议和它收发的持久化记录（`*Record`）是同一份契约，
+    放在同一个 `repository.py` 里（端口 + 它的数据类型）。
   - `*Compiler`：把纯数据定义编译成运行时对象，无状态（`TemplateCompiler`、`ConditionCompiler`、`MountCompiler`）。
 - 行为类用普通类，跨 JSON 边界的纯数据用 Pydantic，不用 dataclass。
 

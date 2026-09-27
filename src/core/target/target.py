@@ -1,4 +1,4 @@
-"""目标基类与持久化记录。"""
+"""目标基类与目标类型的声明（@target_type）。持久化记录见 repository.py。"""
 
 import builtins
 from collections.abc import Callable, Iterable
@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 
 from core.observation import ObservedPoint, observed_point_name
 from core.target.query_key import QueryKey, query_key_name, validate_query_value
+from core.target.repository import TargetRecord
 
 _BASE_FIELDS = frozenset({"id", "type", "name", "aliases"})
 
@@ -97,7 +98,7 @@ class Target(BaseModel):
         """子类声明的属性字段（不含基类字段），持久化用。"""
         return self.model_dump(exclude=set(_BASE_FIELDS))
 
-    def to_record(self) -> "TargetRecord":
+    def to_record(self) -> TargetRecord:
         """转成与类型无关的持久化记录：子类属性字段收进 attributes。from_record 是它的逆操作。"""
         return TargetRecord(
             id=self.id,
@@ -108,7 +109,7 @@ class Target(BaseModel):
         )
 
     @classmethod
-    def from_record(cls, record: "TargetRecord") -> Self:
+    def from_record(cls, record: TargetRecord) -> Self:
         """Rebuild the target from its type-agnostic record; the inverse of to_record.
 
         Call it on the target type named by record.type (looked up in TargetTypeRegistry).
@@ -125,21 +126,6 @@ class Target(BaseModel):
                 **record.attributes,
             }
         )
-
-
-class TargetRecord(BaseModel):
-    """目标的持久化形态：与具体类型无关，持久化层不需要认识插件。
-
-    按 type 找到对应的 Target 子类，再用它的 from_record 还原。
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    id: str
-    type: str
-    name: str
-    aliases: list[str] = Field(default_factory=list[str])
-    attributes: dict[str, Any] = Field(default_factory=dict[str, Any])
 
 
 T = TypeVar("T", bound=Target)

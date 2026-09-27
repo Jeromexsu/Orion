@@ -1,13 +1,53 @@
-"""event 模块的仓库接口，由 persistence 层实现，bootstrap 时注入。
+"""event 模块和 repo 层之间的契约：持久化记录 + 仓库接口（由 persistence 层实现，bootstrap 时注入）。
 
 与设计文档第九节的差别：仓库读写的是纯数据记录，而不是活对象——
-活对象依赖条件引擎、钩子注册表等运行时组件，持久化层不该去构造它们。
+活对象依赖条件引擎、钩子注册表等运行时组件，持久化层不该去构造它们。活对象由 ParentEventManager 从记录重建。
 """
 
+from datetime import datetime
 from typing import Any, Protocol
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from core.event.definitions import TemplateDef
-from core.event.records import EventRecord, ParentEventRecord
+
+
+class TemplateRef(BaseModel):
+    """父事件记录里对一个模板的引用：用哪个版本，有没有挂起的新版本。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    template_id: str
+    version: int                        # 当前运行的版本
+    pending_version: int | None = None  # 已发布、等当前子事件关闭后生效的新版本
+
+
+class ParentEventRecord(BaseModel):
+    """父事件是静态的：目标命名空间 + 模板集合。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    name: str
+    targets: list[str] = Field(default_factory=list[str])   # 目标命名空间（target_id）
+    templates: list[TemplateRef] = Field(default_factory=list[TemplateRef])
+
+
+class EventRecord(BaseModel):
+    """子事件的持久化记录。closed_at 为空即活跃。"""
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    parent_id: str
+    template_id: str
+    template_version: int
+    cycle: int                                      # 周期标识：触发开启的那条数据发生的年份
+    condition_state: dict[str, dict[str, Any]]      # 规则名 → 条件树状态，钩子不可见
+    hook_state: dict[str, dict[str, Any]]           # 挂载名 → 那个挂载的钩子状态
+    opened_at: datetime
+    closed_at: datetime | None = None
+    close_reason: str | None = None
 
 
 class ParentEventRepository(Protocol):

@@ -1,8 +1,24 @@
-"""target 模块的仓库接口，由 persistence 层实现，bootstrap 时注入。"""
+"""target 模块和 repo 层之间的契约：持久化记录 + 仓库接口（由 persistence 层实现，bootstrap 时注入）。"""
 
-from typing import Protocol
+from typing import Any, Protocol
 
-from core.target.target import TargetRecord
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class TargetRecord(BaseModel):
+    """目标的持久化形态：与具体类型无关，持久化层不需要认识插件。
+
+    按 type 找到对应的 Target 子类，再用它的 from_record 还原。
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    type: str
+    name: str
+    aliases: list[str] = Field(default_factory=list[str])
+    attributes: dict[str, Any] = Field(default_factory=dict[str, Any])
+
 
 
 class TargetRepository(Protocol):

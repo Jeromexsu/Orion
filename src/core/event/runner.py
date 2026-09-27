@@ -6,7 +6,7 @@ from typing import Any
 from core.condition_engine import HIT
 from core.event.errors import TemplateVersionError
 from core.event.event import Event
-from core.event.records import EventRecord, TemplateRef
+from core.event.repository import EventRecord, TemplateRef
 from core.event.runtime import EventRuntime
 from core.event.template import EventTemplate
 from core.observable import ObservableTarget
