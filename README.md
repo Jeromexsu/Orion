@@ -309,7 +309,7 @@ graph LR
 
 ```mermaid
 graph LR
-  CD["ConditionDef<br/>LeafDef / BranchDef（纯数据）"] -->|"ConditionCompiler.compile(def, observation_types)"| CT["ConditionTree<br/>BranchNode / LeafNode"]
+  CD["ConditionDef<br/>LeafDef / BranchDef（纯数据）"] -->|"ConditionCompiler.compile(def, declared_observables)"| CT["ConditionTree<br/>BranchNode / LeafNode"]
   CT -->|"evaluate(envelope, state)"| ER["EvalResult<br/>命中 / 未命中 / 不适用 + 新状态"]
   LN["LeafNode"] -->|调用| EV["Evaluator<br/>唯一扩展点"]
 ```
@@ -331,7 +331,7 @@ graph LR
 
 | 使用方 | 窗口 | 时机 |
 |---|---|---|
-| event · 模板编译器 | `ConditionCompiler.compile(condition_def, observation_types)` | 编译时：定义 → 条件树；错误收集后一次抛出，每条带节点路径（如 `root/1/0`） |
+| event · 模板编译器 | `ConditionCompiler.compile(condition_def, declared_observables)` | 编译时：定义 → 条件树；错误收集后一次抛出，每条带节点路径（如 `root/1/0`） |
 | event · runner / 子事件 | `ConditionTree.evaluate(envelope, state)` | 运行时：纯函数求值；结果的 `state` 是整棵树的新状态（`None` = 没变），调用方保管 |
 | bootstrap | `EvaluatorRegistry.register` | 启动时注册判断方式 |
 | 跨模块传递的纯数据 | `ConditionDef`（`LeafDef` / `BranchDef`）、`EvalResult`（`HIT` / `MISS` / `NOT_APPLICABLE`） | — |

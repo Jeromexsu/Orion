@@ -32,11 +32,11 @@ class TemplateCompiler:
         因此被拒绝的模板不会留下可观测目标。
         """
         errors: list[str] = []
-        observation_types = self._check_observables(template_def, errors)
+        declared_observables = self._check_observables(template_def, errors)
 
         def compile_tree(where: str, condition_def: ConditionDef) -> ConditionTree | None:
             try:
-                return self._condition_compiler.compile(condition_def, observation_types)
+                return self._condition_compiler.compile(condition_def, declared_observables)
             except ConditionCompileError as e:
                 errors.extend(f"{where}: {msg}" for msg in e.errors)
                 return None
@@ -84,10 +84,10 @@ class TemplateCompiler:
         self, template_def: TemplateDef, errors: list[str]
     ) -> dict[str, type[Observation]]:
         """校验可观测目标声明（不创建可观测目标），返回「可观测目标 ID → 它产出的观测类」。"""
-        observation_types: dict[str, type[Observation]] = {}
+        declared_observables: dict[str, type[Observation]] = {}
         for o in template_def.observable_defs:
             where = f"observable_def {o.observable_id!r}"
-            if o.observable_id in observation_types:
+            if o.observable_id in declared_observables:
                 errors.append(f"{where}: duplicate")
                 continue
             try:
@@ -100,8 +100,8 @@ class TemplateCompiler:
             unavailable = sorted(set(o.upstreams) - set(available))
             if unavailable:
                 errors.append(f"{where}: upstreams {unavailable} not in available {list(available)}")
-            observation_types[o.observable_id] = point.observation
-        return observation_types
+            declared_observables[o.observable_id] = point.observation
+        return declared_observables
 
     def _compile_observables(self, template_def: TemplateDef) -> tuple[CompiledObservable, ...]:
         """全部校验通过后调用：取得（必要时创建）可观测目标，组装 runner 要订阅的项。"""

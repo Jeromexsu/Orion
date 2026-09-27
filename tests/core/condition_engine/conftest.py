@@ -30,10 +30,10 @@ def parse(raw: dict[str, Any]) -> ConditionDef:
 def compile_(
     compiler: ConditionCompiler,
     raw: dict[str, Any],
-    observation_types: dict[str, type[Observation]] | None = None,
+    declared_observables: dict[str, type[Observation]] | None = None,
 ) -> ConditionTree:
     return compiler.compile(
-        parse(raw), OBSERVATION_TYPES if observation_types is None else observation_types
+        parse(raw), DECLARED_OBSERVABLES if declared_observables is None else declared_observables
     )
 
 
@@ -92,7 +92,7 @@ class WithoutAltitude(Observation):
 
 
 # 可引用的可观测目标及其观测类：t1:position 有 lat/lon/alt；t2:position 只有 lat/lon
-OBSERVATION_TYPES: dict[str, type[Observation]] = {
+DECLARED_OBSERVABLES: dict[str, type[Observation]] = {
     "t1:position": WithAltitude,
     "t2:position": WithoutAltitude,
 }

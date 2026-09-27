@@ -8,7 +8,7 @@ from core.condition_engine.registry import EvaluatorRegistry
 from core.condition_engine.tree import BranchNode, ConditionNode, ConditionTree, LeafNode
 from core.target import Observation
 
-ObservationTypes = Mapping[str, type[Observation]]
+DeclaredObservables = Mapping[str, type[Observation]]
 """Observable target ID (e.g. "t1:position") -> the observation class it produces.
 
 Carries two things: the keys are the scope a condition may refer to (the observable
@@ -24,7 +24,7 @@ class ConditionCompiler:
     输入必须是已解析好的静态定义；JSON → ConditionDef 属于边界（API 层 / 持久化层）的职责，
     由 Pydantic 完成。
 
-    可用的可观测目标及其观测类由调用方传入（observation_types），条件引擎不去查询 target 模块，
+    可用的可观测目标及其观测类由调用方传入（declared_observables），条件引擎不去查询 target 模块，
     字段由观测类自己描述。校验：判断方式存在、引用的可观测目标已声明、它的观测有判断方式需要的字段、判定标准合法。
     """
 
@@ -32,7 +32,7 @@ class ConditionCompiler:
         self._evaluator_registry = evaluator_registry
 
     def compile(
-        self, condition_def: ConditionDef, observation_types: ObservationTypes
+        self, condition_def: ConditionDef, declared_observables: DeclaredObservables
     ) -> ConditionTree:
         """Compile and validate a whole condition into a ConditionTree.
 
@@ -42,7 +42,7 @@ class ConditionCompiler:
 
         Args:
             condition_def: The parsed condition definition.
-            observation_types: The observable targets the condition may refer to, each
+            declared_observables: The observable targets the condition may refer to, each
                 with the observation class it produces; supplied by the caller (the
                 template compiler) so the engine never queries the target module.
 
@@ -54,7 +54,7 @@ class ConditionCompiler:
                 (e.g. "root/1/0: ...").
         """
         errors: list[str] = []
-        root = self._compile(condition_def, observation_types, "root", errors)
+        root = self._compile(condition_def, declared_observables, "root", errors)
         if errors or root is None:
             raise ConditionCompileError(errors)
         return ConditionTree(root)
@@ -62,18 +62,18 @@ class ConditionCompiler:
     def _compile(
         self,
         condition_def: ConditionDef,
-        observation_types: ObservationTypes,
+        declared_observables: DeclaredObservables,
         path: str,
         errors: list[str],
     ) -> ConditionNode | None:
         if isinstance(condition_def, BranchDef):
-            return self._compile_branch(condition_def, observation_types, path, errors)
-        return self._compile_leaf(condition_def, observation_types, path, errors)
+            return self._compile_branch(condition_def, declared_observables, path, errors)
+        return self._compile_leaf(condition_def, declared_observables, path, errors)
 
     def _compile_branch(
         self,
         branch_def: BranchDef,
-        observation_types: ObservationTypes,
+        declared_observables: DeclaredObservables,
         path: str,
         errors: list[str],
     ) -> ConditionNode | None:
@@ -83,7 +83,7 @@ class ConditionCompiler:
             errors.append(f"{path}: '{branch_def.op}' needs at least one child")
 
         children = [
-            self._compile(child_def, observation_types, f"{path}/{i}", errors)
+            self._compile(child_def, declared_observables, f"{path}/{i}", errors)
             for i, child_def in enumerate(branch_def.children)
         ]
         compiled = [c for c in children if c is not None]
@@ -94,7 +94,7 @@ class ConditionCompiler:
     def _compile_leaf(
         self,
         leaf_def: LeafDef,
-        observation_types: ObservationTypes,
+        declared_observables: DeclaredObservables,
         path: str,
         errors: list[str],
     ) -> ConditionNode | None:
@@ -105,7 +105,7 @@ class ConditionCompiler:
             return None
 
         ok = True
-        observation_type = observation_types.get(leaf_def.observable)
+        observation_type = declared_observables.get(leaf_def.observable)
         if observation_type is None:
             errors.append(f"{path}: unknown observable {leaf_def.observable!r}")
             ok = False
