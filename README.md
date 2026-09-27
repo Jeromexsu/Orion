@@ -55,7 +55,7 @@ graph BT
 ```
 
 - 最底层：target、hil、report，不依赖其他 core 模块。
-- event 不直接依赖 collector（数据由 Dispatcher 推给 runner）和 hil（建议经注入的 SuggestionSink 流出）。
+- event 不直接依赖 collector（数据由可观测目标 publish 给订阅它的 runner）和 hil（建议经注入的 SuggestionSink 流出）。
 - 各模块之间的接口（如 `UpstreamCatalog`、`SuggestionSink`）定义在使用方，由提供方结构化实现，
   在 `bootstrap.py` 里装配。
 
@@ -66,7 +66,6 @@ sequenceDiagram
   participant C as Collector
   participant A as UpstreamAdapter（上游）
   participant O as ObservableTarget
-  participant D as Dispatcher
   participant R as EventRunner
   participant E as Event
 
@@ -75,8 +74,8 @@ sequenceDiagram
   A-->>C: FetchedRecord（观测实例 + 来源信息）
   C->>O: accepts(observation)（观测类型是否与观察点一致）
   Note over C: 包成 ObservationEnvelope，去重、落库、推进游标
-  C->>D: dispatch(observable, envelope)
-  D->>R: on_observation(envelope)（只给订阅了该上游的 runner）
+  C->>O: publish(envelope)（按发生时间顺序）
+  O->>R: on_observation(envelope)（只给订阅了该上游的 runner，逐个隔离异常）
   R->>R: 评估开启条件，更新并持久化其状态
   alt 无活跃子事件且开启条件命中
     R->>E: Event.open(...)（新周期）
@@ -93,7 +92,7 @@ sequenceDiagram
 | `Observation` 子类（如 `PositionObservation`） | 观测：观察点返回的数据，字段即形状 | 开发者（和观察点放在一起） |
 | `QueryKey` 子类（如 `Icao24`） | 查询键：拿什么去查一个目标，名字 + 取值的类型与格式 | 开发者（`plugins/query_keys/`） |
 | `UpstreamAdapter`（上游） | 接入一个数据提供方（上游，如 OpenSky）：服务哪些观察点（`observed_points`，可多个）、支持哪些查询方式（`query_key_sets`，每种是一组查询键，目标能提供其一即可），把查询键翻译成上游 API、把响应翻译成观测 | 开发者（`plugins/upstream_adapters/`） |
-| `ObservableTarget`（obs） | 目标实例 + 观察点 + 可用上游，全局唯一；订阅者按上游订阅，它按上游路由数据 | `TargetManager` 按需创建 |
+| `ObservableTarget`（obs） | 目标实例 + 观察点 + 可用上游，全局唯一；订阅者按上游订阅（`subscribe`），它把观测发布（`publish`）给订阅了该上游的订阅者 | `TargetManager` 按需创建 |
 | `ObservationEnvelope` | 观测的外壳：来源信息（可观测目标、上游、发生时间、去重 ID）+ 观测实例 | collector 产出 |
 
 ```mermaid

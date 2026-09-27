@@ -114,3 +114,21 @@ def test_envelope_serializes_the_concrete_observation() -> None:
     assert isinstance(envelope.observation, PositionObservation)
     # 字段类型写的是基类 Observation，序列化时仍按实际类型输出全部字段
     assert envelope.model_dump()["observation"] == {"lat": 1.0, "lon": 2.0, "altitude_m": None}
+
+
+def test_publish_rejects_foreign_envelopes(manager: TargetManager, plane: Target) -> None:
+    obs = manager.get_observable(plane.id, "position")
+
+    def envelope(observable_id: str, upstream: str) -> ObservationEnvelope:
+        return ObservationEnvelope(
+            observable_id=observable_id,
+            upstream=upstream,
+            observation=PositionObservation(lat=0, lon=0),
+            occurred_at=datetime(2026, 9, 1, tzinfo=UTC),
+            source_id="x",
+        )
+
+    with pytest.raises(ValueError, match="cannot publish"):
+        obs.publish(envelope("other:position", "adsb"))
+    with pytest.raises(ValueError, match="no upstream"):
+        obs.publish(envelope(obs.id, "satellite"))

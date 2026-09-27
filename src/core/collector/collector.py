@@ -1,7 +1,6 @@
 import logging
 from datetime import datetime
 
-from core.collector.dispatcher import Dispatcher
 from core.collector.registry import UpstreamAdapterRegistry
 from core.collector.repository import CursorRepository, ObservationRepository
 from core.target import ObservableTarget, ObservationEnvelope, TargetManager
@@ -21,13 +20,11 @@ class Collector:
         upstream_adapter_registry: UpstreamAdapterRegistry,
         cursor_repository: CursorRepository,
         observation_repository: ObservationRepository,
-        dispatcher: Dispatcher,
     ) -> None:
         self._target_manager = target_manager
         self._upstream_adapter_registry = upstream_adapter_registry
         self._cursor_repository = cursor_repository
         self._observation_repository = observation_repository
-        self._dispatcher = dispatcher
 
     def collect(self) -> list[ObservationEnvelope]:
         """对所有活跃的可观测目标采集一轮，返回本轮新落库的观测。
@@ -43,9 +40,19 @@ class Collector:
         return collected
 
     def collect_one(self, observable: ObservableTarget) -> list[ObservationEnvelope]:
-        """采集一个可观测目标，返回新落库的观测。
+        """Collect new observations of one observable target from its active upstreams.
 
-        只拉有人订阅的上游，每个上游用自己的游标；全部上游拉完后按发生时间排序再分发。
+        Active upstreams are those with at least one subscriber. Each is collected
+        with its own cursor; an upstream that raises is logged and skipped without
+        affecting the others. After all active upstreams are done, the new
+        observations are published in occurred_at order through the observable
+        target, which delivers each to the subscribers of its upstream.
+
+        Args:
+            observable: The observable target to collect for.
+
+        Returns:
+            Newly stored envelopes from all active upstreams, sorted by occurred_at.
         """
         new: list[ObservationEnvelope] = []
         for upstream in observable.active_upstreams():
@@ -54,8 +61,9 @@ class Collector:
             except Exception:
                 logger.exception("upstream %s failed for %s", upstream, observable.id)
 
-        for envelope in sorted(new, key=lambda e: e.occurred_at):
-            self._dispatcher.dispatch(observable, envelope)
+        new.sort(key=lambda e: e.occurred_at)
+        for envelope in new:
+            observable.publish(envelope)
         return new
 
     def _collect_upstream(
@@ -64,7 +72,7 @@ class Collector:
         """Collect new observations of one observable target from one upstream.
 
         Stores them in the observation repository and advances the cursor of this
-        (observable target, upstream) pair. Does not dispatch: collect_one dispatches
+        (observable target, upstream) pair. Does not publish: collect_one publishes
         once all upstreams of the observable target are done. Skips records already
         stored (same source_id) and records whose observation does not match the
         observable target's observed point.

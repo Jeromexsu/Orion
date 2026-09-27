@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterable, Sequence
 from typing import Protocol
 
@@ -6,9 +7,11 @@ from core.target.errors import UnsupportedObservedPointError, UnsupportedUpstrea
 from core.target.observed_point import Observation, ObservedPoint
 from core.target.target import Target
 
+logger = logging.getLogger(__name__)
+
 
 class Subscriber(Protocol):
-    """订阅 ObservableTarget 的对象（即运行中的子事件模板 EventRunner），由 Dispatcher 回调。
+    """订阅 ObservableTarget 的对象（即运行中的子事件模板 EventRunner），由 ObservableTarget.publish 回调。
 
     实现类必须按身份哈希（普通类默认如此）。
     """
@@ -104,6 +107,37 @@ class ObservableTarget:
     def subscribers_for(self, upstream: str) -> frozenset[Subscriber]:
         """订阅了该上游的订阅者快照；回调期间有人 unsubscribe 也不影响遍历。"""
         return frozenset(r for r, ups in self._subscriptions.items() if upstream in ups)
+
+    def publish(self, envelope: ObservationEnvelope) -> int:
+        """Publish an observation to the subscribers of its upstream.
+
+        Only subscribers that subscribed to envelope.upstream receive it. Each
+        subscriber is called in turn and isolated: one that raises is logged and
+        does not stop the others. Iterates over a snapshot, so a subscriber may
+        unsubscribe during the callback.
+
+        Args:
+            envelope: An observation of this observable target.
+
+        Returns:
+            Number of subscribers that raised.
+
+        Raises:
+            ValueError: If the envelope belongs to another observable target or
+                comes from an upstream this observable target does not have.
+        """
+        if envelope.observable_id != self.id:
+            raise ValueError(f"{self.id} cannot publish an envelope of {envelope.observable_id}")
+        if envelope.upstream not in self._upstreams:
+            raise ValueError(f"{self.id} has no upstream {envelope.upstream!r}")
+        failures = 0
+        for subscriber in self.subscribers_for(envelope.upstream):
+            try:
+                subscriber.on_observation(envelope)
+            except Exception:
+                failures += 1
+                logger.exception("subscriber %r failed on %s", subscriber, envelope.source_id)
+        return failures
 
     def active_upstreams(self) -> tuple[str, ...]:
         """至少有一个订阅者的上游，按可用上游的顺序。collector 只采集这些。"""

@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Any
 
-from core.collector import Collector, Dispatcher, UpstreamAdapterRegistry
+from core.collector import Collector, UpstreamAdapterRegistry
 from core.target import TargetManager
 from plugins.observed_points.position import Position, PositionObservation
 from plugins.query_keys.icao24 import Icao24
@@ -70,7 +70,7 @@ def test_collector_end_to_end() -> None:
         Aircraft(id="t1", name="MU5101", registration="B-2447", icao24="780a3b")
     )
     collector = Collector(
-        manager, registry, InMemoryCursorRepository(), InMemoryObservationRepository(), Dispatcher()
+        manager, registry, InMemoryCursorRepository(), InMemoryObservationRepository()
     )
 
     observable = manager.get_observable("t1", "position")

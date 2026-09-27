@@ -16,6 +16,7 @@
 | 上游适配器 | `UpstreamAdapter` 的子类（如 `OpenSkyAdapter`） | 接入一个上游的插件，`name` 就是上游名：声明服务哪些观察点（`observed_points`）、支持哪些查询方式（`query_key_sets`）；把查询键翻译成上游 API 的参数（如 `Icao24` → `ICAO`），把上游响应翻译成观测 |
 | 可观测目标（obs） | `ObservableTarget` | 封装好的「具体目标 + 一个观察点」，ID 形如 `t1:position`；持有全部可用上游（服务该观察点且目标能提供其某种查询方式的上游）和订阅关系，全局唯一，由 `TargetManager` 创建 |
 | 订阅 | `ObservableTarget.subscribe(订阅者, 上游集合)` | 订阅者指定要哪些上游；可观测目标按上游把数据路由给订阅者 |
+| 发布 | `ObservableTarget.publish(观测外壳)` | 可观测目标把一条观测推给订阅了其上游的订阅者，逐个隔离异常；collector 采集后调用 |
 | 观测外壳 | `ObservationEnvelope` | 一次观测连同来源信息：`observable_id`、`upstream`、`observation`（观测实例）、`occurred_at`、`source_id`、`raw`。collector 产出，在采集 → 分发 → 条件判断的管道里流动 |
 
 注意区分 **obs**（可观测目标，长期存在的对象）、**observation**（观测，观察点返回的数据）与 **envelope**（观测外壳，观测加来源信息）。「动态数据」一词已不再使用。

@@ -1,8 +1,8 @@
-"""端到端：collector 采集 → Dispatcher → runner（开启条件）→ 实例（规则 → 推进算子）→ 收敛。"""
+"""端到端：collector 采集 → 可观测目标 publish → runner（开启条件）→ 实例（规则 → 推进算子）→ 收敛。"""
 
 from datetime import UTC, datetime
 
-from core.collector import Collector, Dispatcher, FetchedRecord, UpstreamAdapterRegistry
+from core.collector import Collector, FetchedRecord, UpstreamAdapterRegistry
 from core.event import TemplateDef
 from plugins.observed_points.position import PositionObservation
 from tests.core.collector.fakes import (
@@ -23,7 +23,6 @@ def test_collect_drives_sub_event_to_close() -> None:
         upstream_adapter_registry,
         InMemoryCursorRepository(),
         InMemoryObservationRepository(),
-        Dispatcher(),
     )
 
     parent = env.parent_events.create("p1", "东海方向")

@@ -4,7 +4,6 @@ import pytest
 
 from core.collector import (
     Collector,
-    Dispatcher,
     DuplicateUpstreamAdapterError,
     FetchedRecord,
     Query,
@@ -78,7 +77,7 @@ class Env:
         self.cursors = InMemoryCursorRepository()
         self.observations = InMemoryObservationRepository()
         self.collector = Collector(
-            self.manager, self.registry, self.cursors, self.observations, Dispatcher()
+            self.manager, self.registry, self.cursors, self.observations
         )
 
     def observable(self) -> ObservableTarget:
@@ -140,7 +139,7 @@ def test_inactive_observables_are_not_collected(env: Env) -> None:
     assert env.adsb.calls == []
 
 
-def test_collect_validates_dedups_persists_and_dispatches(env: Env) -> None:
+def test_collect_validates_dedups_persists_and_publishes(env: Env) -> None:
     sub = Subscriber()
     env.observable().subscribe(sub, ["adsb"])
     env.adsb.records = [
@@ -194,14 +193,15 @@ def test_subscriber_failure_is_isolated(env: Env) -> None:
     assert env.cursors.get("t1:position", "adsb") == at(1).isoformat()
 
 
-def test_dispatcher_counts_failures(env: Env) -> None:
+def test_publish_isolates_failing_subscribers(env: Env) -> None:
     class Broken:
         def on_observation(self, envelope: ObservationEnvelope) -> None:
             raise RuntimeError("boom")
 
     obs = env.observable()
+    good = Subscriber()
     obs.subscribe(Broken(), ["adsb"])
-    obs.subscribe(Subscriber(), ["adsb"])
+    obs.subscribe(good, ["adsb"])
     envelope = ObservationEnvelope(
         observable_id=obs.id,
         upstream="adsb",
@@ -209,7 +209,8 @@ def test_dispatcher_counts_failures(env: Env) -> None:
         occurred_at=at(0),
         source_id="x",
     )
-    assert Dispatcher().dispatch(obs, envelope) == 1
+    assert obs.publish(envelope) == 1
+    assert good.received == [envelope]
 
 
 def test_only_subscribed_upstreams_are_fetched_and_routed(env: Env) -> None:
@@ -311,7 +312,7 @@ def test_one_adapter_serves_several_observed_points() -> None:
     manager.upsert_target(Tanker(id="k1", name="x", registration="B-1"))
     cursors = InMemoryCursorRepository()
     collector = Collector(
-        manager, registry, cursors, InMemoryObservationRepository(), Dispatcher()
+        manager, registry, cursors, InMemoryObservationRepository()
     )
 
     position, fuel = manager.get_observable("k1", "position"), manager.get_observable("k1", "fuel")

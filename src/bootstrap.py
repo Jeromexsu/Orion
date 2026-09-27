@@ -9,7 +9,6 @@ from typing import Any
 from core.collector import (
     Collector,
     CursorRepository,
-    Dispatcher,
     ObservationRepository,
     UpstreamAdapterRegistry,
 )
@@ -105,7 +104,6 @@ def build_app(repos: Repositories) -> App:
         upstream_adapter_registry,
         repos.cursor_repository,
         repos.observation_repository,
-        Dispatcher(),
     )
 
     evaluator_registry = EvaluatorRegistry()
