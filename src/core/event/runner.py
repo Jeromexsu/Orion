@@ -149,6 +149,7 @@ class EventRunner:
                 self.target_names,
                 cycle=envelope.occurred_at.year,
             )
+            self._active = processor
         # hand over to active processer
         processor.process(envelope)
         self._runtime.event_repository.save(processor.to_record())
