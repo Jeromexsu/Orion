@@ -1,4 +1,11 @@
-"""采集：Adapter / AdapterRegistry / Collector / Dispatcher。只依赖 target。"""
+"""采集：从上游拉取观测，落库并分发给订阅者。
+
+负责：按可观测目标的活跃上游拉取 → 解析成观测 → 去重 → 落库 → 推进游标 → 分发。
+对外：Collector（定时调用 collect）；AdapterRegistry（注册上游，同时充当 target 的 UpstreamCatalog）；
+      Adapter 是上游插件要实现的接口。
+依赖：target。
+扩展点：plugins/collector/ 下实现 Adapter。
+"""
 
 from core.collector.adapter import Adapter, FetchedRecord
 from core.collector.collector import Collector

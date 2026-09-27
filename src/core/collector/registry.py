@@ -10,17 +10,20 @@ class AdapterRegistry:
         self._adapters: dict[str, Adapter] = {}
 
     def register(self, adapter: Adapter) -> None:
+        """注册一个上游。名字重复抛 DuplicateAdapterError。"""
         if adapter.name in self._adapters:
             raise DuplicateAdapterError(adapter.name)
         self._adapters[adapter.name] = adapter
 
     def get(self, name: str) -> Adapter:
+        """上游名 → Adapter。未注册抛 UnknownAdapterError。"""
         try:
             return self._adapters[name]
         except KeyError:
             raise UnknownAdapterError(name) from None
 
     def adapters(self) -> list[Adapter]:
+        """已注册的全部 Adapter。"""
         return list(self._adapters.values())
 
     # UpstreamCatalog

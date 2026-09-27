@@ -32,7 +32,10 @@ class Collector:
         self._dispatcher = dispatcher
 
     def collect(self) -> list[ObservationEnvelope]:
-        """采集一轮，返回本轮新落库的数据。单个目标或上游失败不影响其他。"""
+        """对所有活跃的可观测目标采集一轮，返回本轮新落库的观测。
+
+        写观测库、推进游标、分发给订阅者。单个目标或上游失败只记日志，不影响其他。
+        """
         collected: list[ObservationEnvelope] = []
         for observable in self._target_manager.active_observables():
             try:
@@ -42,7 +45,10 @@ class Collector:
         return collected
 
     def collect_one(self, observable: ObservableTarget) -> list[ObservationEnvelope]:
-        """只拉有人订阅的上游，每个上游用自己的游标。"""
+        """采集一个可观测目标，返回新落库的观测。
+
+        只拉有人订阅的上游，每个上游用自己的游标；全部上游拉完后按发生时间排序再分发。
+        """
         new: list[ObservationEnvelope] = []
         for upstream in observable.active_upstreams():
             try:
