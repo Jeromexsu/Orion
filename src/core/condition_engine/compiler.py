@@ -3,7 +3,7 @@ from collections.abc import Mapping
 from pydantic import ValidationError
 
 from core.condition_engine.definitions import BranchDef, ConditionDef, LeafDef
-from core.condition_engine.errors import ConditionCompileError
+from core.condition_engine.errors import ConditionCompileError, UnknownEvaluatorError
 from core.condition_engine.registry import EvaluatorRegistry
 from core.condition_engine.tree import BranchNode, ConditionNode, ConditionTree, LeafNode
 from core.target import Observation
@@ -48,60 +48,73 @@ class ConditionCompiler:
                 (e.g. "root/1/0: ...").
         """
         errors: list[str] = []
-        root = self._compile(condition_def, "root", observation_types, errors)
+        root = self._compile(condition_def, observation_types, "root", errors)
         if errors or root is None:
             raise ConditionCompileError(errors)
         return ConditionTree(root)
 
     def _compile(
-        self, node: ConditionDef, path: str, observation_types: ObservationTypes, errors: list[str]
+        self,
+        condition_def: ConditionDef,
+        observation_types: ObservationTypes,
+        path: str,
+        errors: list[str],
     ) -> ConditionNode | None:
-        if isinstance(node, BranchDef):
-            return self._compile_op(node, path, observation_types, errors)
-        return self._compile_leaf(node, path, observation_types, errors)
+        if isinstance(condition_def, BranchDef):
+            return self._compile_branch(condition_def, observation_types, path, errors)
+        return self._compile_leaf(condition_def, observation_types, path, errors)
 
-    def _compile_op(
-        self, node: BranchDef, path: str, observation_types: ObservationTypes, errors: list[str]
+    def _compile_branch(
+        self,
+        branch_def: BranchDef,
+        observation_types: ObservationTypes,
+        path: str,
+        errors: list[str],
     ) -> ConditionNode | None:
-        if node.op == "not" and len(node.children) != 1:
-            errors.append(f"{path}: 'not' takes exactly one child, got {len(node.children)}")
-        elif not node.children:
-            errors.append(f"{path}: '{node.op}' needs at least one child")
+        if branch_def.op == "not" and len(branch_def.children) != 1:
+            errors.append(f"{path}: 'not' takes exactly one child, got {len(branch_def.children)}")
+        elif not branch_def.children:
+            errors.append(f"{path}: '{branch_def.op}' needs at least one child")
 
         children = [
-            self._compile(c, f"{path}/{i}", observation_types, errors)
-            for i, c in enumerate(node.children)
+            self._compile(child_def, observation_types, f"{path}/{i}", errors)
+            for i, child_def in enumerate(branch_def.children)
         ]
         compiled = [c for c in children if c is not None]
         if len(compiled) != len(children):
             return None
-        return BranchNode(path, node.op, compiled)
+        return BranchNode(path, branch_def.op, compiled)
 
     def _compile_leaf(
-        self, node: LeafDef, path: str, observation_types: ObservationTypes, errors: list[str]
+        self,
+        leaf_def: LeafDef,
+        observation_types: ObservationTypes,
+        path: str,
+        errors: list[str],
     ) -> ConditionNode | None:
-        if not self._evaluator_registry.has(node.op):
-            errors.append(f"{path}: unknown evaluator op {node.op!r}")
+        try:
+            evaluator = self._evaluator_registry.get(leaf_def.op)
+        except UnknownEvaluatorError:
+            errors.append(f"{path}: unknown evaluator op {leaf_def.op!r}")
             return None
-        evaluator = self._evaluator_registry.get(node.op)
 
         ok = True
-        observation_type = observation_types.get(node.observable)
+        observation_type = observation_types.get(leaf_def.observable)
         if observation_type is None:
-            errors.append(f"{path}: unknown observable {node.observable!r}")
+            errors.append(f"{path}: unknown observable {leaf_def.observable!r}")
             ok = False
         else:
             missing = set(evaluator.requires) - set(observation_type.model_fields)
             if missing:
                 errors.append(
-                    f"{path}: observable {node.observable!r} lacks fields {sorted(missing)}"
+                    f"{path}: observable {leaf_def.observable!r} lacks fields {sorted(missing)}"
                 )
                 ok = False
 
         try:
-            criteria = evaluator.criteria_model.model_validate(node.criteria)
+            criteria = evaluator.criteria_model.model_validate(leaf_def.criteria)
         except ValidationError as e:
-            errors.append(f"{path}: invalid criteria for {node.op!r}: {e}")
+            errors.append(f"{path}: invalid criteria for {leaf_def.op!r}: {e}")
             return None
 
-        return LeafNode(path, node.observable, evaluator, criteria) if ok else None
+        return LeafNode(path, leaf_def.observable, evaluator, criteria) if ok else None

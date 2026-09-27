@@ -23,9 +23,6 @@ class EvaluatorRegistry:
         except KeyError:
             raise UnknownEvaluatorError(op) from None
 
-    def has(self, op: str) -> bool:
-        return op in self._evaluators
-
     def evaluators(self) -> list[Evaluator[Any]]:
         """已注册的全部判断方式。"""
         return list(self._evaluators.values())
