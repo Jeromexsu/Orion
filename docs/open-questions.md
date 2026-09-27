@@ -158,6 +158,9 @@ class RadarAdapter(UpstreamAdapter): ...
 
 同一批要一起定的：
 - ~~`Trigger` 按挂载点分类型、改名 `Occasion`；`Category` / `Level` / `MountPoint` 挪到 `operator.py`~~ **已完成**，见「已决 · 算子的调用时机」。
+- **挂载检查移到模板编译器**：条件一侧「模板用法是否合法」由条件编译器做（`_compile_leaf`），注册表只注册、查找；
+  算子一侧却在注册表里（`OperatorRegistry.validate_mount`），编译器只调用。编成 `Hook` 时由模板编译器自己查算子、
+  核对层级 / 挂载点、解析参数，`validate_mount` 移出注册表。
 - 算子是否也改为装饰器声明（`@operator(...)`）；上下文里的 `params` 怎么传。
 
 ### 8. 其他（随审阅推进逐条确认）
