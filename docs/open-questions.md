@@ -155,11 +155,23 @@ class RadarAdapter(UpstreamAdapter): ...
   2. 能改东西的能力必须声明（作用域 / 提议），没声明用了就报错；
   3. 插件拿不到 event 内部的对象（只经上下文里的窄接口，import-linter 保证插件不 import `core.event`）。
 - `SubEventSlot.on_data()` 中实例 `process()` 中途异常：内存里的实例状态已部分改动但未存库，内存与库不一致。
+- **hil：提议去重**：同一个钩子会反复提同一件事（每条观测都提），刷爆审核队列。可在待审期间按「来源钩子 / 挂载 +
+  动作 + 参数」去重，或限频；去重键与「参数被分析师改过」如何相处待定。
+- **hil：处理结果留档**：`mark_resolved` 只记接受 / 拒绝。审核记录还应有：谁、何时、最终参数（含分析师的改动）、
+  执行结果或错误。另：`accept` 先执行动作、再标记已处理，标记失败会留在待审、可被再次接受而重复执行——
+  有真实持久化层时处理（同一事务，或先标记「执行中」）。
 - report 模块是否开 pyright strict。
 - 设计文档第八、九节与代码同步。
 
 ## 已决
 
+- **提议的形状**（hil 审阅）：
+  - 来源不再由钩子自己填（原 `source=self.name`）：`ctx.propose(action, args, reason=..., evidence=...)`，
+    上下文盖上 `ProposalOrigin(hook, mount, parent_id, event_id)`。按钩子统计采纳率有了可靠依据，也能追到具体运行。
+    盖戳放在 hooks 的上下文里（event 不能直接 import hil）。
+  - 去掉 `Proposal.target`（和术语「目标」撞名，实际一直是父事件 ID），作用对象都放进 `args`。
+  - 动作带参数模型：`HilManager.allow(action, args_model, handler)`，handler 收到有类型的参数；收提议时校验，
+    不合的当场拒收（`InvalidProposalArgsError`），分析师改过的参数在接受时再校验。
 - **钩子状态按挂载分区**（原待决第 12 条「`status` 是没有结构的公共箩筐」）：
   - 原来的 `status` 其实是钩子存状态用的，和条件状态是一对，按对照补齐：条件状态按规则名分、判断方式返回新状态；
     钩子状态（`hook_state`）按挂载名分、`Hook.run` 返回新状态（`None` 不变）。钩子之间互相看不到，撞键问题消失。

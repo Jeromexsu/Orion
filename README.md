@@ -399,7 +399,7 @@ class CountHits(Hook[CountHitsParams]):          # name 默认 "countHits"，参
 | bootstrap | `HookRegistry.register` | 启动时注册钩子；没用 `@hook` 声明的拒绝 |
 | event · 模板编译器 | `MountCompiler.compile` | 编译时把每个 `MountDef` 对照钩子的声明检查并编译成 `Mount`（名字 + 钩子实例 + 有类型的参数 + 挂在哪些挂载点、哪些规则上）；挂载名是否唯一、引用的规则是否存在由模板编译器自己管 |
 | event · 子事件 | `Mount` → `Hook.run(params, ctx, occasion)`、`HookContext` / `EventHandle` | 运行时在挂载点跑钩子，传入并存回该挂载的状态；每个钩子单独隔离异常（出错的不改状态） |
-| hil | 实现 `ProposalSink` | 接收 `ctx.propose` 提的提议 |
+| hil | 实现 `ProposalSink` | 接收 `ctx.propose` 提的提议：来源（钩子、挂载、父事件、子事件）由上下文盖上；动作不在白名单、参数不合动作的模型，当场拒收 |
 
 扩展点只有一个：继承 `Hook[参数模型]` 并用 `@hook` 声明，放在 `plugins/hooks/`。
 示例见 `plugins/hooks/count_hits.py`（直接作用于子事件）和 `close_report.py`（对外输出，注入报告管理器；一个挂载挂在多处）。

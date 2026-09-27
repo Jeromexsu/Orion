@@ -177,7 +177,14 @@ def test_proposals_flow_to_sink(env: Env) -> None:
     runner.on_observation(env.envelope(*OUTSIDE))  # 未开启：实例级钩子不跑
     assert env.sink.received == []
     runner.on_observation(env.envelope(*INSIDE))
-    assert [s.reason for s in env.sink.received] == ["saw MU5101"]
+    (proposal,) = env.sink.received
+    assert proposal.reason == "saw MU5101"
+    active = parent.runner("enter-zone").active
+    assert active is not None
+    # 来源由上下文盖戳：钩子、挂载、父事件、子事件
+    assert proposal.origin.model_dump() == {
+        "hook": "spotter", "mount": "spotter", "parent_id": "p1", "event_id": active.id
+    }
 
 
 def test_hook_failure_is_isolated(env: Env) -> None:

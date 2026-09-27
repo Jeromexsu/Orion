@@ -35,7 +35,8 @@
 | 规则 | `RuleDef` / `CompiledRule` | 子事件运行期间逐条评估的条件，命中时跑 `rules` 里列了它的挂载 |
 | 钩子 | `Hook`（用 `@hook` 声明） | 挂在子事件生命周期上的动作；按「作用域 × 是否提议」声明能做什么 |
 | 作用域 | `Scope`：`external` / `event` / `parent` / `target` | 钩子影响哪一块。直接作用只开放 `external`（系统外部）和 `event`（子事件）；`parent`（父事件）/ `target`（目标）只能提议 |
-| 提议 | `proposes=True` → `ctx.propose(...)` | 交给 hil，分析师确认后才执行；影响哪个作用域由提议的动作决定 |
+| 提议 | `Proposal`；`proposes=True` → `ctx.propose(action, args, reason=...)` | 交给 hil，分析师确认后才执行；影响哪个作用域由提议的动作决定。来源（`ProposalOrigin`：钩子、挂载、父事件、子事件）由钩子上下文填 |
+| 动作 | `HilManager.allow(action, args_model, handler)` | 提议能触发的核心公开方法（白名单），带参数模型：收提议时校验参数，分析师改过的参数在接受时再校验 |
 | 挂载 | `MountDef`（定义）/ `Mount`（编译后，`MountCompiler`） | 把一个钩子挂在一处或多处（`at` 里的挂载点 + `rules` 里各规则的 `rule_hit`），带参数；按名字（默认钩子名）在模板内唯一 |
 | 钩子状态 | `Event.hook_state`：挂载名 → 状态 | 每个挂载一份，`run` 返回新状态来改，不需要作用域；和条件状态（规则名 → 状态）对照 |
 | 调用时机 | `Occasion`（`CreatedOccasion` / `ObservationOccasion` / `RuleHitOccasion` / `ClosedOccasion`） | 钩子为什么被调用：在哪个挂载点、当时发生了什么 |

@@ -4,7 +4,8 @@ API 进程和异步 worker 进程共用这里的装配逻辑。
 """
 
 import logging
-from typing import Any
+
+from pydantic import BaseModel, ConfigDict
 
 from core.collector import (
     Collector,
@@ -152,25 +153,36 @@ def build_app(repos: Repositories) -> App:
     )
 
 
+class TargetActionArgs(BaseModel):
+    """Arguments of add_target / remove_target."""
+
+    model_config = ConfigDict(frozen=True)
+
+    parent_id: str
+    target_id: str
+
+
+class TemplateActionArgs(BaseModel):
+    """Arguments of upsert_template."""
+
+    model_config = ConfigDict(frozen=True)
+
+    parent_id: str
+    template_def: TemplateDef
+
+
 def _allow_actions(hil_manager: HilManager, parent_event_manager: ParentEventManager) -> None:
-    """hil 白名单：提议能触发的核心公开方法。proposal.target 是父事件 ID。"""
+    """Whitelist the core public methods proposals can trigger, each with its args model."""
 
-    def add_target(parent_id: str | None, args: dict[str, Any]) -> object:
-        return parent_event_manager.get(_required(parent_id)).add_target(args["target_id"])
+    def add_target(args: TargetActionArgs) -> object:
+        return parent_event_manager.get(args.parent_id).add_target(args.target_id)
 
-    def remove_target(parent_id: str | None, args: dict[str, Any]) -> object:
-        return parent_event_manager.get(_required(parent_id)).remove_target(args["target_id"])
+    def remove_target(args: TargetActionArgs) -> object:
+        return parent_event_manager.get(args.parent_id).remove_target(args.target_id)
 
-    def upsert_template(parent_id: str | None, args: dict[str, Any]) -> object:
-        template_def = TemplateDef.model_validate(args["template_def"])
-        return parent_event_manager.get(_required(parent_id)).upsert_template(template_def)
+    def upsert_template(args: TemplateActionArgs) -> object:
+        return parent_event_manager.get(args.parent_id).upsert_template(args.template_def)
 
-    hil_manager.allow("add_target", add_target)
-    hil_manager.allow("remove_target", remove_target)
-    hil_manager.allow("upsert_template", upsert_template)
-
-
-def _required(parent_id: str | None) -> str:
-    if parent_id is None:
-        raise ValueError("proposal.target (parent event id) is required")
-    return parent_id
+    hil_manager.allow("add_target", TargetActionArgs, add_target)
+    hil_manager.allow("remove_target", TargetActionArgs, remove_target)
+    hil_manager.allow("upsert_template", TemplateActionArgs, upsert_template)

@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from core.condition_engine import HIT, EvalResult
-from core.hil import Proposal
+from core.hil import Proposal, ProposalOrigin
 from core.hooks import (
     DuplicateHookError,
     EventHandle,
@@ -42,6 +42,8 @@ def context(
     propose: Any = None,
 ) -> HookContext:
     return HookContext(
+        hook_name="countHits",
+        mount_name="again",
         state=state or {},
         target_names={"t1:position": "东航 MU5101"},
         parent_id="p1",
@@ -71,7 +73,7 @@ def test_undeclared_capabilities_raise() -> None:
     with pytest.raises(UndeclaredCapabilityError, match="scopes"):
         ctx.event.close("x")
     with pytest.raises(UndeclaredCapabilityError, match="proposes"):
-        ctx.propose(Proposal(source="x", reason="y", action="add_target"))
+        ctx.propose("add_target", {}, reason="y")
 
 
 def test_declared_capabilities_reach_the_event_and_the_sink() -> None:
@@ -80,11 +82,16 @@ def test_declared_capabilities_reach_the_event_and_the_sink() -> None:
     ctx = context(event=event.handle(), propose=proposals.append)
 
     ctx.event.close("converged")
-    proposal = Proposal(source="x", reason="y", action="add_target")
-    ctx.propose(proposal)
+    ctx.propose("add_target", {"target_id": "t2"}, reason="y", evidence=["adsb#1"])
 
     assert event.close_reasons == ["converged"]
-    assert proposals == [proposal]
+    (proposal,) = proposals
+    assert proposal.origin == ProposalOrigin(
+        hook="countHits", mount="again", parent_id="p1", event_id="e1"
+    )   # 来源由上下文填，钩子不填
+    assert (proposal.action, proposal.args, proposal.evidence) == (
+        "add_target", {"target_id": "t2"}, ["adsb#1"]
+    )
 
 
 def test_state_is_a_copy_and_names_fall_back_to_ids() -> None:

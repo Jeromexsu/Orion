@@ -6,7 +6,6 @@ import pytest
 
 from core.condition_engine import ConditionCompiler, EvaluatorRegistry
 from core.event import EventRuntime, ParentEventManager, ParentEventServices, TemplateCompiler
-from core.hil import Proposal
 from core.hooks import (
     Hook,
     HookContext,
@@ -70,12 +69,10 @@ class Spotter(Hook[NoParams]):
     def run(self, params: NoParams, ctx: HookContext, occasion: Occasion) -> None:
         assert isinstance(occasion, ObservationOccasion)  # 只挂在 pre：一定是观测到达
         ctx.propose(
-            Proposal(
-                source=self.name,
-                reason=f"saw {ctx.target_name(occasion.envelope.observable_id)}",
-                evidence=[occasion.envelope.source_id],
-                action="add_target", args={},
-            )
+            "add_target",
+            {"parent_id": ctx.parent_id, "target_id": "t2"},
+            reason=f"saw {ctx.target_name(occasion.envelope.observable_id)}",
+            evidence=[occasion.envelope.source_id],
         )
 
 

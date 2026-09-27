@@ -1,10 +1,10 @@
 """What a hook may see and do while it runs, built per run from its declaration."""
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
 from typing import Any
 
-from core.hil import Proposal
+from core.hil import Proposal, ProposalOrigin
 from core.hooks.errors import UndeclaredCapabilityError
 
 
@@ -30,8 +30,9 @@ class EventHandle:
 class HookContext:
     """What a hook gets about the event it runs on, besides the occasion and its parameters.
 
-    Always available: a copy of this mount's own state (return the new state from run
-    to change it; no scope needed), target display names and where it runs, read-only.
+    Always available: which hook and mount it is, a copy of this mount's own state
+    (return the new state from run to change it; no scope needed), target display names
+    and where it runs, read-only.
     Capabilities exist only if declared: ctx.event needs scopes={"event"}, ctx.propose
     needs proposes=True; using an undeclared one raises UndeclaredCapabilityError.
     The external scope has no capability here: output channels (reports, notifications)
@@ -41,6 +42,8 @@ class HookContext:
     def __init__(
         self,
         *,
+        hook_name: str,
+        mount_name: str,
         state: Mapping[str, Any],
         target_names: Mapping[str, str],
         parent_id: str,
@@ -50,6 +53,8 @@ class HookContext:
     ) -> None:
         # this mount's state, a copy: return the new state from run to keep it
         self.state = deepcopy(dict(state))
+        self.hook_name = hook_name
+        self.mount_name = mount_name
         self.parent_id = parent_id
         self.event_id = event_id
         self._target_names = dict(target_names)
@@ -73,12 +78,45 @@ class HookContext:
             raise UndeclaredCapabilityError("declare scopes={'event'} to change the event")
         return self._event
 
-    def propose(self, proposal: Proposal) -> None:
+    def propose(
+        self,
+        action: str,
+        args: Mapping[str, Any],
+        *,
+        reason: str,
+        evidence: Sequence[str] = (),
+    ) -> None:
         """Send a proposal for review; nothing changes until an analyst accepts it.
 
-        What it would change (the parent event, a target, ...) is decided by the
-        proposed action. Requires proposes=True.
+        Where it came from (hook, mount, parent event, event) is filled in here, not by
+        the hook.
+        What it would change (the parent event, a target, ...) is decided by the action.
+        Requires proposes=True.
+
+        Args:
+            action: A whitelisted action name, e.g. "add_target".
+            args: The action's arguments, checked against its args model right away.
+            reason: Why, for the analyst.
+            evidence: source_ids of the observations it relies on.
+
+        Raises:
+            ActionNotAllowedError: If the action is not whitelisted (from hil).
+            InvalidProposalArgsError: If args do not fit the action (from hil).
         """
         if self._propose is None:
             raise UndeclaredCapabilityError("declare proposes=True to make proposals")
-        self._propose(proposal)
+        origin = ProposalOrigin(
+            hook=self.hook_name,
+            mount=self.mount_name,
+            parent_id=self.parent_id,
+            event_id=self.event_id,
+        )
+        self._propose(
+            Proposal(
+                origin=origin,
+                action=action,
+                args=dict(args),
+                reason=reason,
+                evidence=list(evidence),
+            )
+        )

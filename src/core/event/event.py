@@ -207,6 +207,8 @@ class Event:
         for mount in mounts:
             hook = mount.hook
             ctx = HookContext(
+                hook_name=hook.name,
+                mount_name=mount.name,
                 state=self._hook_state.get(mount.name, {}),
                 target_names=self._target_names(),
                 parent_id=self._parent_id,
