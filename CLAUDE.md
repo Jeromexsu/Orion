@@ -22,7 +22,7 @@ def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list
     """Collect new observations of one observable target from one upstream.
 
     Stores them and advances the cursor of this (observable target, upstream) pair.
-    Does not dispatch: collect_one dispatches once all upstreams are done.
+    Does not publish: collect_one publishes once all upstreams are done.
 
     Args:
         observable: The observable target to collect for.
