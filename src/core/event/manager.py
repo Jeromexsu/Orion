@@ -16,10 +16,10 @@ class ParentEventManager:
         self._parents: dict[str, ParentEvent] = {}
 
     def create(self, parent_id: str, name: str) -> ParentEvent:
-        if parent_id in self._parents or self._services.parents.get(parent_id) is not None:
+        if parent_id in self._parents or self._services.parent_event_repository.get(parent_id) is not None:
             raise DuplicateParentEventError(parent_id)
         parent = ParentEvent(parent_id, name, self._services, self._runtime)
-        self._services.parents.upsert(parent.to_record())
+        self._services.parent_event_repository.upsert(parent.to_record())
         self._parents[parent_id] = parent
         return parent
 
@@ -49,7 +49,7 @@ class ParentEventManager:
         单个父事件恢复失败只记日志，不影响其他。返回恢复失败的父事件 ID。
         """
         failed: list[str] = []
-        for record in self._services.parents.list_all():
+        for record in self._services.parent_event_repository.list_all():
             if record.id in self._parents:
                 continue
             try:

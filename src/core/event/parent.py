@@ -91,7 +91,7 @@ class ParentEvent:
 
     def add_target(self, target_id: str) -> None:
         """把静态目标加入命名空间。目标必须已存在。"""
-        self._services.targets.get_target(target_id)
+        self._services.target_manager.get_target(target_id)
         if target_id not in self._targets:
             self._targets.add(target_id)
             self._save()
@@ -119,7 +119,7 @@ class ParentEvent:
             runner.check_version(template_def.version)
 
         template = self._services.template_compiler.compile(template_def)
-        self._services.templates.upsert(template_def)
+        self._services.template_repository.upsert(template_def)
         if runner is None:
             self._runners[template.id] = EventRunner.start(
                 self._id, template, self._runtime, self._save
@@ -140,7 +140,7 @@ class ParentEvent:
 
     def digest(self) -> Draft:
         """定时触发的汇总（原生方法，不是算子）：写进本父事件最近一份仍是“草稿”的报告，没有就新建。"""
-        reports = self._services.reports
+        reports = self._services.report_manager
         drafts = [d for d in reports.list_by_parent(self._id) if d.status == DRAFT]
         latest = max(drafts, key=lambda d: d.updated_at, default=None)
         return reports.write(
@@ -173,7 +173,7 @@ class ParentEvent:
 
     def _target_name(self, target_id: str) -> str:
         try:
-            return self._services.targets.get_target(target_id).name
+            return self._services.target_manager.get_target(target_id).name
         except TargetNotFoundError:
             return target_id
 
@@ -187,10 +187,10 @@ class ParentEvent:
             )
 
     def _load_template(self, template_id: str, version: int) -> EventTemplate:
-        template_def = self._services.templates.get(template_id, version)
+        template_def = self._services.template_repository.get(template_id, version)
         if template_def is None:
             raise TemplateNotFoundError(f"{template_id} v{version}")
         return self._services.template_compiler.compile(template_def)
 
     def _save(self) -> None:
-        self._services.parents.upsert(self.to_record())
+        self._services.parent_event_repository.upsert(self.to_record())

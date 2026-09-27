@@ -137,10 +137,10 @@ class Env:
         self.events = InMemoryEventRepository()
         self.runner_states = InMemoryRunnerStateRepository()
         self.runtime = EventRuntime(
-            events=self.events,
-            runner_states=self.runner_states,
+            event_repository=self.events,
+            runner_state_repository=self.runner_states,
             operator_registry=self.operator_registry,
-            suggestions=self.sink,
+            suggestion_sink=self.sink,
         )
         self.services = self.make_services(self.targets)
         self.parent_events = ParentEventManager(self.services, self.runtime)
@@ -160,13 +160,13 @@ class Env:
         evaluator_registry = EvaluatorRegistry()
         evaluator_registry.register(OnEnter())
         return ParentEventServices(
-            targets=targets,
-            parents=self.parents,
-            templates=self.templates,
+            target_manager=targets,
+            parent_event_repository=self.parents,
+            template_repository=self.templates,
             template_compiler=TemplateCompiler(
                 ConditionCompiler(evaluator_registry), self.operator_registry, targets
             ),
-            reports=self.reports,
+            report_manager=self.reports,
         )
 
     def make_parent_events(self, targets: TargetManager) -> ParentEventManager:

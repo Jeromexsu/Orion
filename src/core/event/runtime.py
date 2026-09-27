@@ -18,15 +18,15 @@ class EventRuntime:
 
     def __init__(
         self,
-        events: EventRepository,
-        runner_states: RunnerStateRepository,
+        event_repository: EventRepository,
+        runner_state_repository: RunnerStateRepository,
         operator_registry: OperatorRegistry,
-        suggestions: SuggestionSink,
+        suggestion_sink: SuggestionSink,
     ) -> None:
-        self.events = events                        # runner：存取子事件记录
-        self.runner_states = runner_states          # runner：开启条件状态
+        self.event_repository = event_repository  # runner：存取子事件记录
+        self.runner_state_repository = runner_state_repository  # runner：开启条件状态
         self.operator_registry = operator_registry  # 子事件：跑算子
-        self.suggestions = suggestions              # 子事件：算子提的建议
+        self.suggestion_sink = suggestion_sink  # 子事件：算子提的建议
 
 
 class ParentEventServices:
@@ -34,14 +34,14 @@ class ParentEventServices:
 
     def __init__(
         self,
-        targets: TargetManager,
-        parents: ParentEventRepository,
-        templates: TemplateRepository,
+        target_manager: TargetManager,
+        parent_event_repository: ParentEventRepository,
+        template_repository: TemplateRepository,
         template_compiler: TemplateCompiler,
-        reports: ReportManager,
+        report_manager: ReportManager,
     ) -> None:
-        self.targets = targets                      # 确认目标存在、取目标名
-        self.parents = parents                      # 父事件记录
-        self.templates = templates                  # 模板定义
+        self.target_manager = target_manager  # 确认目标存在、取目标名
+        self.parent_event_repository = parent_event_repository  # 父事件记录
+        self.template_repository = template_repository  # 模板定义
         self.template_compiler = template_compiler  # 编译模板
-        self.reports = reports                      # digest 写报告
+        self.report_manager = report_manager  # digest 写报告

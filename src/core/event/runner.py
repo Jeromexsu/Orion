@@ -73,7 +73,7 @@ class EventRunner:
             runtime,
             on_change,
             pending=pending,
-            open_state=runtime.runner_states.get(parent_id, template.id),
+            open_state=runtime.runner_state_repository.get(parent_id, template.id),
         )
         runner._active = runner._restore_active()
         runner._subscribe()
@@ -107,7 +107,7 @@ class EventRunner:
         return {oid: obs.target.name for oid, obs in self._observables.items()}
 
     def history(self) -> list[EventRecord]:
-        return self._runtime.events.history(self._parent_id, self._template.id)
+        return self._runtime.event_repository.history(self._parent_id, self._template.id)
 
     def to_ref(self) -> TemplateRef:
         return TemplateRef(
@@ -125,7 +125,7 @@ class EventRunner:
         opened = self._template.open_tree.evaluate(envelope, self._open_state)
         if opened.state_patch:
             self._open_state = apply_state_patch(self._open_state, opened.state_patch)
-            self._runtime.runner_states.save(self._parent_id, self._template.id, self._open_state)
+            self._runtime.runner_state_repository.save(self._parent_id, self._template.id, self._open_state)
 
         if self._active is None:
             if opened.outcome != HIT:
@@ -140,7 +140,7 @@ class EventRunner:
 
         event = self._active
         event.process(envelope)
-        self._runtime.events.save(event.to_record())
+        self._runtime.event_repository.save(event.to_record())
         if event.is_closed:
             self._end_cycle()
 
@@ -167,19 +167,19 @@ class EventRunner:
         if self._active is None:
             return
         self._active.close(reason)
-        self._runtime.events.save(self._active.to_record())
+        self._runtime.event_repository.save(self._active.to_record())
         self._end_cycle()
 
     def dispose(self, reason: str) -> None:
         """模板被移除：关闭当前子事件、取消全部订阅、删除开启条件状态。"""
         if self._active is not None:
             self._active.close(reason)
-            self._runtime.events.save(self._active.to_record())
+            self._runtime.event_repository.save(self._active.to_record())
             self._active = None
         for observable in self._observables.values():
             observable.release(self)
         self._observables = {}
-        self._runtime.runner_states.remove(self._parent_id, self._template.id)
+        self._runtime.runner_state_repository.remove(self._parent_id, self._template.id)
 
     # ------------------------------------------------------------ 内部
 
@@ -193,7 +193,7 @@ class EventRunner:
         self._template = template
         self._pending = None
         self._open_state = {}
-        self._runtime.runner_states.save(self._parent_id, template.id, self._open_state)
+        self._runtime.runner_state_repository.save(self._parent_id, template.id, self._open_state)
         self._subscribe()
         self._on_change()
 
@@ -209,13 +209,13 @@ class EventRunner:
         self._observables = subscribed
 
     def _restore_active(self) -> Event | None:
-        record = self._runtime.events.find_active(self._parent_id, self._template.id)
+        record = self._runtime.event_repository.find_active(self._parent_id, self._template.id)
         if record is None:
             return None
         if record.template_version != self._template.version:
             # 不应出现（子事件总按当前版本运行）；防御性补关，避免孤儿活跃记录
             logger.error("active event %s has stale version; closing", record.id)
-            self._runtime.events.save(
+            self._runtime.event_repository.save(
                 record.model_copy(
                     update={"closed_at": datetime.now(UTC), "close_reason": "version_mismatch"}
                 )

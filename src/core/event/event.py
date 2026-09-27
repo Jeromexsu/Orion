@@ -173,7 +173,7 @@ class Event:
                 params=mount.params,
                 target_names=self._target_names(),
                 update_status=self.update_status,
-                suggest=self._runtime.suggestions.receive,
+                suggest=self._runtime.suggestion_sink.receive,
                 parent_id=self._parent_id,
                 event_id=self._id,
             )
