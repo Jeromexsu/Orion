@@ -182,7 +182,7 @@ collector 与 event 互不认识，只在可观测目标这里会合。
 
 | 使用方 | 窗口 | 用来做什么 |
 |---|---|---|
-| bootstrap | `TargetManager.register_type` | 启动时注册目标类型（顺带收集观察点、检查查询键关联） |
+| bootstrap | `TargetTypeRegistry.register` | 启动时注册目标类型（顺带收集观察点、检查查询键关联）；注册表注入 `TargetManager` |
 | API 层（待建） | `TargetManager.parse` / `upsert_target` / `get_target` / `find_by_alias` / `remove_target` | 目标的增删改查；`parse` 把 JSON 按 `type` 还原成对应的目标类型 |
 | event · 父事件 | `TargetManager.get_target` | 确认目标存在、取展示名 |
 | event · 模板编译器 | `TargetManager.inspect_observable` / `get_observable` | 先只检查（不创建），全部通过后取得 / 创建可观测目标 |

@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from core.collector import Collector, UpstreamAdapterRegistry
-from core.target import TargetManager
+from core.target import TargetManager, TargetTypeRegistry
 from plugins.observed_points.position import Position, PositionObservation
 from plugins.query_keys.icao24 import Icao24
 from plugins.target.aircraft import Aircraft
@@ -62,10 +62,12 @@ def test_collector_end_to_end() -> None:
     """真实的 collector + 这个 UpstreamAdapter：订阅 → 采集 → 解析 → 分发。"""
     registry = UpstreamAdapterRegistry()
     registry.register(OpenSkyAdapter(FakeOpenSky(state(T0))))
+    target_types = TargetTypeRegistry()
+    target_types.register(Aircraft)
     manager = TargetManager(
+        target_types,
         InMemoryTargetRepository(), InMemoryObservableTargetRepository(), registry
     )
-    manager.register_type(Aircraft)
     manager.upsert_target(
         Aircraft(id="t1", name="MU5101", registration="B-2447", icao24="780a3b")
     )

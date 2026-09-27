@@ -37,6 +37,13 @@ def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list
 
 - 纯数据定义的类型以 `Def` 结尾，装着它的字段以 `_def` / `_defs` 结尾；运行时对象不带后缀。
 - 注入的依赖按具体类型命名：`TargetManager` → `target_manager`，`TemplateRepository` → `template_repository`。
+- 按职责给类起名：
+  - `*Manager`：有自己要存的数据的模块的入口，管这些数据的生命周期，仓库注入在它身上（`TargetManager`、
+    `ParentEventManager`、`HilManager`、`ReportManager`）。没有自己数据的模块没有 manager。入口做的事能用一个
+    动词说清时可以用动词名词化（`Collector`）。
+  - `*Registry`：一种插件的注册表，只有 `register` / `get` / 列出全部（外加注册时的声明检查）；启动时由 bootstrap
+    注册，之后只读，注入给用它的一方（`TargetTypeRegistry`、`UpstreamAdapterRegistry`、`EvaluatorRegistry`、`HookRegistry`）。
+  - `*Compiler`：把纯数据定义编译成运行时对象，无状态（`TemplateCompiler`、`ConditionCompiler`、`MountCompiler`）。
 - 行为类用普通类，跨 JSON 边界的纯数据用 Pydantic，不用 dataclass。
 
 ## 插件

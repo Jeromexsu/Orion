@@ -6,7 +6,7 @@
 
 | 术语 | 代码 | 含义 |
 |---|---|---|
-| 目标类型 | `Target` 的子类（如 `Aircraft`） | 一类静态目标，如飞机。由开发者用代码定义：`@target_type(类型名, observed_points=[...])` 声明类型名和可以在哪些观察点被观测，字段用 `provides(查询键)` 关联查询键 |
+| 目标类型 | `Target` 的子类（如 `Aircraft`） | 一类静态目标，如飞机。由开发者用代码定义：`@target_type(类型名, observed_points=[...])` 声明类型名和可以在哪些观察点被观测，字段用 `provides(查询键)` 关联查询键；启动时注册进 `TargetTypeRegistry` |
 | 目标 | `Target` 子类的实例 | 一个具体的静态目标，如注册号 B-2447 的那架飞机 |
 | 观察点 | `ObservedPoint` 的子类（如 `Position`），名字如 `position` | 名字 + 它返回什么观测（`observation`）。与目标类型无关，多种目标类型可共用 |
 | 观测（observation） | `Observation` 的子类（如 `PositionObservation`） | 观察点观察之后返回的数据本身，字段就是观测的形状，如 `lat`、`lon` |
@@ -64,3 +64,4 @@
 
 - 纯数据定义的类型以 `Def` 结尾；装着 `Def` 的字段 / 参数以 `_def` / `_defs` 结尾；运行时对象不带后缀。
 - 注册表类型的依赖叫 `*_registry`（只有一个注册表依赖的类内部简写 `registry`），不用复数。
+- `*Manager` / `*Registry` / `*Compiler` 各管什么，见 [CLAUDE.md](../CLAUDE.md)「命名」。

@@ -28,7 +28,12 @@ from core.event import (
 from core.hil import HilManager, ProposalRepository
 from core.hooks import HookRegistry, MountCompiler
 from core.report import ReportManager, ReportRepository
-from core.target import ObservableTargetRepository, TargetManager, TargetRepository
+from core.target import (
+    ObservableTargetRepository,
+    TargetManager,
+    TargetRepository,
+    TargetTypeRegistry,
+)
 from plugins.condition_engine.on_enter import OnEnter
 from plugins.hooks.close_report import CloseReport
 from plugins.hooks.count_hits import CountHits
@@ -71,6 +76,7 @@ class App:
 
     def __init__(
         self,
+        target_type_registry: TargetTypeRegistry,
         target_manager: TargetManager,
         upstream_adapter_registry: UpstreamAdapterRegistry,
         collector: Collector,
@@ -80,6 +86,7 @@ class App:
         report_manager: ReportManager,
         hil_manager: HilManager,
     ) -> None:
+        self.target_type_registry = target_type_registry
         self.target_manager = target_manager
         self.upstream_adapter_registry = upstream_adapter_registry
         self.collector = collector
@@ -95,10 +102,14 @@ def build_app(repos: Repositories) -> App:
     upstream_adapter_registry = UpstreamAdapterRegistry()
     upstream_adapter_registry.register(OpenSkyAdapter())
 
+    target_type_registry = TargetTypeRegistry()
+    target_type_registry.register(Aircraft)
     target_manager = TargetManager(
-        repos.target_repository, repos.observable_target_repository, upstream_adapter_registry
+        target_type_registry,
+        repos.target_repository,
+        repos.observable_target_repository,
+        upstream_adapter_registry,
     )
-    target_manager.register_type(Aircraft)
 
     collector = Collector(
         target_manager,
@@ -142,6 +153,7 @@ def build_app(repos: Repositories) -> App:
         logger.error("failed to restore parent events: %s", failed)
 
     return App(
+        target_type_registry=target_type_registry,
         target_manager=target_manager,
         upstream_adapter_registry=upstream_adapter_registry,
         collector=collector,

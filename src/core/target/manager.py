@@ -2,94 +2,46 @@ from collections.abc import Mapping
 from typing import Any
 
 from core.target.errors import (
-    DuplicateObservedPointError,
-    DuplicateTargetTypeError,
     NoUpstreamError,
     TargetInUseError,
     TargetNotFoundError,
     TargetTypeChangeError,
-    UnknownObservedPointError,
     UnknownTargetTypeError,
     UnsupportedObservedPointError,
 )
 from core.target.observable import ObservableTarget
-from core.target.observed_point import ObservedPoint, observed_point_name
+from core.target.observed_point import ObservedPoint
+from core.target.registry import TargetTypeRegistry
 from core.target.repository import ObservableTargetRepository, TargetRepository
-from core.target.target import Target, TargetRecord, type_name
+from core.target.target import Target, TargetRecord
 from core.target.upstream import UpstreamCatalog
 
 
 class TargetManager:
-    """target 模块唯一入口。保证每个 (目标, 观察点) 只有一个 ObservableTarget 实例。
+    """target 模块的入口：管目标记录和可观测目标。保证每个 (目标, 观察点) 只有一个 ObservableTarget 实例。
 
-    观察点不单独注册：从已注册目标类型的 observed_points 里收集，按名字建立对照表。
+    目标类型和观察点由 TargetTypeRegistry 管（构造时注入），这里只查。
     """
 
     def __init__(
         self,
+        target_type_registry: TargetTypeRegistry,
         target_repository: TargetRepository,
         observable_target_repository: ObservableTargetRepository,
         upstream_catalog: UpstreamCatalog,
     ) -> None:
+        self._target_type_registry = target_type_registry
         self._target_repository = target_repository
         self._observable_target_repository = observable_target_repository
         self._upstream_catalog = upstream_catalog
-        self._types: dict[str, type[Target]] = {}
-        self._observed_points: dict[str, type[ObservedPoint]] = {}
         # 内存里的单例表：订阅者集合只存在这些对象上
         self._live: dict[str, ObservableTarget] = {}
 
-    # ------------------------------------------------------------ 类型
-
-    def register_type(self, target_class: type[Target]) -> None:
-        """注册一种目标类型，并收集它声明的观察点。
-
-        类型名重复抛 DuplicateTargetTypeError；同名观察点对应不同类抛 DuplicateObservedPointError；
-        查询键标注不合法抛 TypeError。
-        """
-        name = type_name(target_class)
-        target_class.query_key_fields()   # 检查查询键标注，不合法抛 TypeError
-        if name in self._types:
-            raise DuplicateTargetTypeError(name)
-        points: dict[str, type[ObservedPoint]] = {}
-        for point in target_class.observed_points:
-            point_name = observed_point_name(point)
-            known = self._observed_points.get(point_name) or points.get(point_name)
-            if known is not None and known is not point:
-                raise DuplicateObservedPointError(
-                    f"{point_name!r} is both {known.__name__} and {point.__name__}"
-                )
-            points[point_name] = point
-        self._types[name] = target_class
-        self._observed_points.update(points)
-
-    def get_type(self, name: str) -> type[Target]:
-        """类型名 → 目标类型。未注册抛 UnknownTargetTypeError。"""
-        try:
-            return self._types[name]
-        except KeyError:
-            raise UnknownTargetTypeError(name) from None
-
-    def types(self) -> list[type[Target]]:
-        """已注册的全部目标类型。"""
-        return list(self._types.values())
-
-    def get_observed_point(self, name: str) -> type[ObservedPoint]:
-        """观察点名 → 观察点。没有任何已注册类型声明过抛 UnknownObservedPointError。"""
-        try:
-            return self._observed_points[name]
-        except KeyError:
-            raise UnknownObservedPointError(name) from None
-
-    def observed_points(self) -> list[type[ObservedPoint]]:
-        """已注册类型声明过的全部观察点。"""
-        return list(self._observed_points.values())
+    # ------------------------------------------------------------ 目标
 
     def parse(self, raw: Mapping[str, Any]) -> Target:
         """JSON → 对应的 Target 子类（按 type 分派）。给 API 层用。属性不合法抛 pydantic.ValidationError。"""
-        return self.get_type(str(raw.get("type"))).model_validate(raw)
-
-    # ------------------------------------------------------------ 目标
+        return self._target_type_registry.get(str(raw.get("type"))).model_validate(raw)
 
     def upsert_target(self, target: Target) -> Target:
         """新建或更新目标，返回传入的目标。属性校验在构造 Target 子类时已完成。
@@ -97,7 +49,7 @@ class TargetManager:
         写库；已存在的可观测目标换上新记录（rebind_target）。
         类不是该类型名注册的类抛 UnknownTargetTypeError；改变已有目标的类型抛 TargetTypeChangeError。
         """
-        if type(target) is not self.get_type(target.type):
+        if type(target) is not self._target_type_registry.get(target.type):
             raise UnknownTargetTypeError(
                 f"{type(target).__name__} is not the registered class for {target.type!r}"
             )
@@ -154,7 +106,7 @@ class TargetManager:
         if live is not None:
             return live.observed_point, live.upstreams
 
-        point = self.get_observed_point(observed_point)
+        point = self._target_type_registry.get_observed_point(observed_point)
         target = self.get_target(target_id)
         if point not in type(target).observed_points:
             raise UnsupportedObservedPointError(
@@ -190,7 +142,7 @@ class TargetManager:
 
     def _restore(self, record: TargetRecord) -> Target:
         """持久化记录 → 对应的 Target 子类。"""
-        return self.get_type(record.type).model_validate(
+        return self._target_type_registry.get(record.type).model_validate(
             {
                 "type": record.type,
                 "id": record.id,

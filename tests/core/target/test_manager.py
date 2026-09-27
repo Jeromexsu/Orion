@@ -13,6 +13,7 @@ from core.target import (
     TargetManager,
     TargetNotFoundError,
     TargetTypeChangeError,
+    TargetTypeRegistry,
     UnknownObservedPointError,
     UnknownTargetTypeError,
     UnsupportedObservedPointError,
@@ -50,19 +51,19 @@ class Ship(Target):
 # ---------------------------------------------------------------- 类型
 
 
-def test_register_type_twice_rejected(manager: TargetManager) -> None:
+def test_register_type_twice_rejected(target_types: TargetTypeRegistry) -> None:
     with pytest.raises(DuplicateTargetTypeError):
-        manager.register_type(Aircraft)
+        target_types.register(Aircraft)
 
 
-def test_observed_points_are_collected_from_types(manager: TargetManager) -> None:
-    manager.register_type(Ship)
-    assert manager.get_observed_point("position") is Position
-    assert manager.get_observed_point("draught") is Draught
-    assert set(manager.observed_points()) == {Position, Draught}
+def test_observed_points_are_collected_from_types(target_types: TargetTypeRegistry) -> None:
+    target_types.register(Ship)
+    assert target_types.get_observed_point("position") is Position
+    assert target_types.get_observed_point("draught") is Draught
+    assert set(target_types.observed_points()) == {Position, Draught}
 
 
-def test_observed_point_name_clash_rejected(manager: TargetManager) -> None:
+def test_observed_point_name_clash_rejected(target_types: TargetTypeRegistry) -> None:
     class XObservation(Observation):
         x: float
 
@@ -73,18 +74,21 @@ def test_observed_point_name_clash_rejected(manager: TargetManager) -> None:
     class Car(Target): ...
 
     with pytest.raises(DuplicateObservedPointError):
-        manager.register_type(Car)
+        target_types.register(Car)
     with pytest.raises(UnknownTargetTypeError):  # 注册失败不留半截
-        manager.get_type("car")
+        target_types.get("car")
 
 
 def test_shared_observed_point_across_types() -> None:
     upstreams = StaticUpstreamCatalog(
         {("aircraft", "position"): ["adsb"], ("ship", "position"): ["ais"]}
     )
-    m = TargetManager(InMemoryTargetRepository(), InMemoryObservableTargetRepository(), upstreams)
-    m.register_type(Aircraft)
-    m.register_type(Ship)
+    target_types = TargetTypeRegistry()
+    target_types.register(Aircraft)
+    target_types.register(Ship)
+    m = TargetManager(
+        target_types, InMemoryTargetRepository(), InMemoryObservableTargetRepository(), upstreams
+    )
     m.upsert_target(Aircraft(id="a1", name="x", registration="B-1"))
     m.upsert_target(Ship(id="s1", name="y", mmsi="412000000"))
 
@@ -152,8 +156,10 @@ def test_upsert_target_unregistered_type(manager: TargetManager) -> None:
         manager.upsert_target(Ship(id="t1", name="x", mmsi="1"))
 
 
-def test_upsert_target_cannot_change_type(manager: TargetManager, plane: Target) -> None:
-    manager.register_type(Ship)
+def test_upsert_target_cannot_change_type(
+    manager: TargetManager, target_types: TargetTypeRegistry, plane: Target
+) -> None:
+    target_types.register(Ship)
     with pytest.raises(TargetTypeChangeError):
         manager.upsert_target(Ship(id=plane.id, name="x", mmsi="1"))
 
@@ -187,21 +193,27 @@ def test_inspect_observable_does_not_create(
         manager.inspect_observable(plane.id, "fuel")
 
 
-def test_get_observable_errors(manager: TargetManager, plane: Target) -> None:
+def test_get_observable_errors(
+    manager: TargetManager, target_types: TargetTypeRegistry, plane: Target
+) -> None:
     with pytest.raises(TargetNotFoundError):
         manager.get_observable("missing", "position")
     with pytest.raises(UnknownObservedPointError):
         manager.get_observable(plane.id, "fuel")
-    manager.register_type(Ship)
+    target_types.register(Ship)
     with pytest.raises(UnsupportedObservedPointError):  # 吃水是船的观察点，飞机不能被这样观测
         manager.get_observable(plane.id, "draught")
 
 
 def test_get_observable_without_upstream() -> None:
+    target_types = TargetTypeRegistry()
+    target_types.register(Aircraft)
     m = TargetManager(
-        InMemoryTargetRepository(), InMemoryObservableTargetRepository(), StaticUpstreamCatalog({})
+        target_types,
+        InMemoryTargetRepository(),
+        InMemoryObservableTargetRepository(),
+        StaticUpstreamCatalog({}),
     )
-    m.register_type(Aircraft)
     m.upsert_target(Aircraft(id="t1", name="x", registration="B"))
     with pytest.raises(NoUpstreamError):
         m.get_observable("t1", "position")

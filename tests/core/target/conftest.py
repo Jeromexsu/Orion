@@ -1,6 +1,6 @@
 import pytest
 
-from core.target import ObservationEnvelope, Target, TargetManager
+from core.target import ObservationEnvelope, Target, TargetManager, TargetTypeRegistry
 from plugins.target.aircraft import Aircraft
 from tests.core.target.fakes import (
     InMemoryObservableTargetRepository,
@@ -28,13 +28,20 @@ def observables() -> InMemoryObservableTargetRepository:
 
 
 @pytest.fixture
+def target_types() -> TargetTypeRegistry:
+    registry = TargetTypeRegistry()
+    registry.register(Aircraft)
+    return registry
+
+
+@pytest.fixture
 def manager(
-    targets: InMemoryTargetRepository, observables: InMemoryObservableTargetRepository
+    target_types: TargetTypeRegistry,
+    targets: InMemoryTargetRepository,
+    observables: InMemoryObservableTargetRepository,
 ) -> TargetManager:
     upstreams = StaticUpstreamCatalog({("aircraft", "position"): ["adsb"]})
-    m = TargetManager(targets, observables, upstreams)
-    m.register_type(Aircraft)
-    return m
+    return TargetManager(target_types, targets, observables, upstreams)
 
 
 @pytest.fixture

@@ -20,6 +20,7 @@ from core.target import (
     QueryKey,
     Target,
     TargetManager,
+    TargetTypeRegistry,
     observed_point,
     provides,
     query_key,
@@ -71,10 +72,12 @@ class Env:
         self.adsb = FakeUpstreamAdapter("adsb")
         self.registry = UpstreamAdapterRegistry()
         self.registry.register(self.adsb)
+        target_types = TargetTypeRegistry()
+        target_types.register(Aircraft)
         self.manager = TargetManager(
+            target_types,
             InMemoryTargetRepository(), InMemoryObservableTargetRepository(), self.registry
         )
-        self.manager.register_type(Aircraft)
         self.manager.upsert_target(Aircraft(id="t1", name="x", registration="B-2447"))
         self.cursors = InMemoryCursorRepository()
         self.observations = InMemoryObservationRepository()
@@ -305,10 +308,12 @@ def test_one_adapter_serves_several_observed_points() -> None:
     provider = Provider()
     registry = UpstreamAdapterRegistry()
     registry.register(provider)
+    target_types = TargetTypeRegistry()
+    target_types.register(Tanker)
     manager = TargetManager(
+        target_types,
         InMemoryTargetRepository(), InMemoryObservableTargetRepository(), registry
     )
-    manager.register_type(Tanker)
     manager.upsert_target(Tanker(id="k1", name="x", registration="B-1"))
     cursors = InMemoryCursorRepository()
     collector = Collector(

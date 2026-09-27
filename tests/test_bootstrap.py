@@ -37,7 +37,7 @@ def build() -> App:
 
 def test_build_app_wires_everything() -> None:
     app = build()
-    assert [type_name(t) for t in app.target_manager.types()] == ["aircraft"]
+    assert [type_name(t) for t in app.target_type_registry.types()] == ["aircraft"]
     assert [o.name for o in app.hook_registry.hooks()] == ["countHits", "closeReport"]
     assert app.hil_manager.allowed_actions() == ["add_target", "remove_target", "upsert_template"]
     assert app.parent_event_manager.parents() == []

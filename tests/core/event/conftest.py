@@ -18,7 +18,7 @@ from core.hooks import (
     hook,
 )
 from core.report import ReportManager
-from core.target import ObservationEnvelope, TargetManager
+from core.target import ObservationEnvelope, TargetManager, TargetTypeRegistry
 from plugins.condition_engine.on_enter import OnEnter
 from plugins.hooks.close_report import CloseReport
 from plugins.hooks.count_hits import CountHits
@@ -116,12 +116,14 @@ class Env:
         可观测目标仓库每次新建，记在 observable_repo 上，测试据此检查有没有创建可观测目标。
         """
         self.observable_repo = InMemoryObservableTargetRepository()
+        target_types = TargetTypeRegistry()
+        target_types.register(Aircraft)
         targets = TargetManager(
+            target_types,
             self.target_repo,
             self.observable_repo,
             StaticUpstreamCatalog({("aircraft", "position"): ["adsb", "radar"]}),
         )
-        targets.register_type(Aircraft)
         return targets
 
     def make_services(self, targets: TargetManager) -> ParentEventServices:
