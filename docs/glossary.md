@@ -11,7 +11,7 @@
 | 观察点 | `ObservedPoint` 的子类（如 `Position`），名字如 `position` | 名字 + 它返回什么观测（`observation`）。与目标类型无关，多种目标类型可共用 |
 | 观测（observation） | `Observation` 的子类（如 `PositionObservation`） | 观察点观察之后返回的数据本身，字段就是观测的形状，如 `lat`、`lon` |
 | 查询键 | `QueryKey` 的子类（如 `Icao24`） | 拿什么去查一个目标：名字 + 取值的类型与格式。与观察点对称——观察点是输出契约，查询键是输入契约 |
-| 查询方式 | `Adapter.query_key_sets` 的一项 | 一组查询键；目标能提供这组里的全部查询键，就能用这种方式查 |
+| 查询方式 | `Adapter.query_key_sets` 的一项 | 一组联立的查询键；目标能提供这组里的全部查询键，就能用这种方式查。Adapter 只能拿到查询键范围内的目标信息 |
 | 上游 | `upstream` | 数据来源，如 `adsb`；由 collector 的一个 Adapter 实现，声明服务哪个观察点、支持哪些查询方式（`query_key_sets`，目标能提供其一即可） |
 | 可观测目标（obs） | `ObservableTarget` | 封装好的「具体目标 + 一个观察点」，ID 形如 `t1:position`；持有全部可用上游（服务该观察点且目标能提供其某种查询方式的上游）和订阅关系，全局唯一，由 `TargetManager` 创建 |
 | 订阅 | `ObservableTarget.subscribe(订阅者, 上游集合)` | 订阅者指定要哪些上游；可观测目标按上游把数据路由给订阅者 |

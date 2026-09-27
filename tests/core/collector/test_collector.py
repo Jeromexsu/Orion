@@ -245,3 +245,29 @@ def test_register_checks_adapter_declarations(env: Env) -> None:
     incomplete = NoQuery("no-query", query_key_sets=())
     with pytest.raises(TypeError, match="query_key_sets"):
         env.registry.register(incomplete)
+
+
+def test_query_way_with_several_keys_needs_all_of_them() -> None:
+    """联立查询：一种查询方式要同时提供多个查询键，缺一个就不满足，退到下一种。"""
+
+    class Callsign(QueryKey):
+        name: ClassVar[str] = "callsign"
+        value_type: ClassVar[Any] = str
+
+    class Flight(Target, frozen=True):
+        observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (Position,)
+        type: Literal["flight"] = "flight"
+        icao24: Annotated[str | None, Icao24] = None
+        callsign: Annotated[str | None, Callsign] = None
+        registration: Annotated[str | None, Registration] = None
+
+    upstream = FakeAdapter(
+        "strict", query_key_sets=(frozenset({Icao24, Callsign}), frozenset({Registration}))
+    )
+    both = Flight(id="f1", name="x", icao24="780a3b", callsign="CES5101", registration="B-1")
+    only_icao = Flight(id="f2", name="y", icao24="780a3b", registration="B-2")
+    neither = Flight(id="f3", name="z", icao24="780a3b")
+
+    assert match_query(upstream, both) == {Icao24: "780a3b", Callsign: "CES5101"}
+    assert match_query(upstream, only_icao) == {Registration: "B-2"}   # 缺 Callsign，退到第二种
+    assert match_query(upstream, neither) is None

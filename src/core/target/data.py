@@ -3,23 +3,22 @@
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, SerializeAsAny
+from pydantic import BaseModel, ConfigDict, SerializeAsAny
 
 from core.target.observed_point import Observation
 
 
 class QuerySpec(BaseModel):
-    """可观测目标对自己的描述：是什么目标、关注哪个观察点、有哪些信息。与上游无关。
+    """这次查的是哪个观察点（以及目标类型，仅供兜底）。与上游无关。
 
-    这次用哪种查询方式、从哪个时间点开始拉，是 collector 按上游决定的，不在这里。
+    目标的信息只经查询键交给 Adapter（fetch 的 query 参数）：不在查询键范围内的，Adapter 拿不到。
+    故意不带目标属性——否则 Adapter 可以绕开查询键按字段名取值，可用性判断也就管不住了。
     """
 
     model_config = ConfigDict(frozen=True)
 
-    type: str                   # 目标类型（Adapter 的查询逻辑确实依赖类型时可读它，匹配规则不看它）
-    observed_point: str         # 观察点名，如 "position"
-    attributes: dict[str, Any]  # 目标全部属性
-    aliases: list[str] = Field(default_factory=list[str])
+    observed_point: str         # 观察点名，如 "position"；Adapter 服务多个观察点时按它分支
+    type: str                   # 目标类型。仅供兜底，不推荐依赖：按类型分支意味着新增目标类型要改 Adapter
 
 
 class ObservationEnvelope(BaseModel):

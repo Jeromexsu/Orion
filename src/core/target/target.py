@@ -71,7 +71,7 @@ class Target(BaseModel, frozen=True):
         return self
 
     def attributes(self) -> dict[str, Any]:
-        """子类声明的属性字段（不含基类字段），给 QuerySpec 和持久化用。"""
+        """子类声明的属性字段（不含基类字段），持久化用。"""
         return self.model_dump(exclude=set(_BASE_FIELDS))
 
     def to_record(self) -> "TargetRecord":

@@ -113,13 +113,8 @@ class ObservableTarget:
     # ------------------------------------------------------------ 采集辅助
 
     def query_spec(self) -> QuerySpec:
-        """对自己的描述：目标类型、观察点、属性、别名。"""
-        return QuerySpec(
-            type=self._target.type,
-            observed_point=self._observed_point.name,
-            attributes=self._target.attributes(),
-            aliases=self._target.aliases,
-        )
+        """这次查的是哪个观察点（及目标类型，仅供兜底）。目标的信息经查询键另行传给 Adapter。"""
+        return QuerySpec(observed_point=self._observed_point.name, type=self._target.type)
 
     def accepts(self, observation: Observation) -> bool:
         """这个观测是不是本观察点的观测类（或其子类）的实例。"""

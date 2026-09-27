@@ -69,7 +69,7 @@ sequenceDiagram
   participant E as Event
 
   C->>O: active_upstreams()（只拉有人订阅的上游）
-  C->>A: fetch(spec, query, since)（目标描述 + 按查询键匹配到的查询 + 该上游的游标）
+  C->>A: fetch(spec, query, since)（观察点 + 按查询键匹配到的查询 + 该上游的游标）
   A-->>C: FetchedRecord（观测实例 + 来源信息）
   C->>O: accepts(observation)（观测类型是否与观察点一致）
   Note over C: 包成 ObservationEnvelope，去重、落库、推进游标
@@ -114,8 +114,18 @@ graph LR
 | 观察点 `ObservedPoint` | 输出：上游返回什么 | `observed_points = (Position,)` | `observed_point = Position` |
 | 查询键 `QueryKey` | 输入：上游拿什么去查 | `icao24: Annotated[str \| None, Icao24]` | `query_key_sets = (frozenset({Icao24}),)` |
 
-`fetch` 的三个参数各有来源：`QuerySpec` 是可观测目标对自己的描述（与上游无关）；`query` 是 collector
-为这个上游挑出的查询方式及取值（`{Icao24: "780a3b"}`，构造目标时已按查询键校验）；`since` 是这个上游的游标。
+输入这一侧的分工：
+
+| 谁 | 做什么 | 不知道什么 |
+|---|---|---|
+| 查询键 | 定义输入的词汇：每个查询键是一项输入（名字 + 取值格式），全部查询键就是输入的全部范围 | 上游、目标类型 |
+| 目标类型 | 把自己的字段映射进查询键（字段上 `Annotated` 标注）；字段为空的不算提供 | 上游 |
+| Adapter | 在查询键范围里挑自己要的：`query_key_sets` 是几种可选的查询方式，每种是一组**联立**的查询键（要全部提供）；按优先级取第一种满足的。再把查询键翻译成上游 API 的参数名和格式（如 `Icao24` → `ICAO`、大写） | 目标类型、目标的字段名 |
+
+**不在查询键范围内的，Adapter 拿不到。** `fetch(spec, query, since)` 里：`query` 是 collector 为这个上游挑出的
+查询方式及取值（如 `{Icao24: "780a3b"}`，构造目标时已按查询键校验）——这是 Adapter 得到目标信息的唯一途径；
+`spec` 只说明查的是哪个观察点（Adapter 服务多个观察点时按它分支），另带目标类型仅供兜底；`since` 是这个上游的游标。
+`QuerySpec` 故意不带目标属性：否则 Adapter 能绕开查询键按字段名取值，可用性判断也就管不住了。
 
 ### event：父事件、模板、子事件
 

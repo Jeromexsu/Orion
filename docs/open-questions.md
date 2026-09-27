@@ -159,8 +159,10 @@ since 之前的不返回），等往外分插件任务时再搭。
   - 目标类型在提供它的字段上标注：`icao24: Annotated[str | None, Icao24] = None`；构造目标时按查询键校验取值；
   - Adapter 声明 `query_key_sets`（支持的查询方式：多组查询键，按优先级）；按查询键类匹配，不看字段名；
     采用目标能提供的第一种，组装成 `query`（查询键 → 取值）；
-  - `QuerySpec` 只剩可观测目标对自己的描述（类型、观察点、属性、别名）；这次用的查询方式和游标由 collector
-    按上游决定，`Adapter.fetch(spec, query, since)` 分开传。
+  - 不在查询键范围内的，Adapter 拿不到：`QuerySpec` 只剩观察点（多观察点时分支用）和目标类型（仅兜底），
+    不带目标属性、别名——否则 Adapter 能绕开查询键按字段名取值，可用性判断管不住；别名要用来查就定义成查询键；
+  - 这次用的查询方式和游标由 collector 按上游决定，`Adapter.fetch(spec, query, since)` 分开传；
+  - 一种查询方式可以联立多个查询键（`frozenset({B, C})`），缺一个就不满足、退到下一种。
 - **插件接口用基类，不用协议**：`Adapter`、`Operator` 与 `Evaluator` 一样是 ABC 基类，类属性的类型在基类里
   声明，插件直接赋值（`category = "progress"`），不必逐个标注，也不会踩「协议是只读属性、pyright 不认 ClassVar」的坑；
   注册时检查类属性是否都声明了。`FetchedRecord` 直接装观测实例（原为字段 dict），字段写错在 Adapter 里当场报错。

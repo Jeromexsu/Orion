@@ -48,7 +48,7 @@ def test_fetch_translates_state_vectors() -> None:
     adapter = OpenSkyAdapter(api)
     since = datetime.fromtimestamp(T0, UTC)
 
-    spec = QuerySpec(type="aircraft", observed_point="position", attributes={})
+    spec = QuerySpec(observed_point="position", type="aircraft")
     records = adapter.fetch(spec, {Icao24: "780a3b"}, since)
 
     assert api.urls == ["https://opensky-network.org/api/states/all?icao24=780a3b"]

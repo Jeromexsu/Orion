@@ -8,6 +8,7 @@ from core.target import (
     Observation,
     ObservationEnvelope,
     ObservedPoint,
+    QuerySpec,
     Target,
     TargetManager,
     UnsupportedObservedPointError,
@@ -40,10 +41,7 @@ def test_subscribers_is_a_snapshot(manager: TargetManager, plane: Target) -> Non
 
 def test_query_spec(manager: TargetManager, plane: Target) -> None:
     spec = manager.get_observable(plane.id, "position").query_spec()
-    assert spec.type == "aircraft"
-    assert spec.observed_point == "position"
-    assert spec.attributes["registration"] == "B-2447"
-    assert spec.aliases == ["MU5101"]
+    assert spec == QuerySpec(observed_point="position", type="aircraft")
 
 
 def test_accepts_only_its_observation_class(manager: TargetManager, plane: Target) -> None:
