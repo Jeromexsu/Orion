@@ -188,10 +188,10 @@ def mount(operator: str, mount_point: str, **params: Any) -> dict[str, Any]:
     return {"operator": operator, "mount_point": mount_point, "params": params}
 
 
-def enter(target: str = "t1:position", initial: bool = False) -> dict[str, Any]:
+def enter(observable: str = "t1:position", initial: bool = False) -> dict[str, Any]:
     return {
         "kind": "leaf",
-        "target": target,
+        "observable": observable,
         "type": "onEnter",
         "params": {"area": SQUARE, "initial_as_enter": initial},
     }

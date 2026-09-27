@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class LeafDef(BaseModel):
     kind: Literal["leaf"] = "leaf"
-    target: str                 # ObservableTarget 的 ID
+    observable: str             # 可观测目标 ID，如 "t1:position"
     type: str                   # 判断方式，如 "onEnter"
     params: dict[str, Any] = Field(default_factory=dict[str, Any])  # 由对应的判断方式自己解释
 

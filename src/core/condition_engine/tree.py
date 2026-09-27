@@ -29,25 +29,25 @@ class ConditionNode(ABC):
     def evaluate(self, envelope: ObservationEnvelope, state: TreeState) -> EvalResult: ...
 
     @abstractmethod
-    def targets(self) -> frozenset[str]: ...
+    def observables(self) -> frozenset[str]: ...
 
 
 class LeafNode(ConditionNode):
     def __init__(
-        self, path: str, target: str, evaluator: Evaluator[Any], params: BaseModel
+        self, path: str, observable: str, evaluator: Evaluator[Any], params: BaseModel
     ) -> None:
         super().__init__(path)
-        self.target = target
+        self.observable = observable
         self.evaluator = evaluator
         self.params = params
 
     def evaluate(self, envelope: ObservationEnvelope, state: TreeState) -> EvalResult:
         requires: Set[str] = self.evaluator.requires
         observation = envelope.observation
-        if envelope.observable_id != self.target or any(
+        if envelope.observable_id != self.observable or any(
             getattr(observation, f, None) is None for f in requires
         ):
-            # 不是这个叶子的目标，或需要的字段缺失 / 为空（如没有高度的观测）
+            # 不是这个叶子的可观测目标，或需要的字段缺失 / 为空（如没有高度的观测）
             return EvalResult(outcome=NOT_APPLICABLE)
 
         leaf_state = MappingProxyType(dict(state.get(self.path, {})))
@@ -57,7 +57,7 @@ class LeafNode(ConditionNode):
         entry: dict[str, Any] = {
             "path": self.path,
             "type": self.evaluator.type,
-            "target": self.target,
+            "observable": self.observable,
             "outcome": result.outcome,
             "occurred_at": envelope.occurred_at.isoformat(),
             "fields": {f: getattr(observation, f) for f in sorted(requires)},
@@ -69,8 +69,8 @@ class LeafNode(ConditionNode):
         )
         return result.model_copy(update={"trace": [entry, *result.trace], "state_patch": patch})
 
-    def targets(self) -> frozenset[str]:
-        return frozenset({self.target})
+    def observables(self) -> frozenset[str]:
+        return frozenset({self.observable})
 
 
 class OpNode(ConditionNode):
@@ -135,8 +135,8 @@ class OpNode(ConditionNode):
             return HIT, max(r.confidence for r in hits), extracted
         return MISS, min(r.confidence for r in misses), {}
 
-    def targets(self) -> frozenset[str]:
-        return frozenset[str]().union(*(c.targets() for c in self.children))
+    def observables(self) -> frozenset[str]:
+        return frozenset[str]().union(*(c.observables() for c in self.children))
 
 
 class ConditionTree:
@@ -149,6 +149,6 @@ class ConditionTree:
         """纯函数：不改 state；新状态在结果的 state_patch 里，用 apply_state_patch 合并。"""
         return self._root.evaluate(envelope, state)
 
-    def targets(self) -> frozenset[str]:
+    def observables(self) -> frozenset[str]:
         """树里引用的全部 ObservableTarget ID，供 EventTemplate.validate 做范围检查。"""
-        return self._root.targets()
+        return self._root.observables()

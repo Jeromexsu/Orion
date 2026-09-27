@@ -44,7 +44,7 @@ compiler = ConditionCompiler(registry)
 
 
 def leaf(o: Outcome) -> dict[str, Any]:
-    return {"kind": "leaf", "target": "t", "type": "fixed", "params": {"outcome": o}}
+    return {"kind": "leaf", "observable": "t", "type": "fixed", "params": {"outcome": o}}
 
 
 def run(definition: dict[str, Any]) -> Outcome:

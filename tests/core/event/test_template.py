@@ -14,7 +14,7 @@ def test_compile(env: Env) -> None:
     t = compile_(env, template(threshold=3))
     assert t.target_ids == {"t1"}
     assert [o.observable_id for o in t.observable_defs] == ["t1:position"]
-    assert t.open_tree.targets() == {"t1:position"}
+    assert t.open_tree.observables() == {"t1:position"}
     assert t.rules[0].hook_defs[0].params == {"threshold": 3}
 
 
@@ -41,9 +41,9 @@ def test_compile_collects_errors(env: Env) -> None:
     errors = info.value.errors
     assert any("observable_def 't1:position': duplicate" in e for e in errors)
     # 条件只能引用已声明的观测：t2 未声明，对条件引擎来说就是未知目标
-    assert any(e.startswith("open_condition_def: root: unknown target 't2:position'") for e in errors)
+    assert any(e.startswith("open_condition_def: root: unknown observable 't2:position'") for e in errors)
     assert any("duplicate rule names ['enter']" in e for e in errors)
-    assert any(e.startswith("rule 'enter': root: unknown target") for e in errors)
+    assert any(e.startswith("rule 'enter': root: unknown observable") for e in errors)
     assert any("rule hooks must mount at 'rule_hit'" in e for e in errors)
     assert any("hook 0: 'rule_hit' hooks belong on a rule" in e for e in errors)
     assert any(e.startswith("hook 1: ") and "nope" in e for e in errors)

@@ -31,7 +31,7 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
 
 可能的做法：
 1. 多目标判断方式：允许某种 `Evaluator` 绑定多个目标，每来一条数据把该目标的最新值记进自己的
-   state，再用各目标的最新值判断（需要改 `LeafDef.target` 为多目标、`LeafNode` 的适用性判断）；
+   state，再用各目标的最新值判断（需要改 `LeafDef.observable` 为多个可观测目标、`LeafNode` 的适用性判断）；
 2. 在组合层面引入跨叶子比较：新的节点类型，读取子叶子 `extracted` 出来的数值做比较；
 3. 派生可观测目标：在 collector / target 层把「两机距离」做成一个派生的观察点，条件照旧单目标。
 
@@ -43,7 +43,7 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
 **状态**：暂维持现状，满足触发条件时重新评估。
 
 条件引擎依赖 target，只依赖一个数据类型 `Observation`（不碰 `TargetManager`、`ObservableTarget`）。维持的理由：
-`LeafDef.target` 本就是可观测目标 ID，条件在概念上就是「对可观测目标的观测做判断」，原 Protocol 只是把
+`LeafDef.observable` 本就是可观测目标 ID，条件在概念上就是「对可观测目标的观测做判断」，原 Protocol 只是把
 这层关联藏了起来；target 是最底层、最稳定的模块，无环；回退只需在条件引擎内重新引入输入 Protocol。
 
 代价：条件引擎与「观测」的形状绑定；判断方式能看到 `upstream` / `source_id` / `raw`（靠约定不依赖）；
@@ -110,6 +110,8 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
   `RunnerStateRepository`；`EventManager` → `ParentEventManager`（它管的是父事件）；算子层级 `Level`
   取值 `"instance"` → `"event"`，上下文 `instance_id` → `event_id`。下文历史条目里的 slot / 实例
   即 EventRunner / Event。
+- **叶子字段命名**：设计文档第八节的 `LeafDef.target` → `observable`（填的是可观测目标 ID，如 `t1:position`，
+  不是静态目标 ID）；`ConditionTree.targets()` → `observables()`；trace 键 `target` → `observable`。
 - **判断方式命名**：设计文档的 `LeafConditionEvaluator` / `LeafEvaluator` → `Evaluator`（唯一的可扩展判断方式，
   与 `EvaluatorRegistry` 对应；「挂在叶子上」由 `LeafNode` 表达）。
 

@@ -66,14 +66,16 @@ class ConditionCompiler:
         evaluator = self._registry.get(node.type)
 
         ok = True
-        available = fields_by_observable.get(node.target)
+        available = fields_by_observable.get(node.observable)
         if available is None:
-            errors.append(f"{path}: unknown target {node.target!r}")
+            errors.append(f"{path}: unknown observable {node.observable!r}")
             ok = False
         else:
             missing = set(evaluator.requires) - set(available)
             if missing:
-                errors.append(f"{path}: target {node.target!r} lacks fields {sorted(missing)}")
+                errors.append(
+                    f"{path}: observable {node.observable!r} lacks fields {sorted(missing)}"
+                )
                 ok = False
 
         try:
@@ -82,4 +84,4 @@ class ConditionCompiler:
             errors.append(f"{path}: invalid params for {node.type!r}: {e}")
             return None
 
-        return LeafNode(path, node.target, evaluator, params) if ok else None
+        return LeafNode(path, node.observable, evaluator, params) if ok else None
