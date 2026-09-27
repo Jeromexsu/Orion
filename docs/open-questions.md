@@ -157,15 +157,7 @@ class RadarAdapter(UpstreamAdapter): ...
 算子的 `run` 拿到有类型的参数。
 
 同一批要一起定的：
-- **`Trigger` 按挂载点分类型**：现在除 `mount_point` 外的 `envelope` / `result` / `patch` 都是「可能为 None」，
-  哪个有值取决于挂载点，算子得自己记住并断言（如 `assert trigger.envelope is not None`）。可改为可辨识联合：
-  `CreatedTrigger` / `ObservationTrigger`（pre、post：envelope）/ `RuleHitTrigger`（envelope + result）/
-  `StatusUpdatedTrigger`（patch）/ `ClosedTrigger`，以 `mount_point` 区分；算子 `match` 后字段类型确定，
-  只挂 `rule_hit` 的算子可直接声明只收 `RuleHitTrigger`。
-- **`Trigger` 改名 `Occasion`**（已定）：它只是一条记录——算子这次在哪个挂载点、因为什么被调用，附带当时的数据；
-  「trigger」听起来像会触发动作。按挂载点分类型后为 `CreatedOccasion` / `ObservationOccasion` / `RuleHitOccasion` /
-  `StatusUpdatedOccasion` / `ClosedOccasion`；`run(occasion, ctx)`。
-- **`Category` / `Level` / `MountPoint` 挪到 `operator.py`**（已定）：它们描述算子是什么、能挂在哪，现在放在 `trigger.py`。
+- ~~`Trigger` 按挂载点分类型、改名 `Occasion`；`Category` / `Level` / `MountPoint` 挪到 `operator.py`~~ **已完成**，见「已决 · 算子的调用时机」。
 - 算子是否也改为装饰器声明（`@operator(...)`）；上下文里的 `params` 怎么传。
 
 ### 8. 其他（随审阅推进逐条确认）
@@ -180,6 +172,14 @@ class RadarAdapter(UpstreamAdapter): ...
 - 设计文档第八、九节与代码同步。
 
 ## 已决
+
+- **算子的调用时机 `Occasion`**（原 `Trigger`）：它只是一条记录——算子这次在哪个挂载点、因为什么被调用，附带当时的数据；
+  按挂载点分类型组成可辨识联合（以 `mount_point` 区分），字段不再是「可能为 None」：`CreatedOccasion` /
+  `ObservationOccasion`（pre、post：envelope）/ `RuleHitOccasion`（envelope + result）/ `StatusUpdatedOccasion`（patch）/
+  `ClosedOccasion`；`run(occasion, ctx)`，算子用 `match` / `isinstance` 分支。`Category` / `Level` / `MountPoint` 挪到
+  `operator.py`（描述算子本身），`trigger.py` 改为 `occasion.py`。
+  与原设想不同：「只挂 `rule_hit` 的算子直接声明只收 `RuleHitOccasion`」没有做——子类收窄参数类型违反覆写规则
+  （pyright 报错），要做得让 `Operator` 再对时机类型泛型化，暂不值得。
 
 - **条件引用范围：event 决定范围，条件编译器按范围检查**（审阅 `_compile_leaf` 时讨论，不把范围检查挪到模板编译器）：
   模板编译器根据可观测目标声明组装 `declared_observables`（范围 + 每个的观测类），条件编译器对每个叶子做一次查找，

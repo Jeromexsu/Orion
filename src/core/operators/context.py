@@ -2,12 +2,14 @@
 
 from collections.abc import Callable, Mapping
 from copy import deepcopy
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
 from core.hil import Suggestion
-from core.operators.trigger import Category
+
+if TYPE_CHECKING:  # operator.py imports this module, so import Category for typing only
+    from core.operators.operator import Category
 
 
 class BaseContext(BaseModel):
@@ -55,7 +57,7 @@ class SuggestContext(BaseContext):
 
 
 def build_context(
-    category: Category,
+    category: "Category",
     *,
     state: Mapping[str, Any],
     params: Mapping[str, Any],
@@ -65,7 +67,7 @@ def build_context(
     parent_id: str | None = None,
     event_id: str | None = None,
 ) -> BaseContext:
-    """event 侧按算子类别构造对应的上下文：ctx = build_context(op.category, ...); op.run(trigger, ctx)。"""
+    """event 侧按算子类别构造对应的上下文：ctx = build_context(op.category, ...); op.run(occasion, ctx)。"""
     common: dict[str, Any] = {
         "state": deepcopy(dict(state)),
         "params": deepcopy(dict(params)),

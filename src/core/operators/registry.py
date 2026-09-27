@@ -3,8 +3,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from core.operators.errors import DuplicateOperatorError, InvalidMountError, UnknownOperatorError
-from core.operators.operator import Operator, check_operator
-from core.operators.trigger import Level, MountPoint
+from core.operators.operator import Level, MountPoint, Operator, check_operator
 
 
 class OperatorRegistry:

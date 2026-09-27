@@ -5,7 +5,7 @@
 
 from pydantic import BaseModel
 
-from core.operators import BaseContext, Operator, Trigger
+from core.operators import BaseContext, Occasion, Operator
 from core.report import ReportManager
 
 
@@ -27,7 +27,7 @@ class CloseReport(Operator[BaseContext]):
     def __init__(self, report_manager: ReportManager) -> None:
         self._report_manager = report_manager
 
-    def run(self, trigger: Trigger, ctx: BaseContext) -> None:
+    def run(self, occasion: Occasion, ctx: BaseContext) -> None:
         """新建一份草稿（写库）。上下文没有父事件 ID 时什么都不做。"""
         if ctx.parent_id is None:
             return

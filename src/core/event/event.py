@@ -10,7 +10,15 @@ from core.event.errors import EventClosedError
 from core.event.records import EventRecord
 from core.event.runtime import EventRuntime
 from core.event.template import EventTemplate
-from core.operators import Trigger, build_context
+from core.operators import (
+    ClosedOccasion,
+    CreatedOccasion,
+    ObservationOccasion,
+    Occasion,
+    RuleHitOccasion,
+    StatusUpdatedOccasion,
+    build_context,
+)
 from core.target import ObservationEnvelope
 
 logger = logging.getLogger(__name__)
@@ -70,7 +78,7 @@ class Event:
         event = cls(
             uuid4().hex, parent_id, template, cycle, runtime, target_names, opened_at=_now()
         )
-        event._run_hooks(template.hooks_at("created"), Trigger(mount_point="created"))
+        event._run_hooks(template.hooks_at("created"), CreatedOccasion())
         return event
 
     @classmethod
@@ -148,7 +156,10 @@ class Event:
         if self.is_closed:
             raise EventClosedError(self._id)
 
-        self._run_hooks(self._template.hooks_at("pre"), Trigger(mount_point="pre", envelope=envelope))
+        self._run_hooks(
+            self._template.hooks_at("pre"),
+            ObservationOccasion(mount_point="pre", envelope=envelope),
+        )
 
         for rule in self._template.rules:
             state = self._condition_state.get(rule.name, {})
@@ -157,10 +168,13 @@ class Event:
                 self._condition_state[rule.name] = result.state
             if result.outcome == HIT:
                 self._run_hooks(
-                    rule.hook_defs, Trigger(mount_point="rule_hit", envelope=envelope, result=result)
+                    rule.hook_defs, RuleHitOccasion(envelope=envelope, result=result)
                 )
 
-        self._run_hooks(self._template.hooks_at("post"), Trigger(mount_point="post", envelope=envelope))
+        self._run_hooks(
+            self._template.hooks_at("post"),
+            ObservationOccasion(mount_point="post", envelope=envelope),
+        )
 
         if self.should_close():
             self.close("converged")
@@ -179,7 +193,7 @@ class Event:
         try:
             self._run_hooks(
                 self._template.hooks_at("status_updated"),
-                Trigger(mount_point="status_updated", patch=dict(patch)),
+                StatusUpdatedOccasion(patch=dict(patch)),
             )
         finally:
             self._in_status_hooks = False
@@ -192,13 +206,13 @@ class Event:
         """跑 closed 钩子后关闭。重复关闭忽略。不写库（由 runner 存档）。"""
         if self.is_closed:
             return
-        self._run_hooks(self._template.hooks_at("closed"), Trigger(mount_point="closed"))
+        self._run_hooks(self._template.hooks_at("closed"), ClosedOccasion())
         self._closed_at = _now()
         self._close_reason = reason
 
     # ------------------------------------------------------------ 内部
 
-    def _run_hooks(self, mounts: tuple[OperatorMountDef, ...], trigger: Trigger) -> None:
+    def _run_hooks(self, mounts: tuple[OperatorMountDef, ...], occasion: Occasion) -> None:
         """按挂载顺序同步执行，每个算子单独隔离异常。
         TODO: 标记为异步的输出类算子改为入队（见设计文档第三节）。"""
         for mount in mounts:
@@ -214,11 +228,11 @@ class Event:
                 event_id=self._id,
             )
             try:
-                operator.run(trigger, ctx)
+                operator.run(occasion, ctx)
             except Exception:
                 logger.exception(
                     "operator %s failed at %s on event %s",
                     mount.operator,
-                    trigger.mount_point,
+                    occasion.mount_point,
                     self._id,
                 )

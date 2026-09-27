@@ -13,11 +13,12 @@ from core.operators import (
     Category,
     Level,
     MountPoint,
+    ObservationOccasion,
+    Occasion,
     Operator,
     OperatorRegistry,
     ProgressContext,
     SuggestContext,
-    Trigger,
 )
 from core.report import ReportManager
 from core.target import ObservationEnvelope, TargetManager
@@ -69,8 +70,8 @@ class Recorder(Operator[BaseContext]):
     def __init__(self, log: Log) -> None:
         self.log = log
 
-    def run(self, trigger: Trigger, ctx: BaseContext) -> None:
-        self.log.calls.append((self.name, trigger.mount_point))
+    def run(self, occasion: Occasion, ctx: BaseContext) -> None:
+        self.log.calls.append((self.name, occasion.mount_point))
 
 
 class Echo(Operator[ProgressContext]):
@@ -82,7 +83,7 @@ class Echo(Operator[ProgressContext]):
     mount_points: frozenset[MountPoint] = frozenset({"status_updated"})
     params_model = NoParams
 
-    def run(self, trigger: Trigger, ctx: ProgressContext) -> None:
+    def run(self, occasion: Occasion, ctx: ProgressContext) -> None:
         ctx.update_status({"echoed": int(ctx.state.get("echoed", 0)) + 1})
 
 
@@ -95,13 +96,13 @@ class Spotter(Operator[SuggestContext]):
     mount_points: frozenset[MountPoint] = frozenset({"pre"})
     params_model = NoParams
 
-    def run(self, trigger: Trigger, ctx: SuggestContext) -> None:
-        assert trigger.envelope is not None
+    def run(self, occasion: Occasion, ctx: SuggestContext) -> None:
+        assert isinstance(occasion, ObservationOccasion)  # 只挂在 pre：一定是观测到达
         ctx.suggest(
             Suggestion(
                 source=self.name,
-                reason=f"saw {ctx.target_name(trigger.envelope.observable_id)}",
-                evidence=[trigger.envelope.source_id],
+                reason=f"saw {ctx.target_name(occasion.envelope.observable_id)}",
+                evidence=[occasion.envelope.source_id],
                 proposal=Proposal(action="add_target", args={}),
             )
         )
@@ -114,7 +115,7 @@ class Boom(Operator[BaseContext]):
     mount_points = ALL_MOUNTS
     params_model = NoParams
 
-    def run(self, trigger: Trigger, ctx: BaseContext) -> None:
+    def run(self, occasion: Occasion, ctx: BaseContext) -> None:
         raise RuntimeError("boom")
 
 

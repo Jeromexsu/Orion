@@ -1,21 +1,26 @@
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 from pydantic import BaseModel
 
+from core.condition_engine import HIT, EvalResult
 from core.hil import Proposal, Suggestion
 from core.operators import (
     BaseContext,
     DuplicateOperatorError,
     InvalidMountError,
+    Occasion,
     Operator,
     OperatorRegistry,
     ProgressContext,
+    RuleHitOccasion,
     SuggestContext,
-    Trigger,
     UnknownOperatorError,
     build_context,
 )
+from core.target import ObservationEnvelope
+from plugins.observed_points.position import PositionObservation
 from plugins.operators.count_hits import CountHits
 
 
@@ -131,10 +136,19 @@ def test_validate_mount(registry: OperatorRegistry) -> None:
 def test_count_hits_runs_through_built_context(registry: OperatorRegistry) -> None:
     op = registry.get("count_hits")
     rec = Recorder()
-    trigger = Trigger(mount_point="rule_hit")
+    occasion = RuleHitOccasion(
+        envelope=ObservationEnvelope(
+            observable_id="t1:position",
+            upstream="adsb",
+            observation=PositionObservation(lat=0, lon=0),
+            occurred_at=datetime(2026, 9, 26, tzinfo=UTC),
+            source_id="adsb#1",
+        ),
+        result=EvalResult(outcome=HIT),
+    )
 
-    op.run(trigger, ctx_for(op.category, rec, {"hits": 0}, threshold=2))
-    op.run(trigger, ctx_for(op.category, rec, {"hits": 1}, threshold=2))
+    op.run(occasion, ctx_for(op.category, rec, {"hits": 0}, threshold=2))
+    op.run(occasion, ctx_for(op.category, rec, {"hits": 1}, threshold=2))
     assert rec.patches == [{"hits": 1}, {"hits": 2, "closed": True}]
 
 
@@ -150,7 +164,7 @@ def test_register_checks_operator_declarations() -> None:
         mount_points = frozenset({"closed"})
         params_model = BaseModel
 
-        def run(self, trigger: Trigger, ctx: BaseContext) -> None:
+        def run(self, occasion: Occasion, ctx: BaseContext) -> None:
             pass
 
     with pytest.raises(TypeError, match="must set name"):

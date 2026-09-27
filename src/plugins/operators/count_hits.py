@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field
 
 from core.event import CLOSE_STATUS_KEY
-from core.operators import Operator, ProgressContext, Trigger
+from core.operators import Occasion, Operator, ProgressContext
 
 
 class CountHitsParams(BaseModel):
@@ -21,7 +21,7 @@ class CountHits(Operator[ProgressContext]):
     mount_points = frozenset({"rule_hit"})
     params_model = CountHitsParams
 
-    def run(self, trigger: Trigger, ctx: ProgressContext) -> None:
+    def run(self, occasion: Occasion, ctx: ProgressContext) -> None:
         """经 update_status 改子事件状态。"""
         params = CountHitsParams.model_validate(ctx.params)
         hits = int(ctx.state.get("hits", 0)) + 1
