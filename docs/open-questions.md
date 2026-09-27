@@ -87,6 +87,12 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
 
 ## 已决
 
+- **模板编译创建可观测目标的时机**：`TemplateCompiler` 先只检查（`TargetManager.inspect_observable`，不创建），
+  全部通过后才 `get_observable` 取得 / 创建，所以被拒绝的模板不留下可观测目标。编译成功的模板持有确定的
+  可观测目标（`compiled_observables`）；挂起的新版本因此会在切换前就创建出暂时无人订阅的可观测目标——
+  它们不被采集、代价很小，与「取消订阅后可观测目标保留到目标删除」的生命周期一致，接受这一点，
+  不改为 runner 订阅时再延迟创建。
+
 - **观测 / 观察点 / 外壳三分**（取代「观测与动态数据合一」）：
   - `Observation` 子类（如 `PositionObservation`）= 观察点观察之后返回的数据，字段即形状；
   - `ObservedPoint` 子类（如 `Position`）= 名字 + `observation`（返回什么观测），普通类、不实例化；
