@@ -1,7 +1,7 @@
 from typing import Any
 
 from core.condition_engine.errors import DuplicateEvaluatorError, UnknownEvaluatorError
-from core.condition_engine.evaluator import Evaluator
+from core.condition_engine.evaluator import Evaluator, check_evaluator
 
 
 class EvaluatorRegistry:
@@ -11,7 +11,8 @@ class EvaluatorRegistry:
         self._evaluators: dict[str, Evaluator[Any]] = {}
 
     def register(self, evaluator: Evaluator[Any]) -> None:
-        """op 重复抛 DuplicateEvaluatorError。"""
+        """没用 @evaluator 声明抛 TypeError；op 重复抛 DuplicateEvaluatorError。"""
+        check_evaluator(evaluator)
         if evaluator.op in self._evaluators:
             raise DuplicateEvaluatorError(evaluator.op)
         self._evaluators[evaluator.op] = evaluator

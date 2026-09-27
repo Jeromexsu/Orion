@@ -15,6 +15,7 @@ from core.condition_engine import (
     EvalResult,
     Evaluator,
     EvaluatorRegistry,
+    evaluator,
 )
 from core.target import ObservationEnvelope
 from plugins.condition_engine.on_enter import OnEnter
@@ -160,12 +161,10 @@ class RecentCriteria(BaseModel):
     count: int
 
 
+@evaluator(requires={"lat"})
 class RecentCount(Evaluator[RecentCriteria]):
     """示例：滑动窗口。最近 hours 小时内的观测达到 count 条即命中——状态记的是 N 轮，不只上一轮。"""
 
-    op = "recentCount"
-    requires = frozenset({"lat"})
-    criteria_model = RecentCriteria
 
     def evaluate(
         self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: RecentCriteria
@@ -178,12 +177,10 @@ class RecentCount(Evaluator[RecentCriteria]):
         )
 
 
+@evaluator(requires={"alt"})
 class Spy(Evaluator[GtCriteria]):
     """记录收到的观测外壳。"""
 
-    op = "spy"
-    requires = frozenset({"alt"})
-    criteria_model = GtCriteria
 
     def __init__(self) -> None:
         self.seen: list[ObservationEnvelope] = []
@@ -228,3 +225,35 @@ def test_state_can_hold_a_sliding_window() -> None:
     # 第 3 条时 24h 内有 3 条；50h 时窗口只剩它自己；65h 时 50/60/65 三条
     assert outcomes == [MISS, MISS, HIT, MISS, MISS, HIT]
     assert len(state["root"]["window"]) == 3
+
+
+def test_evaluator_decorator_defaults_and_overrides() -> None:
+    assert (OnEnter.op, OnEnter.requires, OnEnter.criteria_model.__name__) == (
+        "onEnter",
+        frozenset({"lat", "lon"}),
+        "OnEnterCriteria",
+    )
+
+    @evaluator(op="httpCheck")
+    class HTTPCheck(Evaluator[GtCriteria]):
+        def evaluate(
+            self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: GtCriteria
+        ) -> EvalResult:
+            return EvalResult(outcome=MISS)
+
+    assert (HTTPCheck.op, HTTPCheck.requires, HTTPCheck.criteria_model) == (
+        "httpCheck",
+        frozenset(),
+        GtCriteria,
+    )
+
+
+def test_undeclared_evaluator_rejected_at_register() -> None:
+    class Bare(Evaluator[GtCriteria]):
+        def evaluate(
+            self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: GtCriteria
+        ) -> EvalResult:
+            return EvalResult(outcome=MISS)
+
+    with pytest.raises(TypeError, match="@evaluator"):
+        EvaluatorRegistry().register(Bare())

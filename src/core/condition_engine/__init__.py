@@ -22,6 +22,7 @@ from core.condition_engine.evaluator import (
     EvalResult,
     Evaluator,
     Outcome,
+    evaluator,
 )
 from core.condition_engine.registry import EvaluatorRegistry
 from core.condition_engine.tree import ConditionTree, TreeState
@@ -36,6 +37,7 @@ __all__ = [
     "EvalResult",
     "Evaluator",
     "EvaluatorRegistry",
+    "evaluator",
     "DeclaredObservables",
     "HIT",
     "LeafDef",

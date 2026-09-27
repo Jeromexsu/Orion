@@ -16,6 +16,7 @@ from core.condition_engine import (
     Evaluator,
     EvaluatorRegistry,
     Outcome,
+    evaluator,
 )
 from core.target import Observation, ObservationEnvelope
 from tests.core.condition_engine.conftest import compile_, make_envelope
@@ -27,10 +28,8 @@ class FixedCriteria(BaseModel):
     outcome: Literal["命中", "未命中", "不适用"]
 
 
+@evaluator()
 class Fixed(Evaluator[FixedCriteria]):
-    op = "fixed"
-    requires = frozenset[str]()
-    criteria_model = FixedCriteria
 
     def evaluate(
         self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: FixedCriteria

@@ -338,13 +338,19 @@ graph LR
 
 依赖：target（只用 `ObservationEnvelope`，见 open-questions 第 5 条）。
 
-扩展点只有一个：继承 `Evaluator`，放在 `plugins/condition_engine/`——一种判断方式：
+扩展点只有一个：继承 `Evaluator` 并用 `@evaluator` 声明，放在 `plugins/condition_engine/`——一种判断方式：
+
+```python
+@evaluator(requires={"lat", "lon"})
+class OnEnter(Evaluator[OnEnterCriteria]):
+    def evaluate(self, envelope, state, criteria): ...
+```
 
 | 声明 / 实现 | 含义 |
 |---|---|
-| `op` | 模板里叶子的 `op` 引用它，如 `"onEnter"` |
+| `op` | 模板里叶子的 `op` 引用它。默认类名首字母小写（`OnEnter` → `"onEnter"`），缩写开头的类名用 `op=` 指定 |
 | `requires` | 需要观测里有值的字段名；缺失或为空时叶子直接返回「不适用」，不调用判断方式 |
-| `criteria_model` | 判定标准的形状（Pydantic 模型），编译时校验 |
+| 判定标准模型 | 取泛型参数（`Evaluator[OnEnterCriteria]`），编译时用它校验叶子的 `criteria`；也可 `criteria=` 指定 |
 | `evaluate(envelope, state, criteria)` | 判断；不改传入的 `state`（只读），把本叶子的**完整**新状态放进结果的 `state`（不是变化量；没变就不填）；返回「不适用」时不得带 `state` |
 
 示例见 `plugins/condition_engine/on_enter.py`（进入区域，有状态）。

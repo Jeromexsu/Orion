@@ -15,6 +15,7 @@ from core.condition_engine import (
     EvalResult,
     Evaluator,
     EvaluatorRegistry,
+    evaluator,
 )
 from core.target import Observation, ObservationEnvelope
 from plugins.condition_engine.on_enter import OnEnter
@@ -65,12 +66,10 @@ class GtCriteria(BaseModel):
     value: float
 
 
+@evaluator(requires={"alt"})
 class Gt(Evaluator[GtCriteria]):
     """无状态测试用判断：fields[field] > value。"""
 
-    op = "gt"
-    requires = frozenset({"alt"})
-    criteria_model = GtCriteria
 
     def evaluate(
         self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: GtCriteria

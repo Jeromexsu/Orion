@@ -1,8 +1,8 @@
 """The evaluator extension point: the Evaluator base class and what it returns (EvalResult)."""
 
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Set
-from typing import Any, Generic, Literal, TypeVar
+from collections.abc import Callable, Iterable, Mapping, Set
+from typing import Any, ClassVar, Generic, Literal, TypeVar, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -38,7 +38,13 @@ C = TypeVar("C", bound=BaseModel)
 
 
 class Evaluator(ABC, Generic[C]):
-    """一种判断方式（叶子条件）。每种一个实现，放在 plugins/condition_engine/ 下。
+    """一种判断方式（叶子条件）。每种一个子类，放在 plugins/condition_engine/ 下，用 @evaluator 声明：
+
+        @evaluator(requires={"lat", "lon"})
+        class OnEnter(Evaluator[OnEnterCriteria]):
+            def evaluate(self, envelope, state, criteria): ...
+
+    op 默认是类名首字母小写（OnEnter → "onEnter"）；criteria_model 取泛型参数（OnEnterCriteria）。
 
     规则：
     - 不得修改传入的 state（只读视图）；新状态放进结果的 state 返回——本叶子的**完整**新状态，
@@ -46,9 +52,9 @@ class Evaluator(ABC, Generic[C]):
     - 返回“不适用”时不得带 state（带了也会被忽略）。
     """
 
-    op: str                     # 模板里叶子的 op 引用它，如 "onEnter"
-    requires: Set[str]          # 需要观测里有值的字段（按字段名，不绑定具体观测类型）
-    criteria_model: type[C]     # 判定标准的形状
+    op: ClassVar[str]                           # 由 @evaluator 设置；模板里叶子的 op 引用它
+    requires: ClassVar[Set[str]]                # 由 @evaluator 设置；需要观测里有值的字段名
+    criteria_model: ClassVar[type[BaseModel]]   # 由 @evaluator 设置；判定标准的形状
 
     @abstractmethod
     def evaluate(
@@ -73,3 +79,56 @@ class Evaluator(ABC, Generic[C]):
             A not-applicable result must not carry a state.
         """
         ...
+
+
+E = TypeVar("E", bound=Evaluator[Any])
+
+
+def evaluator(
+    *,
+    requires: Iterable[str] = (),
+    op: str | None = None,
+    criteria: type[BaseModel] | None = None,
+) -> Callable[[type[E]], type[E]]:
+    """Declare an evaluator.
+
+    Args:
+        requires: Observation fields that must have a value; otherwise the leaf is not
+            applicable and the evaluator is not called.
+        op: Name templates refer to it by. Defaults to the class name with its first
+            letter lowered (OnEnter -> "onEnter"); pass it for names starting with an
+            acronym.
+        criteria: The criteria model. Defaults to the generic argument of the base
+            (Evaluator[OnEnterCriteria] -> OnEnterCriteria).
+
+    Raises:
+        TypeError: If the criteria model can be neither given nor inferred.
+    """
+
+    def decorate(cls: type[E]) -> type[E]:
+        model = criteria if criteria is not None else _criteria_argument(cls)
+        if model is None:
+            raise TypeError(
+                f"{cls.__name__}: subclass Evaluator[SomeCriteria] or pass criteria=..."
+            )
+        cls.op = op if op is not None else cls.__name__[:1].lower() + cls.__name__[1:]
+        cls.requires = frozenset(requires)
+        cls.criteria_model = model
+        return cls
+
+    return decorate
+
+
+def check_evaluator(evaluator: Evaluator[Any]) -> None:
+    """Raise TypeError unless the evaluator's class was declared with @evaluator."""
+    if not all(hasattr(evaluator, a) for a in ("op", "requires", "criteria_model")):
+        raise TypeError(f"{type(evaluator).__name__} must be declared with @evaluator(...)")
+
+
+def _criteria_argument(cls: type[Any]) -> type[BaseModel] | None:
+    for base in getattr(cls, "__orig_bases__", ()):
+        if get_origin(base) is Evaluator:
+            (argument,) = get_args(base)
+            if isinstance(argument, type) and issubclass(argument, BaseModel):
+                return argument
+    return None

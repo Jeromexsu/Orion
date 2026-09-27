@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.condition_engine import HIT, MISS, EvalResult, Evaluator
+from core.condition_engine import HIT, MISS, EvalResult, Evaluator, evaluator
 from core.target import ObservationEnvelope
 
 Point = tuple[float, float]                 # (lat, lon)
@@ -35,12 +35,9 @@ class OnEnterCriteria(BaseModel):
     initial_as_enter: bool = False   # 首次观测就在区域内是否算“进入”
 
 
+@evaluator(requires={"lat", "lon"})
 class OnEnter(Evaluator[OnEnterCriteria]):
     """上一次在区域外、这一次在区域内 → 命中。状态里记住上一次是否在区域内。"""
-
-    op = "onEnter"
-    requires = frozenset({"lat", "lon"})
-    criteria_model = OnEnterCriteria
 
     def evaluate(
         self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: OnEnterCriteria

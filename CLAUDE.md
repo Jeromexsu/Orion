@@ -41,8 +41,9 @@ def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list
 
 ## 插件
 
-目标类型、观察点、查询键用装饰器声明（`@target_type` / `@observed_point` / `@query_key`，字段用 `provides(...)`）；
-上游适配器、判断方式、算子继承基类（`UpstreamAdapter` / `Evaluator` / `Operator`），类属性直接赋值。
+目标类型、观察点、查询键、判断方式用装饰器声明（`@target_type` / `@observed_point` / `@query_key` / `@evaluator`，
+字段用 `provides(...)`）；判断方式同时继承 `Evaluator[判定标准模型]`，`op` 默认类名首字母小写。
+上游适配器、算子继承基类（`UpstreamAdapter` / `Operator`），类属性直接赋值。
 
 ## 设计问题
 
