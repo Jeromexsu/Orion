@@ -90,12 +90,7 @@ class ParentEvent:
 
     def upsert_template(self, template_def: TemplateDef) -> EventTemplate:
         """编译（含观测声明校验）→ 校验命名空间 → 保存新版本 → 装入（已有则按「下个周期生效」挂起或切换）。"""
-        template = EventTemplate.compile(
-            template_def,
-            self._runtime.conditions,
-            self._runtime.operator_registry,
-            self._runtime.targets,
-        )
+        template = self._runtime.template_compiler.compile(template_def)
         template.validate(self._targets)
 
         runner = self._runners.get(template.id)

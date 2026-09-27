@@ -20,6 +20,7 @@ from core.event import (
     ParentEventManager,
     ParentEventRepository,
     RunnerStateRepository,
+    TemplateCompiler,
     TemplateDef,
     TemplateRepository,
 )
@@ -113,7 +114,7 @@ def build_app(repos: Repositories) -> App:
     parent_events = ParentEventManager(
         EventRuntime(
             targets=targets,
-            conditions=conditions,
+            template_compiler=TemplateCompiler(conditions, operator_registry, targets),
             operator_registry=operator_registry,
             suggestions=hil,
             parents=repos.parents,

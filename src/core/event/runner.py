@@ -233,6 +233,4 @@ def _load(runtime: EventRuntime, template_id: str, version: int) -> EventTemplat
     template_def = runtime.templates.get(template_id, version)
     if template_def is None:
         raise TemplateNotFoundError(f"{template_id} v{version}")
-    return EventTemplate.compile(
-        template_def, runtime.conditions, runtime.operator_registry, runtime.targets
-    )
+    return runtime.template_compiler.compile(template_def)

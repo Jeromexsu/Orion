@@ -1,5 +1,6 @@
 """事件：ParentEvent / EventRunner / EventTemplate / Event / ParentEventManager。"""
 
+from core.event.compiler import TemplateCompiler
 from core.event.definitions import ObservationDef, OperatorMountDef, RuleDef, TemplateDef
 from core.event.errors import (
     DuplicateParentEventError,
@@ -50,6 +51,7 @@ __all__ = [
     "TargetStillReferencedError",
     "TemplateCompileError",
     "TemplateDef",
+    "TemplateCompiler",
     "TemplateNotFoundError",
     "TemplateRef",
     "TemplateRepository",

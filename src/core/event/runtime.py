@@ -1,4 +1,4 @@
-from core.condition_engine import ConditionEngine
+from core.event.compiler import TemplateCompiler
 from core.event.repository import (
     EventRepository,
     ParentEventRepository,
@@ -16,7 +16,7 @@ class EventRuntime:
     def __init__(
         self,
         targets: TargetManager,
-        conditions: ConditionEngine,
+        template_compiler: TemplateCompiler,
         operator_registry: OperatorRegistry,
         suggestions: SuggestionSink,
         parents: ParentEventRepository,
@@ -26,7 +26,7 @@ class EventRuntime:
         reports: ReportManager,
     ) -> None:
         self.targets = targets
-        self.conditions = conditions
+        self.template_compiler = template_compiler
         self.operator_registry = operator_registry
         self.suggestions = suggestions
         self.parents = parents

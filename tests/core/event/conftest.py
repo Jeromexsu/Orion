@@ -6,7 +6,7 @@ import pytest
 from pydantic import BaseModel
 
 from core.condition_engine import ConditionEngine, EvaluatorRegistry
-from core.event import EventRuntime, ParentEventManager
+from core.event import EventRuntime, ParentEventManager, TemplateCompiler
 from core.hil import Proposal, Suggestion
 from core.operators import (
     BaseContext,
@@ -155,7 +155,9 @@ class Env:
         evaluator_registry.register(OnEnter())
         return EventRuntime(
             targets=targets,
-            conditions=ConditionEngine(evaluator_registry),
+            template_compiler=TemplateCompiler(
+                ConditionEngine(evaluator_registry), self.operator_registry, targets
+            ),
             operator_registry=self.operator_registry,
             suggestions=self.sink,
             parents=self.parents,
