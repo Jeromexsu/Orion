@@ -2,26 +2,35 @@ import logging
 
 from core.event.errors import DuplicateParentEventError, ParentEventNotFoundError
 from core.event.parent import ParentEvent
+from core.event.repository import ParentEventRepository
 from core.event.runtime import EventRuntime, ParentEventServices
 
 logger = logging.getLogger(__name__)
 
 
 class ParentEventManager:
-    """event 模块入口：创建、查找父事件，以及启动时的重启恢复。"""
+    """event 模块入口：创建、查找父事件，以及启动时的重启恢复。
 
-    def __init__(self, services: ParentEventServices, runtime: EventRuntime) -> None:
+    父事件记录由这里持久化：父事件变更后通过 on_change 回调这里存档。
+    """
+
+    def __init__(
+        self,
+        parent_event_repository: ParentEventRepository,
+        services: ParentEventServices,
+        runtime: EventRuntime,
+    ) -> None:
+        self._parent_event_repository = parent_event_repository
         self._services = services
         self._runtime = runtime
         self._parents: dict[str, ParentEvent] = {}
 
     def create(self, parent_id: str, name: str) -> ParentEvent:
         """新建空的父事件（无目标、无模板）并写库。ID 已存在抛 DuplicateParentEventError。"""
-        repository = self._services.parent_event_repository
-        if parent_id in self._parents or repository.get(parent_id) is not None:
+        if parent_id in self._parents or self._parent_event_repository.get(parent_id) is not None:
             raise DuplicateParentEventError(parent_id)
-        parent = ParentEvent(parent_id, name, self._services, self._runtime)
-        repository.upsert(parent.to_record())
+        parent = ParentEvent(parent_id, name, self._services, self._runtime, self._save)
+        self._save(parent)
         self._parents[parent_id] = parent
         return parent
 
@@ -53,14 +62,17 @@ class ParentEventManager:
         单个父事件恢复失败只记日志，不影响其他。返回恢复失败的父事件 ID。
         """
         failed: list[str] = []
-        for record in self._services.parent_event_repository.list_all():
+        for record in self._parent_event_repository.list_all():
             if record.id in self._parents:
                 continue
             try:
                 self._parents[record.id] = ParentEvent.restore(
-                    record, self._services, self._runtime
+                    record, self._services, self._runtime, self._save
                 )
             except Exception:
                 logger.exception("failed to restore parent event %s", record.id)
                 failed.append(record.id)
         return failed
+
+    def _save(self, parent: ParentEvent) -> None:
+        self._parent_event_repository.upsert(parent.to_record())

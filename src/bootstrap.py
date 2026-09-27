@@ -119,9 +119,9 @@ def build_app(repos: Repositories) -> App:
     operator_registry.register(CloseReport(report_manager))
 
     parent_event_manager = ParentEventManager(
+        repos.parent_event_repository,
         ParentEventServices(
             target_manager=target_manager,
-            parent_event_repository=repos.parent_event_repository,
             template_repository=repos.template_repository,
             template_compiler=TemplateCompiler(
                 condition_compiler, operator_registry, target_manager

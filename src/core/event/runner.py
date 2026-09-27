@@ -38,7 +38,7 @@ class EventRunner:
         self._parent_id = parent_id
         self._template = template
         self._runtime = runtime
-        self._on_change = on_change        # 模板版本变化时通知父事件存档
+        self._on_change = on_change        # 模板版本变化时通知父事件（再由父事件通知 manager 存档）
         self._pending = pending
         self._open_state: dict[str, Any] = open_state or {}
         self._active = active

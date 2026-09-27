@@ -110,6 +110,9 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
   `EventTemplate.open_tree`、`EventTemplate.rules` 返回的 `CompiledRule`）。条件引擎契约
   `LeafDef` / `OpDef` 的 `children` 按设计文档第八节照抄，不改。
 
+- **持久化归管理者**：谁管理一组对象谁负责存它们——`ParentEventManager` 存父事件记录（仓库从
+  `ParentEventServices` 移到 manager 的构造参数），`EventRunner` 存子事件记录；`ParentEvent` 和 runner
+  只在变更后调用 `on_change` 通知上一层，自己不碰自己的仓库。
 - **依赖按具体类型命名**：构造参数、依赖字段一律用类型名的 snake_case，不用复数名词或抽象称呼——
   `TargetManager` → `target_manager`、`TemplateRepository` → `template_repository`、
   `EvaluatorRegistry` → `evaluator_registry`、`UpstreamCatalog` → `upstream_catalog`。

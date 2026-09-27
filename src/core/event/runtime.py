@@ -1,10 +1,5 @@
 from core.event.compiler import TemplateCompiler
-from core.event.repository import (
-    EventRepository,
-    ParentEventRepository,
-    RunnerStateRepository,
-    TemplateRepository,
-)
+from core.event.repository import EventRepository, RunnerStateRepository, TemplateRepository
 from core.operators import OperatorRegistry, SuggestionSink
 from core.report import ReportManager
 from core.target import TargetManager
@@ -30,18 +25,16 @@ class EventRuntime:
 
 
 class ParentEventServices:
-    """只有父事件（及其管理器）用到的依赖，bootstrap 时装配一次。"""
+    """只有父事件用到的依赖，bootstrap 时装配一次。父事件记录的仓库在 ParentEventManager 里。"""
 
     def __init__(
         self,
         target_manager: TargetManager,
-        parent_event_repository: ParentEventRepository,
         template_repository: TemplateRepository,
         template_compiler: TemplateCompiler,
         report_manager: ReportManager,
     ) -> None:
         self.target_manager = target_manager  # 确认目标存在、取目标名
-        self.parent_event_repository = parent_event_repository  # 父事件记录
         self.template_repository = template_repository  # 模板定义
         self.template_compiler = template_compiler  # 编译模板
         self.report_manager = report_manager  # digest 写报告

@@ -143,7 +143,7 @@ class Env:
             suggestion_sink=self.sink,
         )
         self.services = self.make_services(self.targets)
-        self.parent_events = ParentEventManager(self.services, self.runtime)
+        self.parent_events = ParentEventManager(self.parents, self.services, self.runtime)
         self._seq = count()
 
     def make_targets(self) -> TargetManager:
@@ -161,7 +161,6 @@ class Env:
         evaluator_registry.register(OnEnter())
         return ParentEventServices(
             target_manager=targets,
-            parent_event_repository=self.parents,
             template_repository=self.templates,
             template_compiler=TemplateCompiler(
                 ConditionCompiler(evaluator_registry), self.operator_registry, targets
@@ -171,7 +170,7 @@ class Env:
 
     def make_parent_events(self, targets: TargetManager) -> ParentEventManager:
         """用给定的 TargetManager 组装一套新的父事件管理器——模拟重启（仓库共用）。"""
-        return ParentEventManager(self.make_services(targets), self.runtime)
+        return ParentEventManager(self.parents, self.make_services(targets), self.runtime)
 
     def envelope(
         self,

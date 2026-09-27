@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 
 from core.event.definitions import TemplateDef
 from core.event.errors import (
@@ -21,7 +22,8 @@ class ParentEvent:
 
     它自己不订阅任何东西——不知道观察点和上游。每个模板由一个 EventRunner 运行，
     runner 按模板的可观测目标声明订阅可观测目标、管理子事件生命周期。
-    所有变更方法都会立即持久化自己的记录。通过 ParentEventManager 创建和恢复。
+    它不持久化自己：每次变更后调用 on_change，由 ParentEventManager 存档（与 runner 存子事件同理）。
+    通过 ParentEventManager 创建和恢复。
     """
 
     def __init__(
@@ -30,20 +32,26 @@ class ParentEvent:
         name: str,
         services: ParentEventServices,
         runtime: EventRuntime,
+        on_change: Callable[["ParentEvent"], None],
     ) -> None:
         self._id = parent_id
         self._name = name
         self._services = services   # 父事件自己的依赖
         self._runtime = runtime     # 转交给 runner 的依赖
+        self._on_change = on_change  # 变更后通知 manager 存档
         self._targets: set[str] = set()
         self._runners: dict[str, EventRunner] = {}
 
     @classmethod
     def restore(
-        cls, record: ParentEventRecord, services: ParentEventServices, runtime: EventRuntime
+        cls,
+        record: ParentEventRecord,
+        services: ParentEventServices,
+        runtime: EventRuntime,
+        on_change: Callable[["ParentEvent"], None],
     ) -> "ParentEvent":
-        """重启恢复：还原命名空间；读回模板定义并编译（当前版本和挂起版本），交给 runner 恢复。不写库。"""
-        parent = cls(record.id, record.name, services, runtime)
+        """重启恢复：还原命名空间；读回模板定义并编译（当前版本和挂起版本），交给 runner 恢复。不触发 on_change。"""
+        parent = cls(record.id, record.name, services, runtime, on_change)
         parent._targets = set(record.targets)
         for ref in record.templates:
             template = parent._load_template(ref.template_id, ref.version)
@@ -53,7 +61,7 @@ class ParentEvent:
                 else None
             )
             parent._runners[ref.template_id] = EventRunner.restore(
-                parent.id, template, pending, runtime, parent._save
+                parent.id, template, pending, runtime, parent._changed
             )
         return parent
 
@@ -94,21 +102,21 @@ class ParentEvent:
     # ------------------------------------------------------------ 目标命名空间
 
     def add_target(self, target_id: str) -> None:
-        """把静态目标加入命名空间并写库。目标不存在抛 TargetNotFoundError；已在命名空间里忽略。"""
+        """把静态目标加入命名空间（触发 on_change）。目标不存在抛 TargetNotFoundError；已在命名空间里忽略。"""
         self._services.target_manager.get_target(target_id)
         if target_id not in self._targets:
             self._targets.add(target_id)
-            self._save()
+            self._changed()
 
     def remove_target(self, target_id: str) -> None:
-        """从命名空间移除并写库。仍被某个模板（含挂起版本）观测抛 TargetStillReferencedError；不在其中忽略。"""
+        """从命名空间移除（触发 on_change）。仍被某个模板（含挂起版本）观测抛 TargetStillReferencedError；不在其中忽略。"""
         if target_id not in self._targets:
             return
         users = [tid for tid, s in self._runners.items() if target_id in s.target_ids()]
         if users:
             raise TargetStillReferencedError(f"{target_id} is observed by templates {users}")
         self._targets.discard(target_id)
-        self._save()
+        self._changed()
 
     # ------------------------------------------------------------ 模板
 
@@ -129,15 +137,15 @@ class ParentEvent:
         self._services.template_repository.upsert(template_def)
         if runner is None:
             self._runners[template.id] = EventRunner.start(
-                self._id, template, self._runtime, self._save
+                self._id, template, self._runtime, self._changed
             )
-            self._save()
+            self._changed()
         else:
             runner.stage(template)   # 内部通过 on_change 存档
         return template
 
     def remove_template(self, template_id: str) -> None:
-        """移除模板：runner 关闭活跃子事件、取消订阅、删除开启条件状态，然后写库。
+        """移除模板：runner 关闭活跃子事件、取消订阅、删除开启条件状态，然后触发 on_change。
 
         不存在抛 TemplateNotFoundError。模板定义的历史版本保留在模板仓库里。
         """
@@ -145,7 +153,7 @@ class ParentEvent:
         if runner is None:
             raise TemplateNotFoundError(template_id)
         runner.dispose("template_removed")
-        self._save()
+        self._changed()
 
     # ------------------------------------------------------------ 报告
 
@@ -203,5 +211,5 @@ class ParentEvent:
             raise TemplateNotFoundError(f"{template_id} v{version}")
         return self._services.template_compiler.compile(template_def)
 
-    def _save(self) -> None:
-        self._services.parent_event_repository.upsert(self.to_record())
+    def _changed(self) -> None:
+        self._on_change(self)
