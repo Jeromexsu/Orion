@@ -200,7 +200,7 @@ class EventRunner:
     def _subscribe(self) -> None:
         """按模板里解析好的可观测目标订阅；新版本不再需要的可观测目标 release。"""
         subscribed: dict[str, ObservableTarget] = {}
-        for c in self._template.observables:
+        for c in self._template.compiled_observables:
             c.observable.acquire(self, c.upstreams)
             subscribed[c.observable.id] = c.observable
         for oid, observable in self._observables.items():

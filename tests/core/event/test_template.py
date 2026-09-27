@@ -20,7 +20,7 @@ def test_compile(env: Env) -> None:
 
 def test_observables_are_compiled_once(env: Env) -> None:
     t = compile_(env, template(upstreams=["adsb", "radar"]))
-    (compiled,) = t.observables
+    (compiled,) = t.compiled_observables
     # 编译结果引用的就是 TargetManager 里的单例，runner 直接用它订阅，不再解析
     assert compiled.observable is env.targets.get_observable("t1", "position")
     assert compiled.upstreams == {"adsb", "radar"}

@@ -31,10 +31,10 @@ class TemplateCompiler:
         交给条件引擎，因此条件只能引用已声明的观测，且判断方式需要的字段必须存在。
         """
         errors: list[str] = []
-        observables = self._compile_observables(template_def, errors)
+        compiled_observables = self._compile_observables(template_def, errors)
         fields_by_observable = {
             c.observable.id: set(c.observable.observed_point.observation.model_fields)
-            for c in observables
+            for c in compiled_observables
         }
 
         def compile_tree(where: str, condition_def: ConditionDef) -> ConditionTree | None:
@@ -79,7 +79,7 @@ class TemplateCompiler:
         if errors or open_tree is None:
             raise TemplateCompileError(errors)
         return EventTemplate(
-            template_def, observables, open_tree, tuple(rules), tuple(template_hooks)
+            template_def, compiled_observables, open_tree, tuple(rules), tuple(template_hooks)
         )
 
     def _compile_observables(

@@ -33,13 +33,13 @@ class EventTemplate:
     def __init__(
         self,
         template_def: TemplateDef,
-        observables: tuple[CompiledObservable, ...],
+        compiled_observables: tuple[CompiledObservable, ...],
         open_tree: ConditionTree,
         rules: tuple[CompiledRule, ...],
         hooks: tuple[OperatorMountDef, ...],
     ) -> None:
         self._template_def = template_def
-        self._observables = observables
+        self._compiled_observables = compiled_observables
         self._open_tree = open_tree
         self._rules = rules
         self._hooks = hooks
@@ -61,9 +61,9 @@ class EventTemplate:
         return tuple(self._template_def.observable_defs)
 
     @property
-    def observables(self) -> tuple[CompiledObservable, ...]:
-        """解析好的可观测目标及要订阅的上游，runner 据此订阅。"""
-        return self._observables
+    def compiled_observables(self) -> tuple[CompiledObservable, ...]:
+        """runner 要订阅的：每项是可观测目标 + 要订阅的上游。"""
+        return self._compiled_observables
 
     @property
     def open_tree(self) -> ConditionTree:
