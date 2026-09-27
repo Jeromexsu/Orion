@@ -14,7 +14,6 @@ def test_compile(env: Env) -> None:
     t = compile_(env, template(threshold=3))
     assert t.target_ids == {"t1"}
     assert [o.observable_id for o in t.observable_defs] == ["t1:position"]
-    assert t.open_tree.observables() == {"t1:position"}
     assert t.rules[0].hook_defs[0].params == {"threshold": 3}
 
 

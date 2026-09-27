@@ -313,8 +313,35 @@ graph LR
 ```
 
 - 编译时由调用方（`TemplateCompiler`）传入「可观测目标 → 它的观测有哪些字段」，条件只能引用已声明的观测。
+  引用范围在编译时就查完了，编译出的树不再对外暴露它引用了哪些可观测目标。
 - 求值是纯函数：状态由调用方保管（runner 保管开启条件的状态，`Event` 保管规则的状态），
   用 `apply_state_patch` 合并结果里的 `state_patch`。
+
+#### condition_engine 的窗口与扩展点
+
+条件引擎只做两件事：编译（定义 → 条件树）、求值（一条观测 → 三值结果）。不存状态、不订阅、不查询 target。
+
+对外的窗口（按使用方）：
+
+| 使用方 | 窗口 | 时机 |
+|---|---|---|
+| event · 模板编译器 | `ConditionCompiler.compile(condition_def, fields_by_observable)` | 编译时：定义 → 条件树；错误收集后一次抛出，每条带节点路径（如 `root/1/0`） |
+| event · runner / 子事件 | `ConditionTree.evaluate(envelope, state)` + `apply_state_patch` | 运行时：纯函数求值；调用方保管状态并合并 `state_patch` |
+| bootstrap | `EvaluatorRegistry.register` | 启动时注册判断方式 |
+| 跨模块传递的纯数据 | `ConditionDef`（`LeafDef` / `OpDef`）、`EvalResult`（`HIT` / `MISS` / `NOT_APPLICABLE`） | — |
+
+依赖：target（只用 `ObservationEnvelope`，见 open-questions 第 5 条）。
+
+扩展点只有一个：继承 `Evaluator`，放在 `plugins/condition_engine/`——一种判断方式：
+
+| 声明 / 实现 | 含义 |
+|---|---|
+| `type` | 模板里引用的名字，如 `"onEnter"` |
+| `requires` | 需要观测里有值的字段名；缺失或为空时叶子直接返回「不适用」，不调用判断方式 |
+| `params_model` | 参数的形状（Pydantic 模型），编译时校验 |
+| `evaluate(params, envelope, state)` | 判断；不改 `state`（只读），新状态放进 `state_patch`；返回「不适用」时不得产出 `state_patch` |
+
+示例见 `plugins/condition_engine/on_enter.py`（进入区域，有状态）。
 
 ### 静态定义与运行时对象
 

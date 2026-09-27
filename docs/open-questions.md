@@ -143,7 +143,7 @@ since 之前的不返回），等往外分插件任务时再搭。
   取值 `"instance"` → `"event"`，上下文 `instance_id` → `event_id`。下文历史条目里的 slot / 实例
   即 EventRunner / Event。
 - **叶子字段命名**：设计文档第八节的 `LeafDef.target` → `observable`（填的是可观测目标 ID，如 `t1:position`，
-  不是静态目标 ID）；`ConditionTree.targets()` → `observables()`；trace 键 `target` → `observable`。
+  不是静态目标 ID）；`ConditionTree.targets()` → `observables()`（后删除：引用范围在编译时已查完，无人使用）；trace 键 `target` → `observable`。
 - **判断方式命名**：设计文档的 `LeafConditionEvaluator` / `LeafEvaluator` → `Evaluator`（唯一的可扩展判断方式，
   与 `EvaluatorRegistry` 对应；「挂在叶子上」由 `LeafNode` 表达）。
 

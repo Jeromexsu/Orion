@@ -32,11 +32,6 @@ class ConditionNode(ABC):
         """对一条观测求值。state 是整棵树的状态；新状态放在结果的 state_patch 里，不改 state。"""
         ...
 
-    @abstractmethod
-    def observables(self) -> frozenset[str]:
-        """这个节点（含子树）引用的可观测目标 ID。"""
-        ...
-
 
 class LeafNode(ConditionNode):
     """叶子：一个可观测目标 + 一种判断方式 + 已解析的参数。
@@ -79,9 +74,6 @@ class LeafNode(ConditionNode):
             else {}
         )
         return result.model_copy(update={"trace": [entry, *result.trace], "state_patch": patch})
-
-    def observables(self) -> frozenset[str]:
-        return frozenset({self.observable})
 
 
 class OpNode(ConditionNode):
@@ -146,9 +138,6 @@ class OpNode(ConditionNode):
             return HIT, max(r.confidence for r in hits), extracted
         return MISS, min(r.confidence for r in misses), {}
 
-    def observables(self) -> frozenset[str]:
-        return frozenset[str]().union(*(c.observables() for c in self.children))
-
 
 class ConditionTree:
     """编译好的条件树。只通过 ConditionCompiler.compile 构造。"""
@@ -159,7 +148,3 @@ class ConditionTree:
     def evaluate(self, envelope: ObservationEnvelope, state: TreeState) -> EvalResult:
         """纯函数：不改 state；新状态在结果的 state_patch 里，用 apply_state_patch 合并。"""
         return self._root.evaluate(envelope, state)
-
-    def observables(self) -> frozenset[str]:
-        """树里引用的全部可观测目标 ID。"""
-        return self._root.observables()

@@ -82,11 +82,6 @@ def test_empty_combinator_rejected(compiler: ConditionCompiler) -> None:
         compile_(compiler, op("any"))
 
 
-def test_targets(compiler: ConditionCompiler) -> None:
-    tree = compile_(compiler, op("any", enter(), enter(observable="t2:position")))
-    assert tree.observables() == {"t1:position", "t2:position"}
-
-
 # ---------------------------------------------------------------- 求值
 
 
