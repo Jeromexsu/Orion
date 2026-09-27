@@ -31,7 +31,7 @@ class TemplateCompiler:
         交给条件引擎，因此条件只能引用已声明的观测，且判断方式需要的字段必须存在。
         """
         errors: list[str] = []
-        observables = self._resolve_observables(template_def, errors)
+        observables = self._compile_observables(template_def, errors)
         fields_by_observable = {
             c.observable.id: set(c.observable.observed_point.observation.model_fields)
             for c in observables
@@ -82,10 +82,10 @@ class TemplateCompiler:
             template_def, observables, open_tree, tuple(rules), tuple(template_hooks)
         )
 
-    def _resolve_observables(
+    def _compile_observables(
         self, template_def: TemplateDef, errors: list[str]
     ) -> tuple[CompiledObservable, ...]:
-        """解析可观测目标声明：目标与观察点存在、上游可用。"""
+        """编译可观测目标声明：解析出可观测目标，并检查目标与观察点存在、上游可用。"""
         resolved: dict[str, CompiledObservable] = {}
         for o in template_def.observable_defs:
             where = f"observable_def {o.observable_id!r}"
