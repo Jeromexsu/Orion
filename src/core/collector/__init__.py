@@ -11,7 +11,7 @@ from core.collector.adapter import Adapter, FetchedRecord, Query
 from core.collector.collector import Collector
 from core.collector.dispatcher import Dispatcher
 from core.collector.errors import CollectorError, DuplicateAdapterError, UnknownAdapterError
-from core.collector.registry import AdapterRegistry, match_query
+from core.collector.registry import AdapterRegistry
 from core.collector.repository import CursorRepository, ObservationRepository
 
 __all__ = [
@@ -26,5 +26,4 @@ __all__ = [
     "FetchedRecord",
     "Query",
     "UnknownAdapterError",
-    "match_query",
 ]

@@ -1,4 +1,4 @@
-"""采集相关数据：ObservableTarget 产出 QuerySpec 交给 Adapter；collector 解析出观测、包成 ObservationEnvelope。"""
+"""观测外壳：collector 把上游返回的观测包成 ObservationEnvelope，在管道里流动。"""
 
 from datetime import datetime
 from typing import Any
@@ -6,19 +6,6 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, SerializeAsAny
 
 from core.target.observed_point import Observation
-
-
-class QuerySpec(BaseModel):
-    """这次查的是哪个观察点（以及目标类型，仅供兜底）。与上游无关。
-
-    目标的信息只经查询键交给 Adapter（fetch 的 query 参数）：不在查询键范围内的，Adapter 拿不到。
-    故意不带目标属性——否则 Adapter 可以绕开查询键按字段名取值，可用性判断也就管不住了。
-    """
-
-    model_config = ConfigDict(frozen=True)
-
-    observed_point: str         # 观察点名，如 "position"；Adapter 服务多个观察点时按它分支
-    type: str                   # 目标类型。仅供兜底，不推荐依赖：按类型分支意味着新增目标类型要改 Adapter
 
 
 class ObservationEnvelope(BaseModel):

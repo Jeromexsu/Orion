@@ -1,4 +1,4 @@
-from core.collector.adapter import Adapter, Query, check_adapter
+from core.collector.adapter import Adapter, check_adapter
 from core.collector.errors import DuplicateAdapterError, UnknownAdapterError
 from core.target import ObservedPoint, Target
 
@@ -30,20 +30,10 @@ class AdapterRegistry:
     # UpstreamCatalog
     def upstreams_for(self, target: Target, observed_point: type[ObservedPoint]) -> list[str]:
         """服务该观察点、且目标满足其某种查询方式的上游。"""
+        provided = target.query_values()
         return [
             a.name
             for a in self._adapters.values()
-            if observed_point in a.observed_points and match_query(a, target) is not None
+            if observed_point in a.observed_points and a.choose_query(provided) is not None
         ]
 
-
-def match_query(adapter: Adapter, target: Target) -> Query | None:
-    """按优先级找出目标能提供的第一种查询方式，返回这次的查询（查询键 → 取值）；都不满足返回 None。
-
-    按查询键类匹配，不看字段名；取值在目标构造时已按查询键校验过。
-    """
-    values = target.query_values()
-    for keys in adapter.query_key_sets:
-        if keys <= values.keys():
-            return {k: values[k] for k in keys}
-    return None

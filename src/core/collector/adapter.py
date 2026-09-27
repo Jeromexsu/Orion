@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, SerializeAsAny
 
-from core.target import Observation, ObservedPoint, QueryKey, QuerySpec
+from core.target import Observation, ObservedPoint, QueryKey
 
 Query = dict[type[QueryKey], Any]
 """这次查询：查询键 → 取值，如 {Icao24: "780a3b"}。由 collector 按上游挑出的查询方式组装。"""
@@ -34,14 +34,14 @@ class Adapter(ABC):
             observed_points = frozenset({Position})
             query_key_sets = (frozenset({Icao24}),)
 
-            def fetch(self, spec, query, since): ...
+            def fetch(self, observed_point, query, since): ...
 
     类属性的类型在这里声明，子类直接赋值即可。
-    一个上游可以服务多个观察点：fetch 按 spec.observed_point 分支，返回对应观察点的观测；
+    一个上游可以服务多个观察点：fetch 按 observed_point 分支（比较类：observed_point is Position），
+    返回对应观察点的观测；
     游标、订阅、路由都按（可观测目标, 上游）组织，可观测目标里已带观察点，所以互不干扰。
     Adapter 不关心目标类型，只关心观察点（输出契约）和查询键（输入契约）——不同目标类型只要
-    能提供其中一种查询方式要的查询键，就能用同一个 Adapter 观测。
-    查询逻辑确实依赖类型时，可在 fetch 里读 QuerySpec.type 兜底。
+    能提供其中一种查询方式要的查询键，就能用同一个 Adapter 观测。目标的信息只经查询键传进来。
     """
 
     name: str                           # 上游名，写进 ObservableTarget.upstreams
@@ -52,15 +52,26 @@ class Adapter(ABC):
     # Adapter 不需要认识目标类型，也不需要知道目标的字段名。
     query_key_sets: tuple[frozenset[type[QueryKey]], ...]
 
+    def choose_query(self, provided: Mapping[type[QueryKey], Any]) -> Query | None:
+        """按优先级挑出第一种能满足的查询方式，返回这次的查询（查询键 → 取值）；都不满足返回 None。
+
+        provided 是目标能提供的查询键及取值（Target.query_values()）——只交查询键，不交目标本身。
+        判断可用上游和实际采集都用它，保证两处一致。基类实现，插件不要覆盖。
+        """
+        for keys in self.query_key_sets:
+            if keys <= provided.keys():
+                return {k: provided[k] for k in keys}
+        return None
+
     @abstractmethod
     def fetch(
-        self, spec: QuerySpec, query: Query, since: datetime | None
+        self, observed_point: type[ObservedPoint], query: Query, since: datetime | None
     ) -> Sequence[FetchedRecord]:
         """拉取 since 之后（不含）的记录。
 
-        spec：查的是哪个观察点（服务多个观察点时按它分支）；query：这次采用的查询方式及取值
-        （已按查询键校验，是目标信息的唯一来源）；
-        since：这个上游的游标，首次采集为 None。
+        observed_point：查哪个观察点（在 observed_points 里；服务多个观察点时按它分支）；
+        query：凭什么查——这次采用的查询方式及取值（已按查询键校验，是目标信息的唯一来源）；
+        since：从哪儿开始查——这个上游的游标，首次采集为 None。
         """
         ...
 

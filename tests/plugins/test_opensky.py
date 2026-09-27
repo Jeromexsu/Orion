@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from core.collector import AdapterRegistry, Collector, Dispatcher
-from core.target import QuerySpec, TargetManager
+from core.target import TargetManager
 from plugins.collector.opensky import OpenSkyAdapter
 from plugins.observed_points.position import Position, PositionObservation
 from plugins.query_keys.icao24 import Icao24
@@ -48,8 +48,7 @@ def test_fetch_translates_state_vectors() -> None:
     adapter = OpenSkyAdapter(api)
     since = datetime.fromtimestamp(T0, UTC)
 
-    spec = QuerySpec(observed_point="position", type="aircraft")
-    records = adapter.fetch(spec, {Icao24: "780a3b"}, since)
+    records = adapter.fetch(Position, {Icao24: "780a3b"}, since)
 
     assert api.urls == ["https://opensky-network.org/api/states/all?icao24=780a3b"]
     # 没有位置的跳过；since 之前（含）的跳过

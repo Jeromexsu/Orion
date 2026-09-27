@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from core.collector import Adapter, FetchedRecord, Query
-from core.target import QuerySpec
+from core.target import ObservedPoint
 from plugins.observed_points.position import Position, PositionObservation
 from plugins.query_keys.icao24 import Icao24
 
@@ -52,7 +52,7 @@ class OpenSkyAdapter(Adapter):
         self._get_json = get_json   # 注入点：测试里换成假的，不联网
 
     def fetch(
-        self, spec: QuerySpec, query: Query, since: datetime | None
+        self, observed_point: type[ObservedPoint], query: Query, since: datetime | None
     ) -> Sequence[FetchedRecord]:
         """查询一次，返回 since 之后的位置。没有位置（刚开机、信号丢失）的状态向量跳过。"""
         icao24 = query[Icao24]   # 已按查询键校验过：6 位小写十六进制

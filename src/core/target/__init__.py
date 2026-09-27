@@ -9,7 +9,7 @@
         plugins/query_keys/ 下继承 QueryKey。
 """
 
-from core.target.data import ObservationEnvelope, QuerySpec
+from core.target.data import ObservationEnvelope
 from core.target.errors import (
     DuplicateObservedPointError,
     DuplicateTargetTypeError,
@@ -52,7 +52,6 @@ __all__ = [
     "ObservableTargetRepository",
     "ObservedPoint",
     "QueryKey",
-    "QuerySpec",
     "Subscriber",
     "Target",
     "TargetError",

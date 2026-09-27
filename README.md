@@ -69,7 +69,7 @@ sequenceDiagram
   participant E as Event
 
   C->>O: active_upstreams()（只拉有人订阅的上游）
-  C->>A: fetch(spec, query, since)（观察点 + 按查询键匹配到的查询 + 该上游的游标）
+  C->>A: fetch(observed_point, query, since)（查什么 + 凭什么查 + 从哪儿开始查）
   A-->>C: FetchedRecord（观测实例 + 来源信息）
   C->>O: accepts(observation)（观测类型是否与观察点一致）
   Note over C: 包成 ObservationEnvelope，去重、落库、推进游标
@@ -105,7 +105,7 @@ graph LR
 ```
 
 可用上游 = 服务该观察点、且目标能提供其某种查询方式要的全部查询键（字段有值）的 Adapter。
-一个上游 = 一个数据提供方，可以服务多个观察点（`fetch` 按 `spec.observed_point` 分支）；模板里写的上游名就是提供方的名字。
+一个上游 = 一个数据提供方，可以服务多个观察点（`fetch` 按 `observed_point` 分支）；模板里写的上游名就是提供方的名字。
 游标、订阅、路由都按（可观测目标, 上游）组织，可观测目标里已带观察点，所以同一上游的不同观察点互不干扰。
 上游不认识目标类型：同一个上游可以对飞机按 `Icao24`、对船按 `Mmsi` 查询。
 
@@ -139,10 +139,16 @@ class Aircraft(Target):
 | 目标类型 | 把自己的字段映射进查询键（`provides(...)`）；字段为空的不算提供 | 上游 |
 | Adapter | 在查询键范围里挑自己要的：`query_key_sets` 是几种可选的查询方式，每种是一组**联立**的查询键（要全部提供）；按优先级取第一种满足的。再把查询键翻译成上游 API 的参数名和格式（如 `Icao24` → `ICAO`、大写） | 目标类型、目标的字段名 |
 
-**不在查询键范围内的，Adapter 拿不到。** `fetch(spec, query, since)` 里：`query` 是 collector 为这个上游挑出的
-查询方式及取值（如 `{Icao24: "780a3b"}`，构造目标时已按查询键校验）——这是 Adapter 得到目标信息的唯一途径；
-`spec` 只说明查的是哪个观察点（Adapter 服务多个观察点时按它分支），另带目标类型仅供兜底；`since` 是这个上游的游标。
-`QuerySpec` 故意不带目标属性：否则 Adapter 能绕开查询键按字段名取值，可用性判断也就管不住了。
+**不在查询键范围内的，Adapter 拿不到。** `fetch(observed_point, query, since)` 的三个参数各管一件事：
+
+| 参数 | 管什么 | 来源 |
+|---|---|---|
+| `observed_point` | 查什么：哪个观察点（类，分支时写 `observed_point is Position`） | 可观测目标 |
+| `query` | 凭什么查：这次采用的查询方式及取值，如 `{Icao24: "780a3b"}`（构造目标时已按查询键校验） | `Adapter.choose_query(目标能提供的查询键)` |
+| `since` | 从哪儿开始查：这个上游的游标 | collector |
+
+`query` 是 Adapter 得到目标信息的唯一途径：Adapter 看不到目标本身、目标类型和字段名。挑查询方式的
+`choose_query` 是基类方法，只接收目标能提供的查询键；判断可用上游和实际采集都用它，两处结果一致。
 
 ### event：父事件、模板、子事件
 

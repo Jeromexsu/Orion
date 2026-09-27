@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 
 from core.collector.dispatcher import Dispatcher
-from core.collector.registry import AdapterRegistry, match_query
+from core.collector.registry import AdapterRegistry
 from core.collector.repository import CursorRepository, ObservationRepository
 from core.target import ObservableTarget, ObservationEnvelope, TargetManager
 
@@ -65,7 +65,7 @@ class Collector:
         adapter = self._adapter_registry.get(upstream)
 
         # build query based on target fields required by upstream adapter
-        query = match_query(adapter, observable.target)
+        query = adapter.choose_query(observable.target.query_values())
 
         # target fields not satisfied upstream adapter requirement
         if query is None:
@@ -78,7 +78,7 @@ class Collector:
         since = datetime.fromisoformat(cursor) if cursor else None
 
         # fetch from upstream
-        records = adapter.fetch(observable.query_spec(), query, since)
+        records = adapter.fetch(observable.observed_point, query, since)
 
         # convert raw records into observation envelopes
         new: list[ObservationEnvelope] = []

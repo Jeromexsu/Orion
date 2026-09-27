@@ -1,7 +1,7 @@
 from collections.abc import Iterable, Sequence
 from typing import Protocol
 
-from core.target.data import ObservationEnvelope, QuerySpec
+from core.target.data import ObservationEnvelope
 from core.target.errors import UnsupportedObservedPointError, UnsupportedUpstreamError
 from core.target.observed_point import Observation, ObservedPoint
 from core.target.target import Target
@@ -111,10 +111,6 @@ class ObservableTarget:
         return tuple(u for u in self._upstreams if u in subscribed)
 
     # ------------------------------------------------------------ 采集辅助
-
-    def query_spec(self) -> QuerySpec:
-        """这次查的是哪个观察点（及目标类型，仅供兜底）。目标的信息经查询键另行传给 Adapter。"""
-        return QuerySpec(observed_point=self._observed_point.name, type=self._target.type)
 
     def accepts(self, observation: Observation) -> bool:
         """这个观测是不是本观察点的观测类（或其子类）的实例。"""

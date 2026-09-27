@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from core.collector import Adapter, FetchedRecord, Query
-from core.target import ObservationEnvelope, ObservedPoint, QueryKey, QuerySpec
+from core.target import ObservationEnvelope, ObservedPoint, QueryKey
 from plugins.observed_points.position import Position
 from plugins.query_keys.registration import Registration
 
@@ -10,8 +10,10 @@ from plugins.query_keys.registration import Registration
 class FetchCall:
     """记录一次 fetch 收到的参数。"""
 
-    def __init__(self, spec: QuerySpec, query: Query, since: datetime | None) -> None:
-        self.spec = spec
+    def __init__(
+        self, observed_point: type[ObservedPoint], query: Query, since: datetime | None
+    ) -> None:
+        self.observed_point = observed_point
         self.query = query
         self.since = since
 
@@ -32,9 +34,9 @@ class FakeAdapter(Adapter):
         self.fail = False
 
     def fetch(
-        self, spec: QuerySpec, query: Query, since: datetime | None
+        self, observed_point: type[ObservedPoint], query: Query, since: datetime | None
     ) -> Sequence[FetchedRecord]:
-        self.calls.append(FetchCall(spec, query, since))
+        self.calls.append(FetchCall(observed_point, query, since))
         if self.fail:
             raise RuntimeError("upstream down")
         return [r for r in self.records if since is None or r.occurred_at > since]

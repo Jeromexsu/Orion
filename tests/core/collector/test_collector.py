@@ -11,7 +11,6 @@ from core.collector import (
     FetchedRecord,
     Query,
     UnknownAdapterError,
-    match_query,
 )
 from core.target import (
     ObservableTarget,
@@ -19,7 +18,6 @@ from core.target import (
     ObservationEnvelope,
     ObservedPoint,
     QueryKey,
-    QuerySpec,
     Target,
     TargetManager,
     observed_point,
@@ -119,17 +117,16 @@ def test_one_upstream_several_query_ways() -> None:
     ship = Ship(id="s1", name="y", mmsi="412000000")
     bare_plane = Aircraft(id="a2", name="z", registration="B-2")
 
-    assert match_query(tracker, plane) == {Icao24: "780abc"}
-    assert match_query(tracker, ship) == {Mmsi: "412000000"}
-    assert match_query(tracker, bare_plane) is None
+    assert tracker.choose_query(plane.query_values()) == {Icao24: "780abc"}
+    assert tracker.choose_query(ship.query_values()) == {Mmsi: "412000000"}
+    assert tracker.choose_query(bare_plane.query_values()) is None
 
 
-def test_fetch_gets_spec_query_and_since_separately(env: Env) -> None:
+def test_fetch_gets_observed_point_query_and_since(env: Env) -> None:
     env.observable().subscribe(Subscriber(), ["adsb"])
     env.collector.collect()
     (call,) = env.adsb.calls
-    assert call.spec.type == "aircraft"
-    assert call.spec.observed_point == "position"
+    assert call.observed_point is Position
     assert call.query == {Registration: "B-2447"}
     assert call.since is None
 
@@ -269,13 +266,14 @@ def test_query_way_with_several_keys_needs_all_of_them() -> None:
     only_icao = Flight(id="f2", name="y", icao24="780a3b", registration="B-2")
     neither = Flight(id="f3", name="z", icao24="780a3b")
 
-    assert match_query(upstream, both) == {Icao24: "780a3b", Callsign: "CES5101"}
-    assert match_query(upstream, only_icao) == {Registration: "B-2"}   # 缺 Callsign，退到第二种
-    assert match_query(upstream, neither) is None
+    assert upstream.choose_query(both.query_values()) == {Icao24: "780a3b", Callsign: "CES5101"}
+    # 缺 Callsign，退到第二种
+    assert upstream.choose_query(only_icao.query_values()) == {Registration: "B-2"}
+    assert upstream.choose_query(neither.query_values()) is None
 
 
 def test_one_adapter_serves_several_observed_points() -> None:
-    """一个上游服务多个观察点：fetch 按 spec.observed_point 分支；两个可观测目标各有自己的游标。"""
+    """一个上游服务多个观察点：fetch 按观察点分支；两个可观测目标各有自己的游标。"""
 
     @target_type("tanker", observed_points=[Position, Fuel])
     class Tanker(Target):
@@ -290,15 +288,15 @@ def test_one_adapter_serves_several_observed_points() -> None:
             self.asked: list[str] = []
 
         def fetch(
-            self, spec: QuerySpec, query: Query, since: datetime | None
+            self, observed_point: type[ObservedPoint], query: Query, since: datetime | None
         ) -> list[FetchedRecord]:
-            self.asked.append(spec.observed_point)
+            self.asked.append(observed_point.name)
             observation: Observation = (
                 PositionObservation(lat=1, lon=2)
-                if spec.observed_point == Position.name
+                if observed_point is Position
                 else FuelObservation(litres=500)
             )
-            source_id = f"p#{spec.observed_point}"
+            source_id = f"p#{observed_point.name}"
             return [FetchedRecord(observation=observation, occurred_at=at(1), source_id=source_id)]
 
     provider = Provider()
