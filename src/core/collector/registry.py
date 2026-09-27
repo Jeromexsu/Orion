@@ -23,10 +23,6 @@ class UpstreamAdapterRegistry:
         except KeyError:
             raise UnknownUpstreamAdapterError(name) from None
 
-    def adapters(self) -> list[UpstreamAdapter]:
-        """已注册的全部 UpstreamAdapter。"""
-        return list(self._adapters.values())
-
     # UpstreamCatalog
     def upstreams_for(self, target: Target, observed_point: type[ObservedPoint]) -> list[str]:
         """服务该观察点、且目标满足其某种查询方式的上游。"""
