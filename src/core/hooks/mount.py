@@ -4,6 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from core.hooks.context import HookContext, Occasion
 from core.hooks.definitions import MountPoint
 from core.hooks.hook import Hook
 
@@ -28,3 +29,11 @@ class Mount:
         self.params = params
         self.at = at            # mount points of the event (never rule_hit)
         self.rules = rules      # rules whose rule_hit it runs at
+
+    def run(self, ctx: HookContext, occasion: Occasion) -> dict[str, Any] | None:
+        """Run the hook with this mount's parameters.
+
+        Returns:
+            The mount's new state, or None to leave it unchanged (see Hook.run).
+        """
+        return self.hook.run(self.params, ctx, occasion)

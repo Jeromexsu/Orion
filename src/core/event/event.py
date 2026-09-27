@@ -219,7 +219,7 @@ class Event:
                 propose=self._runtime.proposal_sink.receive if hook.proposes else None,
             )
             try:
-                new_state = hook.run(mount.params, ctx, occasion)
+                new_state = mount.run(ctx, occasion)
             except Exception:
                 logger.exception(
                     "hook %s (mount %s) failed at %s on event %s",
