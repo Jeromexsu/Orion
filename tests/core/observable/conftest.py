@@ -1,7 +1,7 @@
 import pytest
 
 from core.observable import ObservableTargetManager
-from core.target import TargetManager, TargetTypeRegistry
+from core.target import TargetManager
 from tests.core.observable.fakes import InMemoryObservableTargetRepository, StaticUpstreamCatalog
 from tests.core.target.conftest import manager, plane, target_types, targets
 
@@ -15,9 +15,8 @@ def observables() -> InMemoryObservableTargetRepository:
 
 @pytest.fixture
 def observable_manager(
-    target_types: TargetTypeRegistry,
     manager: TargetManager,
     observables: InMemoryObservableTargetRepository,
 ) -> ObservableTargetManager:
     upstreams = StaticUpstreamCatalog({("aircraft", "position"): ["adsb"]})
-    return ObservableTargetManager(target_types, manager, observables, upstreams)
+    return ObservableTargetManager(manager, observables, upstreams)

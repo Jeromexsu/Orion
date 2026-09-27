@@ -67,7 +67,7 @@ def test_collector_end_to_end() -> None:
     target_types.register(Aircraft)
     manager = TargetManager(target_types, InMemoryTargetRepository())
     observables = ObservableTargetManager(
-        target_types, manager, InMemoryObservableTargetRepository(), registry
+        manager, InMemoryObservableTargetRepository(), registry
     )
     manager.upsert_target(
         Aircraft(id="t1", name="MU5101", registration="B-2447", icao24="780a3b")

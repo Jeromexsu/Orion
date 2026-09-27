@@ -119,7 +119,6 @@ class Env:
         target_types.register(Aircraft)
         targets = TargetManager(target_types, self.target_repo)
         observables = ObservableTargetManager(
-            target_types,
             targets,
             self.observable_repo,
             StaticUpstreamCatalog({("aircraft", "position"): ["adsb", "radar"]}),

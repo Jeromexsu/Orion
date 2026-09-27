@@ -3,7 +3,7 @@ class ObservableError(Exception):
 
 
 class UnsupportedObservedPointError(ObservableError):
-    """目标类型没有声明这个观察点。"""
+    """目标类型没有叫这个名字的观察点。"""
 
 
 class NoUpstreamError(ObservableError):

@@ -131,15 +131,18 @@ def target_type(
 ) -> Callable[[type[T]], type[T]]:
     """声明一个目标类型：类型名 + 可以在哪些观察点被观测。
 
-    装饰时就检查声明：类型名非空、观察点声明完整、查询键关联合法，不合格抛 TypeError。
+    装饰时就检查声明：类型名非空、观察点声明完整且名字不重复、查询键关联合法，不合格抛 TypeError。
+    观察点名只在本类型内解析（模板里观察点名总和目标成对出现），所以不同类型里同名不冲突。
     """
 
     def decorate(cls: type[T]) -> type[T]:
         if not name:
             raise TypeError(f"{cls.__name__}: target type name must not be empty")
         points = tuple(observed_points)
-        for point in points:
-            observed_point_name(point)
+        names = [observed_point_name(point) for point in points]
+        dupes = sorted({n for n in names if names.count(n) > 1})
+        if dupes:
+            raise TypeError(f"{cls.__name__}: observed point names {dupes} are used more than once")
         cls.type_name = name
         cls.observed_points = points
         cls.query_key_fields()

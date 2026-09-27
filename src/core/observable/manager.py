@@ -3,7 +3,7 @@ from core.observable.observable import ObservableTarget
 from core.observable.repository import ObservableTargetRepository
 from core.observable.upstream import UpstreamCatalog
 from core.observation import ObservedPoint
-from core.target import TargetManager, TargetTypeRegistry
+from core.target import TargetManager
 
 
 class ObservableTargetManager:
@@ -14,12 +14,10 @@ class ObservableTargetManager:
 
     def __init__(
         self,
-        target_type_registry: TargetTypeRegistry,
         target_manager: TargetManager,
         observable_target_repository: ObservableTargetRepository,
         upstream_catalog: UpstreamCatalog,
     ) -> None:
-        self._target_type_registry = target_type_registry
         self._target_manager = target_manager
         self._observable_target_repository = observable_target_repository
         self._upstream_catalog = upstream_catalog
@@ -35,16 +33,15 @@ class ObservableTargetManager:
         给只需要校验的调用方（如模板编译）用，避免为最终被拒绝的模板创建可观测目标。
 
         Raises:
-            UnknownObservedPointError: 没有已注册目标类型声明过这个观察点（来自 target）。
             TargetNotFoundError: 目标不存在（来自 target）。
-            UnsupportedObservedPointError: 目标类型没有声明这个观察点。
+            UnsupportedObservedPointError: 目标类型没有叫这个名字的观察点（只在本类型的声明里找）。
             NoUpstreamError: 没有上游能在这里观测这个目标。
         """
-        point = self._target_type_registry.get_observed_point(observed_point)
         target = self._target_manager.get_target(target_id)
-        if point not in type(target).observed_points:
+        point = next((p for p in type(target).observed_points if p.name == observed_point), None)
+        if point is None:
             raise UnsupportedObservedPointError(
-                f"{target.type} cannot be observed at {observed_point!r}"
+                f"{target.type} has no observed point {observed_point!r}"
             )
         upstreams = self._upstream_catalog.upstreams_for(target, point)
         if not upstreams:

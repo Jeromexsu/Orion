@@ -10,7 +10,6 @@ from core.target import (
     TargetManager,
     TargetNotFoundError,
     TargetTypeRegistry,
-    UnknownObservedPointError,
 )
 from plugins.observed_points.position import Position
 from plugins.query_keys.registration import Registration
@@ -31,7 +30,7 @@ def make(
         target_types.register(t)
     targets = TargetManager(target_types, InMemoryTargetRepository())
     observables = ObservableTargetManager(
-        target_types, targets, InMemoryObservableTargetRepository(), StaticUpstreamCatalog(table)
+        targets, InMemoryObservableTargetRepository(), StaticUpstreamCatalog(table)
     )
     return targets, observables
 
@@ -57,7 +56,7 @@ def test_inspect_observable_does_not_create(
     point, upstreams = observable_manager.inspect_observable(plane.id, "position")
     assert (point, upstreams) == (Position, ("adsb",))
     assert observables.items == {}
-    with pytest.raises(UnknownObservedPointError):
+    with pytest.raises(UnsupportedObservedPointError):
         observable_manager.inspect_observable(plane.id, "fuel")
 
 
@@ -66,7 +65,7 @@ def test_get_observable_errors(
 ) -> None:
     with pytest.raises(TargetNotFoundError):
         observable_manager.get_observable("missing", "position")
-    with pytest.raises(UnknownObservedPointError):
+    with pytest.raises(UnsupportedObservedPointError):     # 没有哪种类型有这个观察点
         observable_manager.get_observable(plane.id, "fuel")
     target_types.register(Ship)
     with pytest.raises(UnsupportedObservedPointError):  # 吃水是船的观察点，飞机不能被这样观测

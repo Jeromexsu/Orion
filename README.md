@@ -195,7 +195,7 @@ class Aircraft(Target):
 
 | 使用方 | 窗口 | 用来做什么 |
 |---|---|---|
-| bootstrap | `TargetTypeRegistry.register` | 启动时注册目标类型（顺带收集观察点、检查查询键关联），注册表注入 `TargetManager` / `ObservableTargetManager` |
+| bootstrap | `TargetTypeRegistry.register` | 启动时注册目标类型（检查声明和查询键关联），注册表注入 `TargetManager` / `ObservableTargetManager` |
 | API 层（待建） | `TargetManager.parse` / `upsert_target` / `get_target` / `find_by_alias` / `remove_target` | 目标的增删改查；`parse` 把 JSON 按 `type` 还原成对应的目标类型 |
 | event · 父事件 | `TargetManager.get_target` | 确认目标存在、取展示名 |
 | event · 模板编译器 | `ObservableTargetManager.inspect_observable` / `get_observable` | 先只检查（不创建），全部通过后取得 / 创建可观测目标 |
@@ -489,12 +489,13 @@ Django 的 `apps.get_model` 是一回事；加上「按名字创建对象」就�
 | 数据里的名字 | 注册表 | 查到的插件 | 谁查 |
 |---|---|---|---|
 | 目标记录 / JSON 的 `type`（`"aircraft"`） | `TargetTypeRegistry` | 目标类型（类，如 `Aircraft`） | `TargetManager`：还原记录、解析 JSON |
-| 模板里的 `observed_point`（`"position"`） | `TargetTypeRegistry`（从目标类型的声明收集） | 观察点（类） | `ObservableTargetManager`：取得可观测目标 |
 | 模板里的 `upstreams`（`"opensky"`） | `UpstreamAdapterRegistry` | 上游适配器（实例） | `Collector`、`ObservableTargetManager`（经 `UpstreamCatalog`） |
 | 条件叶子的 `op`（`"onEnter"`） | `EvaluatorRegistry` | 判断方式（实例） | `ConditionCompiler` |
 | 挂载的 `hook`（`"countHits"`） | `HookRegistry` | 钩子（实例） | `MountCompiler` |
 
-- 要不要注册表只看数据里会不会出现它的名字：查询键只在代码里按类引用（`provides(Icao24)`），所以没有注册表。
+- 要不要注册表只看数据里会不会出现它的名字，以及能不能在上下文里解析：查询键只在代码里按类引用（`provides(Icao24)`），
+  所以没有注册表；观察点名在模板里总和目标成对出现（`target_id` + `observed_point`），`ObservableTargetManager` 在那个
+  目标类型的 `observed_points` 里按名字找，也不需要全局注册表。
 - 注册表只有 `register` / `get` / 列出全部，外加注册时的声明检查（没用装饰器声明、名字重复都在启动时报错）；
   查不到抛有类型的异常（如 `UnknownHookError`），编译器据此给出可读的错误。
 - 两个刻意的选择，避开这个模式常见的毛病：

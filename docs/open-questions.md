@@ -146,11 +146,6 @@ class RadarAdapter(UpstreamAdapter): ...
   执行结果或错误。另：`accept` 先执行动作、再标记已处理，标记失败会留在待审、可被再次接受而重复执行——
   有真实持久化层时处理（同一事务，或先标记「执行中」）。
 - **report：不存历史版本**：仓库只存最新版本，机器每次滚动、分析师每次编辑都会丢掉上一版。需要审计或对比时再存版本历史。
-- **观察点不单独注册**：观察点从已注册目标类型的 `observed_points` 里收集（`TargetTypeRegistry`），不单独注册。
-  理由：模板按名字引用观察点，而能用的观察点一定被某种目标类型声明过；是否需要注册表取决于有没有「按名字查」的需求
-  （查询键只按类引用，所以也没有注册表）。已知缺口：上游适配器引用的观察点若没有任何目标类型声明，注册时不报错
-  （死适配器，暂认为无害）；同名观察点冲突只在目标类型之间检查。可选做法：单独注册观察点、注册适配器时检查引用；
-  或维持收集、只补适配器检查。暂不处理。
 - **目标的删除改为归档**：监控系统里，历史子事件、报告、观测都按 ID 引用目标，真删会留下悬空 ID（报告里连名字都
   显示不出）。打算：目标标记为已归档（ID 仍有效、查询时过滤），不再能被新模板引用；已有订阅怎么处理（停采、关闭子事件）
   作为归档的后续动作，用领域事件或应用服务协调，而不是让 `TargetManager` 去问谁在引用它。等 API 层做目标管理时实现。
@@ -159,6 +154,11 @@ class RadarAdapter(UpstreamAdapter): ...
 
 ## 已决
 
+- **观察点不需要注册表，按目标类型解析**（原待决「观察点不单独注册」）：模板里观察点名总和目标成对出现，
+  `ObservableTargetManager` 取到目标后在它类型的 `observed_points` 里按名字找，不需要全局的「名字 → 观察点」表。
+  `TargetTypeRegistry` 只剩目标类型；`ObservableTargetManager` 不再依赖它；`UnknownObservedPointError` 与
+  `UnsupportedObservedPointError` 合并为后者；跨类型同名不再冲突（`DuplicateObservedPointError` 去掉），同一类型内
+  重名由 `@target_type` 声明时报错。原记的缺口「上游适配器引用了没有任何目标类型声明的观察点」仍在（死适配器，无害）。
 - **target 拆成 observation / target / observable 三个模块**：
   - observation（零依赖）：观察点、观测、观测外壳——观测长什么样，与目标无关。
   - target（→ observation）：目标类型、目标实例、查询键、`TargetTypeRegistry`、`TargetManager`。
@@ -317,7 +317,7 @@ class RadarAdapter(UpstreamAdapter): ...
     上游 = 数据提供方，一个上游可服务多个观察点，`fetch` 按 `observed_point` 分支；查询方式对它服务的
     全部观察点通用（真遇到按观察点不同再扩展成按观察点声明）；
   - `ObservableTarget(target, observed_point, upstreams)`；`ObservableDef.observed_point`
-    存观察点名；`TargetManager` 从已注册目标类型收集观察点，重名报错。
+    存观察点名；观察点名按目标类型解析（后来去掉了全局的观察点表，见「观察点不需要注册表」）。
 - **查询键（取代「同名属性字段含义一致」的约定）**：查询的输入也要有人负责，与观察点对称。
   - `QueryKey` 子类（如 `Icao24`）= 名字 + 取值的类型与格式，放在 `plugins/query_keys/`；
   - 目标类型在提供它的字段上关联：`icao24: str | None = provides(Icao24, default=None)`；构造目标时按查询键校验取值；

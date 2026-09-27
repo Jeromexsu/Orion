@@ -104,7 +104,6 @@ def build_app(repos: Repositories) -> App:
     target_type_registry.register(Aircraft)
     target_manager = TargetManager(target_type_registry, repos.target_repository)
     observable_target_manager = ObservableTargetManager(
-        target_type_registry,
         target_manager,
         repos.observable_target_repository,
         upstream_adapter_registry,

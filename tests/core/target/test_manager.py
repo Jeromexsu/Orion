@@ -3,7 +3,6 @@ from pydantic import ValidationError
 
 from core.observation import Observation, ObservedPoint, observed_point
 from core.target import (
-    DuplicateObservedPointError,
     DuplicateTargetTypeError,
     Target,
     TargetManager,
@@ -16,7 +15,7 @@ from core.target import (
 )
 from plugins.observed_points.position import Position
 from plugins.target.aircraft import Aircraft
-from tests.core.target.fakes import Draught, InMemoryTargetRepository, Ship
+from tests.core.target.fakes import InMemoryTargetRepository, Ship
 
 # ---------------------------------------------------------------- 类型
 
@@ -26,27 +25,26 @@ def test_register_type_twice_rejected(target_types: TargetTypeRegistry) -> None:
         target_types.register(Aircraft)
 
 
-def test_observed_points_are_collected_from_types(target_types: TargetTypeRegistry) -> None:
-    target_types.register(Ship)
-    assert target_types.get_observed_point("position") is Position
-    assert target_types.get_observed_point("draught") is Draught
-    assert set(target_types.observed_points()) == {Position, Draught}
-
-
-def test_observed_point_name_clash_rejected(target_types: TargetTypeRegistry) -> None:
+def test_observed_point_names_are_unique_within_a_type() -> None:
     class XObservation(Observation):
         x: float
 
     @observed_point("position", observation=XObservation)
     class OtherPosition(ObservedPoint): ...
 
-    @target_type("car", observed_points=[OtherPosition])
-    class Car(Target): ...
+    with pytest.raises(TypeError, match="'position'"):
 
-    with pytest.raises(DuplicateObservedPointError):
-        target_types.register(Car)
-    with pytest.raises(UnknownTargetTypeError):  # 注册失败不留半截
-        target_types.get("car")
+        @target_type("car", observed_points=[Position, OtherPosition])
+        class Car(Target): ...  # pyright: ignore[reportUnusedClass]
+
+    # 不同类型里同名不冲突：观察点名只在本类型内解析
+    @target_type("boat", observed_points=[OtherPosition])
+    class Boat(Target): ...
+
+    registry = TargetTypeRegistry()
+    registry.register(Aircraft)
+    registry.register(Boat)
+    assert registry.types() == [Aircraft, Boat]
 
 
 def test_target_type_must_be_declared() -> None:

@@ -73,7 +73,7 @@ class Env:
         target_types.register(Aircraft)
         self.manager = TargetManager(target_types, InMemoryTargetRepository())
         self.observables = ObservableTargetManager(
-            target_types, self.manager, InMemoryObservableTargetRepository(), self.registry
+            self.manager, InMemoryObservableTargetRepository(), self.registry
         )
         self.manager.upsert_target(Aircraft(id="t1", name="x", registration="B-2447"))
         self.cursors = InMemoryCursorRepository()
@@ -329,7 +329,7 @@ def test_one_adapter_serves_several_observed_points() -> None:
     target_types.register(Tanker)
     manager = TargetManager(target_types, InMemoryTargetRepository())
     observables = ObservableTargetManager(
-        target_types, manager, InMemoryObservableTargetRepository(), registry
+        manager, InMemoryObservableTargetRepository(), registry
     )
     manager.upsert_target(Tanker(id="k1", name="x", registration="B-1"))
     cursors = InMemoryCursorRepository()
