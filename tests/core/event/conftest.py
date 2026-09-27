@@ -203,7 +203,7 @@ def enter(observable: str = "t1:position", initial: bool = False) -> dict[str, A
         "kind": "leaf",
         "observable": observable,
         "type": "onEnter",
-        "params": {"area": SQUARE, "initial_as_enter": initial},
+        "criteria": {"area": SQUARE, "initial_as_enter": initial},
     }
 
 

@@ -35,10 +35,10 @@ class EvalResult(BaseModel):
     state: dict[str, Any] | None = None
 
 
-P = TypeVar("P", bound=BaseModel)
+C = TypeVar("C", bound=BaseModel)
 
 
-class Evaluator(ABC, Generic[P]):
+class Evaluator(ABC, Generic[C]):
     """一种判断方式（叶子条件）。每种一个实现，放在 plugins/condition_engine/ 下。
 
     规则：
@@ -49,16 +49,28 @@ class Evaluator(ABC, Generic[P]):
 
     type: str                   # 模板里引用的名字，如 "onEnter"
     requires: Set[str]          # 需要观测里有值的字段（按字段名，不绑定具体观测类型）
-    params_model: builtins.type[P]  # 类体里的 type 属性遮蔽了内置 type
+    criteria_model: builtins.type[C]  # 判定标准的形状；类体里的 type 属性遮蔽了内置 type
 
     @abstractmethod
     def evaluate(
-        self, params: P, envelope: ObservationEnvelope, state: Mapping[str, Any]
+        self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: C
     ) -> EvalResult:
-        """params：模板里配置、编译时已解析的参数；
-        envelope：这一条观测的外壳（副本）。envelope.observation 是观测，requires 里的字段已保证有值，
-        按字段名读取（getattr(envelope.observation, "lat")）；envelope.occurred_at 是发生时间；
-        判断方式不应依赖 upstream / source_id / raw；
-        state：本叶子上次保存的状态（首次为空），可存任意内容（如滑动窗口），需自行控制大小。
+        """Judge one observation, given this leaf's previous state, against the criteria.
+
+        The observation is envelope.observation; the fields in requires are guaranteed to
+        have values, read them by name (getattr(envelope.observation, "lat")).
+        envelope.occurred_at is when it happened. Do not depend on upstream / source_id /
+        raw. The envelope is a copy.
+
+        Args:
+            envelope: The observation to judge, with its source information.
+            state: This leaf's state as last returned (empty on first call); read-only.
+                May hold anything (e.g. a sliding window); keep its size bounded.
+            criteria: What counts as a hit, as configured in the template and validated
+                against criteria_model at compile time.
+
+        Returns:
+            The outcome, and in state this leaf's full new state (None if unchanged).
+            A not-applicable result must not carry a state.
         """
         ...

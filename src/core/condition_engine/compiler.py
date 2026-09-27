@@ -84,9 +84,9 @@ class ConditionCompiler:
                 ok = False
 
         try:
-            params = evaluator.params_model.model_validate(node.params)
+            criteria = evaluator.criteria_model.model_validate(node.criteria)
         except ValidationError as e:
-            errors.append(f"{path}: invalid params for {node.type!r}: {e}")
+            errors.append(f"{path}: invalid criteria for {node.type!r}: {e}")
             return None
 
-        return LeafNode(path, node.observable, evaluator, params) if ok else None
+        return LeafNode(path, node.observable, evaluator, criteria) if ok else None

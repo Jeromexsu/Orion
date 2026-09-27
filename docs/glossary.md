@@ -40,7 +40,7 @@
 |---|---|---|
 | 条件定义 | `ConditionDef`（`LeafDef` / `OpDef`） | 纯数据，可任意嵌套 |
 | 条件树 | `ConditionTree`（`LeafNode` / `OpNode`） | 编译后的条件；`evaluate(envelope, state)` 是纯函数，状态由调用方保管 |
-| 判断方式 | `Evaluator` | 唯一的扩展点；声明 `type`、`requires`（需要观测里有值的字段名）、`params_model`，实现 `evaluate(params, envelope, state)` |
+| 判断方式 | `Evaluator` | 唯一的扩展点；声明 `type`、`requires`（需要观测里有值的字段名）、`criteria_model`（判定标准的形状），实现 `evaluate(envelope, state, criteria)`：拿这条观测和上一轮状态对照判定标准 |
 | 节点路径 | `path`（如 `root/1/0`） | 节点在树中的地址；用于定位编译错误、按叶子分组状态、审计追溯 |
 
 ## 命名约定

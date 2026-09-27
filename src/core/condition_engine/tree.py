@@ -52,12 +52,12 @@ class LeafNode(ConditionNode):
     """
 
     def __init__(
-        self, path: str, observable: str, evaluator: Evaluator[Any], params: BaseModel
+        self, path: str, observable: str, evaluator: Evaluator[Any], criteria: BaseModel
     ) -> None:
         super().__init__(path)
         self.observable = observable
         self.evaluator = evaluator
-        self.params = params
+        self.criteria = criteria
 
     def evaluate(
         self, envelope: ObservationEnvelope, state: TreeState
@@ -73,7 +73,7 @@ class LeafNode(ConditionNode):
         old_state = dict(state.get(self.path, {}))
         leaf_state = MappingProxyType(dict(old_state))
         # 每个叶子拿一份副本：判断方式即使修改了也影响不到其他叶子和调用方
-        result = self.evaluator.evaluate(self.params, envelope.model_copy(deep=True), leaf_state)
+        result = self.evaluator.evaluate(envelope.model_copy(deep=True), leaf_state, self.criteria)
 
         entry: dict[str, Any] = {
             "path": self.path,

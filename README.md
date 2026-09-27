@@ -259,9 +259,9 @@ graph LR
     "op": "any",
     "children": [
       {"kind": "leaf", "observable": "t1:position", "type": "onEnter",
-       "params": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]]}},
+       "criteria": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]]}},
       {"kind": "leaf", "observable": "t2:position", "type": "onEnter",
-       "params": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]]}}
+       "criteria": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]]}}
     ]
   },
   "rule_defs": [
@@ -272,9 +272,9 @@ graph LR
         "op": "any",
         "children": [
           {"kind": "leaf", "observable": "t1:position", "type": "onEnter",
-           "params": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]], "initial_as_enter": true}},
+           "criteria": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]], "initial_as_enter": true}},
           {"kind": "leaf", "observable": "t2:position", "type": "onEnter",
-           "params": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]], "initial_as_enter": true}}
+           "criteria": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]], "initial_as_enter": true}}
         ]
       },
       "hook_defs": [
@@ -297,7 +297,7 @@ graph LR
 | `rule_defs` | 规则：子事件运行期间每条观测都评估；`name` 在模板内唯一；`hook_defs` 只能挂 `rule_hit` |
 | `hook_defs` | 子事件级算子：挂在 `created` / `closed` / `pre` / `status_updated` / `post` |
 | 条件树（`kind: op`） | `op` 为 `all` / `any` / `not`，`children` 是子条件，可任意嵌套 |
-| 条件叶子（`kind: leaf`） | `observable` 引用 `observable_defs` 里声明的可观测目标；`type` 是判断方式（如 `onEnter`）；`params` 由该判断方式解释 |
+| 条件叶子（`kind: leaf`） | `observable` 引用 `observable_defs` 里声明的可观测目标；`type` 是判断方式（如 `onEnter`）；`criteria` 是判定标准，由该判断方式解释 |
 
 规则和可观测目标不是一一对应：每棵条件树在叶子里通过 `observable` 引用可观测目标，一条规则可以引用多个，
 同一个可观测目标也可以被多条规则引用。观测到来时交给所有条件树评估，叶子遇到不属于自己的观测返回「不适用」。
@@ -339,8 +339,8 @@ graph LR
 |---|---|
 | `type` | 模板里引用的名字，如 `"onEnter"` |
 | `requires` | 需要观测里有值的字段名；缺失或为空时叶子直接返回「不适用」，不调用判断方式 |
-| `params_model` | 参数的形状（Pydantic 模型），编译时校验 |
-| `evaluate(params, envelope, state)` | 判断；不改传入的 `state`（只读），把本叶子的**完整**新状态放进结果的 `state`（不是变化量；没变就不填）；返回「不适用」时不得带 `state` |
+| `criteria_model` | 判定标准的形状（Pydantic 模型），编译时校验 |
+| `evaluate(envelope, state, criteria)` | 判断；不改传入的 `state`（只读），把本叶子的**完整**新状态放进结果的 `state`（不是变化量；没变就不填）；返回「不适用」时不得带 `state` |
 
 示例见 `plugins/condition_engine/on_enter.py`（进入区域，有状态）。
 

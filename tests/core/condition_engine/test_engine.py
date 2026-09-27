@@ -21,19 +21,19 @@ from plugins.condition_engine.on_enter import OnEnter
 from tests.core.condition_engine.conftest import (
     SQUARE,
     T0,
-    GtParams,
+    GtCriteria,
     compile_,
     make_envelope,
     parse,
 )
 
 
-def enter(observable: str = "t1:position", **params: Any) -> dict[str, Any]:
-    return {"kind": "leaf", "observable": observable, "type": "onEnter", "params": {"area": SQUARE, **params}}
+def enter(observable: str = "t1:position", **criteria: Any) -> dict[str, Any]:
+    return {"kind": "leaf", "observable": observable, "type": "onEnter", "criteria": {"area": SQUARE, **criteria}}
 
 
 def gt(value: float, observable: str = "t1:position") -> dict[str, Any]:
-    return {"kind": "leaf", "observable": observable, "type": "gt", "params": {"field": "alt", "value": value}}
+    return {"kind": "leaf", "observable": observable, "type": "gt", "criteria": {"field": "alt", "value": value}}
 
 
 def op(name: str, *children: dict[str, Any]) -> dict[str, Any]:
@@ -63,7 +63,7 @@ def test_semantic_errors_are_collected_with_paths(compiler: ConditionCompiler) -
         {"kind": "leaf", "observable": "t1:position", "type": "nope"},
         enter(observable="ghost"),
         gt(1, observable="t2:position"),  # t2 没有 alt
-        {"kind": "leaf", "observable": "t1:position", "type": "gt", "params": {}},
+        {"kind": "leaf", "observable": "t1:position", "type": "gt", "criteria": {}},
         op("not", gt(1), gt(2)),
     )
     with pytest.raises(ConditionCompileError) as info:
@@ -72,7 +72,7 @@ def test_semantic_errors_are_collected_with_paths(compiler: ConditionCompiler) -
     assert any(e.startswith("root/0: unknown condition type") for e in errors)
     assert any(e.startswith("root/1: unknown observable") for e in errors)
     assert any(e.startswith("root/2: observable 't2:position' lacks fields ['alt']") for e in errors)
-    assert any(e.startswith("root/3: invalid params") for e in errors)
+    assert any(e.startswith("root/3: invalid criteria") for e in errors)
     assert any(e.startswith("root/4: 'not' takes exactly one child") for e in errors)
 
 
@@ -155,41 +155,41 @@ def test_evaluate_does_not_mutate_state(compiler: ConditionCompiler) -> None:
 # ---------------------------------------------------------------- 判断方式拿到的观测
 
 
-class RecentParams(BaseModel):
+class RecentCriteria(BaseModel):
     hours: float
     count: int
 
 
-class RecentCount(Evaluator[RecentParams]):
+class RecentCount(Evaluator[RecentCriteria]):
     """示例：滑动窗口。最近 hours 小时内的观测达到 count 条即命中——状态记的是 N 轮，不只上一轮。"""
 
     type = "recentCount"
     requires = frozenset({"lat"})
-    params_model = RecentParams
+    criteria_model = RecentCriteria
 
     def evaluate(
-        self, params: RecentParams, envelope: ObservationEnvelope, state: Mapping[str, Any]
+        self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: RecentCriteria
     ) -> EvalResult:
         now = envelope.occurred_at
         window = [*state.get("window", []), now.isoformat()]
-        window = [t for t in window if datetime.fromisoformat(t) > now - timedelta(hours=params.hours)]
+        window = [t for t in window if datetime.fromisoformat(t) > now - timedelta(hours=criteria.hours)]
         return EvalResult(
-            outcome=HIT if len(window) >= params.count else MISS, state={"window": window}
+            outcome=HIT if len(window) >= criteria.count else MISS, state={"window": window}
         )
 
 
-class Spy(Evaluator[GtParams]):
+class Spy(Evaluator[GtCriteria]):
     """记录收到的观测外壳。"""
 
     type = "spy"
     requires = frozenset({"alt"})
-    params_model = GtParams
+    criteria_model = GtCriteria
 
     def __init__(self) -> None:
         self.seen: list[ObservationEnvelope] = []
 
     def evaluate(
-        self, params: GtParams, envelope: ObservationEnvelope, state: Mapping[str, Any]
+        self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: GtCriteria
     ) -> EvalResult:
         self.seen.append(envelope)
         return EvalResult(outcome=MISS)
@@ -203,7 +203,7 @@ def test_evaluator_gets_a_copy_with_time() -> None:
     original = make_envelope("t1:position", at=3, lat=1, lon=1, alt=100)
 
     result = compile_(compiler, {"kind": "leaf", "observable": "t1:position", "type": "spy",
-                               "params": {"field": "alt", "value": 0}}).evaluate(original, {})
+                               "criteria": {"field": "alt", "value": 0}}).evaluate(original, {})
     (seen,) = spy.seen
     assert seen.occurred_at == T0 + timedelta(hours=3)
     assert seen is not original and seen.observation is not original.observation  # 拿到的是副本
@@ -216,7 +216,7 @@ def test_state_can_hold_a_sliding_window() -> None:
     registry.register(RecentCount())
     compiler = ConditionCompiler(registry)
     tree = compile_(compiler, {"kind": "leaf", "observable": "t1:position", "type": "recentCount",
-                             "params": {"hours": 24, "count": 3}})
+                             "criteria": {"hours": 24, "count": 3}})
 
     state: dict[str, dict[str, Any]] = {}
     outcomes: list[str] = []

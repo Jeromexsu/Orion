@@ -28,30 +28,30 @@ def point_in_polygon(point: Point, polygon: Polygon) -> bool:
     return inside
 
 
-class OnEnterParams(BaseModel):
-    """模板里 LeafDef.params 的形状。"""
+class OnEnterCriteria(BaseModel):
+    """判定标准：模板里 LeafDef.criteria 的形状。"""
 
     area: Polygon = Field(min_length=3)
     initial_as_enter: bool = False   # 首次观测就在区域内是否算“进入”
 
 
-class OnEnter(Evaluator[OnEnterParams]):
+class OnEnter(Evaluator[OnEnterCriteria]):
     """上一次在区域外、这一次在区域内 → 命中。状态里记住上一次是否在区域内。"""
 
     type = "onEnter"
     requires = frozenset({"lat", "lon"})
-    params_model = OnEnterParams
+    criteria_model = OnEnterCriteria
 
     def evaluate(
-        self, params: OnEnterParams, envelope: ObservationEnvelope, state: Mapping[str, Any]
+        self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: OnEnterCriteria
     ) -> EvalResult:
         """命中时 extracted 带进入时的位置；每次都返回新的 inside 状态。"""
         observation = envelope.observation
         position = (float(getattr(observation, "lat")), float(getattr(observation, "lon")))
-        inside = point_in_polygon(position, params.area)
+        inside = point_in_polygon(position, criteria.area)
         was_inside: bool | None = state.get("inside")
 
-        entered = inside and (params.initial_as_enter if was_inside is None else not was_inside)
+        entered = inside and (criteria.initial_as_enter if was_inside is None else not was_inside)
         return EvalResult(
             outcome=HIT if entered else MISS,
             extracted={"entered_at": {"lat": position[0], "lon": position[1]}} if entered else {},

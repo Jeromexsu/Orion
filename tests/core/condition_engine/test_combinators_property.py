@@ -23,19 +23,19 @@ from tests.core.condition_engine.conftest import compile_, make_envelope
 outcomes = st.sampled_from([HIT, MISS, NOT_APPLICABLE])
 
 
-class FixedParams(BaseModel):
+class FixedCriteria(BaseModel):
     outcome: Literal["命中", "未命中", "不适用"]
 
 
-class Fixed(Evaluator[FixedParams]):
+class Fixed(Evaluator[FixedCriteria]):
     type = "fixed"
     requires = frozenset[str]()
-    params_model = FixedParams
+    criteria_model = FixedCriteria
 
     def evaluate(
-        self, params: FixedParams, envelope: ObservationEnvelope, state: Mapping[str, Any]
+        self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: FixedCriteria
     ) -> EvalResult:
-        return EvalResult(outcome=params.outcome)
+        return EvalResult(outcome=criteria.outcome)
 
 
 registry = EvaluatorRegistry()
@@ -44,7 +44,7 @@ compiler = ConditionCompiler(registry)
 
 
 def leaf(o: Outcome) -> dict[str, Any]:
-    return {"kind": "leaf", "observable": "t", "type": "fixed", "params": {"outcome": o}}
+    return {"kind": "leaf", "observable": "t", "type": "fixed", "criteria": {"outcome": o}}
 
 
 def run(definition: dict[str, Any]) -> Outcome:

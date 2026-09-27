@@ -56,23 +56,23 @@ def make_envelope(observable_id: str, at: float = 0, **fields: Any) -> Observati
     )
 
 
-class GtParams(BaseModel):
+class GtCriteria(BaseModel):
     field: str
     value: float
 
 
-class Gt(Evaluator[GtParams]):
+class Gt(Evaluator[GtCriteria]):
     """无状态测试用判断：fields[field] > value。"""
 
     type = "gt"
     requires = frozenset({"alt"})
-    params_model = GtParams
+    criteria_model = GtCriteria
 
     def evaluate(
-        self, params: GtParams, envelope: ObservationEnvelope, state: Mapping[str, Any]
+        self, envelope: ObservationEnvelope, state: Mapping[str, Any], criteria: GtCriteria
     ) -> EvalResult:
-        value = getattr(envelope.observation, params.field)
-        hit = value > params.value
+        value = getattr(envelope.observation, criteria.field)
+        hit = value > criteria.value
         return EvalResult(outcome=HIT if hit else MISS, extracted={"alt": value} if hit else {})
 
 

@@ -26,7 +26,7 @@ since 之前的不返回），等往外分插件任务时再搭。
 
 **发现于**：审阅 condition_engine 的 `Evaluator` 时。**状态**：待讨论。
 
-每个叶子条件只绑定一个可观测目标，`evaluate(params, fields, state)` 每次只拿到一条数据的 `fields`；
+每个叶子条件只绑定一个可观测目标，`evaluate(envelope, state, criteria)` 每次只拿到一条观测；
 `LeafNode` 对不属于自己目标的数据直接返回「不适用」。因此需要同时比较多个目标数据的条件——
 如「两架飞机相互接近」「A 在 B 之前进入区域」——单个叶子做不了。组合节点（all/any/not）只组合
 各叶子的三值结果，也拿不到对方的数值。

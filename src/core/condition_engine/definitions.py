@@ -11,7 +11,7 @@ class LeafDef(BaseModel):
     kind: Literal["leaf"] = "leaf"
     observable: str             # 可观测目标 ID，如 "t1:position"
     type: str                   # 判断方式，如 "onEnter"
-    params: dict[str, Any] = Field(default_factory=dict[str, Any])  # 由对应的判断方式自己解释
+    criteria: dict[str, Any] = Field(default_factory=dict[str, Any])  # 判定标准，由对应的判断方式解释
 
 
 class OpDef(BaseModel):
