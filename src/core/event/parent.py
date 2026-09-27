@@ -29,12 +29,18 @@ class ParentEvent:
 
     @classmethod
     def restore(cls, record: ParentEventRecord, runtime: EventRuntime) -> "ParentEvent":
-        """重启恢复：还原命名空间，各 runner 重新订阅并接回活跃子事件。不写库。"""
+        """重启恢复：还原命名空间；读回模板定义并编译（当前版本和挂起版本），交给 runner 恢复。不写库。"""
         parent = cls(record.id, record.name, runtime)
         parent._targets = set(record.targets)
         for ref in record.templates:
+            template = parent._load_template(ref.template_id, ref.version)
+            pending = (
+                parent._load_template(ref.template_id, ref.pending_version)
+                if ref.pending_version is not None
+                else None
+            )
             parent._runners[ref.template_id] = EventRunner.restore(
-                parent.id, ref, runtime, parent._save
+                parent.id, template, pending, runtime, parent._save
             )
         return parent
 
@@ -153,6 +159,12 @@ class ParentEvent:
             return self._runtime.targets.get_target(target_id).name
         except TargetNotFoundError:
             return target_id
+
+    def _load_template(self, template_id: str, version: int) -> EventTemplate:
+        template_def = self._runtime.templates.get(template_id, version)
+        if template_def is None:
+            raise TemplateNotFoundError(f"{template_id} v{version}")
+        return self._runtime.template_compiler.compile(template_def)
 
     def _save(self) -> None:
         self._runtime.parents.upsert(self.to_record())

@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from core.condition_engine import HIT, apply_state_patch
-from core.event.errors import TemplateNotFoundError, TemplateVersionError
+from core.event.errors import TemplateVersionError
 from core.event.event import Event
 from core.event.records import EventRecord, TemplateRef
 from core.event.runtime import EventRuntime
@@ -61,17 +61,12 @@ class EventRunner:
     def restore(
         cls,
         parent_id: str,
-        ref: TemplateRef,
+        template: EventTemplate,
+        pending: EventTemplate | None,
         runtime: EventRuntime,
         on_change: Callable[[], None],
     ) -> "EventRunner":
-        """重启恢复：重新编译当前 / 挂起版本、读回开启条件状态、接回活跃子事件、重新订阅。不写库。"""
-        template = _load(runtime, ref.template_id, ref.version)
-        pending = (
-            _load(runtime, ref.template_id, ref.pending_version)
-            if ref.pending_version is not None
-            else None
-        )
+        """重启恢复：读回开启条件状态、接回活跃子事件、重新订阅。模板由父事件编译好传入。不写库。"""
         runner = cls(
             parent_id,
             template,
@@ -228,9 +223,3 @@ class EventRunner:
             return None
         return Event(record, self._template, self._runtime, self.target_names)
 
-
-def _load(runtime: EventRuntime, template_id: str, version: int) -> EventTemplate:
-    template_def = runtime.templates.get(template_id, version)
-    if template_def is None:
-        raise TemplateNotFoundError(f"{template_id} v{version}")
-    return runtime.template_compiler.compile(template_def)
