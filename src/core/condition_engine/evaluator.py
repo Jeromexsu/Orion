@@ -124,12 +124,6 @@ def evaluator(
     return decorate
 
 
-def check_evaluator(evaluator: Evaluator[Any]) -> None:
-    """Raise TypeError unless the evaluator's class was declared with @evaluator."""
-    if not all(hasattr(evaluator, a) for a in ("op", "requires", "criteria_model")):
-        raise TypeError(f"{type(evaluator).__name__} must be declared with @evaluator(...)")
-
-
 def _criteria_argument(cls: type[Any]) -> type[BaseModel] | None:
     for base in getattr(cls, "__orig_bases__", ()):
         if get_origin(base) is Evaluator:

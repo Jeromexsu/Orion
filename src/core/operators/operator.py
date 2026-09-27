@@ -54,14 +54,3 @@ class Operator(ABC, Generic[C]):
                 and logged by the event.
         """
         ...
-
-
-def check_operator(operator: Operator[C]) -> None:
-    """注册时检查子类把类属性都声明了，漏写抛 TypeError。"""
-    missing = [
-        attr
-        for attr in ("name", "category", "levels", "mount_points", "params_model")
-        if not hasattr(operator, attr)
-    ]
-    if missing:
-        raise TypeError(f"{type(operator).__name__} must set {', '.join(missing)}")

@@ -1,5 +1,5 @@
 from core.collector.errors import DuplicateUpstreamAdapterError, UnknownUpstreamAdapterError
-from core.collector.upstream_adapter import UpstreamAdapter, check_upstream_adapter
+from core.collector.upstream_adapter import UpstreamAdapter, validate_declaration
 from core.target import ObservedPoint, Target
 
 
@@ -11,7 +11,7 @@ class UpstreamAdapterRegistry:
 
     def register(self, adapter: UpstreamAdapter) -> None:
         """注册一个上游。类属性漏写或没有查询方式抛 TypeError；名字重复抛 DuplicateUpstreamAdapterError。"""
-        check_upstream_adapter(adapter)
+        _check_declared(adapter)
         if adapter.name in self._adapters:
             raise DuplicateUpstreamAdapterError(adapter.name)
         self._adapters[adapter.name] = adapter
@@ -33,3 +33,11 @@ class UpstreamAdapterRegistry:
             if observed_point in a.observed_points and a.choose_query(provided) is not None
         ]
 
+
+def _check_declared(adapter: UpstreamAdapter) -> None:
+    """Raise TypeError unless the adapter is fully declared (normally by @upstream_adapter)."""
+    if not all(hasattr(adapter, a) for a in ("name", "observed_points", "query_key_sets")):
+        raise TypeError(f"{type(adapter).__name__} must be declared with @upstream_adapter(...)")
+    validate_declaration(
+        type(adapter).__name__, adapter.name, adapter.observed_points, adapter.query_key_sets
+    )

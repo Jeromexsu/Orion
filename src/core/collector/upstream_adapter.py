@@ -100,29 +100,19 @@ def upstream_adapter(
         cls.name = name if name is not None else _default_name(cls.__name__)
         cls.observed_points = frozenset(observed_points)
         cls.query_key_sets = tuple(frozenset(keys) for keys in query_key_sets)
-        _check_declaration(cls.__name__, cls.name, cls.observed_points, cls.query_key_sets)
+        validate_declaration(cls.__name__, cls.name, cls.observed_points, cls.query_key_sets)
         return cls
 
     return decorate
 
 
-def check_upstream_adapter(adapter: UpstreamAdapter) -> None:
-    """Raise TypeError unless the adapter is fully declared (normally by @upstream_adapter)."""
-    if not all(hasattr(adapter, a) for a in ("name", "observed_points", "query_key_sets")):
-        raise TypeError(
-            f"{type(adapter).__name__} must be declared with @upstream_adapter(...)"
-        )
-    _check_declaration(
-        type(adapter).__name__, adapter.name, adapter.observed_points, adapter.query_key_sets
-    )
-
-
-def _check_declaration(
+def validate_declaration(
     class_name: str,
     name: str,
     observed_points: frozenset[type[ObservedPoint]],
     query_key_sets: tuple[frozenset[type[QueryKey]], ...],
 ) -> None:
+    """Raise TypeError if a declaration is incomplete; shared by the decorator and the registry."""
     if not name:
         raise TypeError(f"{class_name}: upstream name must not be empty")
     if not observed_points:

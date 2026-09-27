@@ -3,7 +3,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from core.operators.errors import DuplicateOperatorError, InvalidMountError, UnknownOperatorError
-from core.operators.operator import Level, MountPoint, Operator, check_operator
+from core.operators.operator import Level, MountPoint, Operator
 
 
 class OperatorRegistry:
@@ -14,7 +14,7 @@ class OperatorRegistry:
 
     def register(self, operator: Operator[Any]) -> None:
         """类属性漏写抛 TypeError；名字重复抛 DuplicateOperatorError。"""
-        check_operator(operator)
+        _check_declared(operator)
         if operator.name in self._operators:
             raise DuplicateOperatorError(operator.name)
         self._operators[operator.name] = operator
@@ -46,3 +46,14 @@ class OperatorRegistry:
             return operator.params_model.model_validate(params)
         except ValidationError as e:
             raise InvalidMountError(f"invalid params for {name}: {e}") from e
+
+
+def _check_declared(operator: Operator[Any]) -> None:
+    """Raise TypeError if the operator's class leaves a declaration out."""
+    missing = [
+        attr
+        for attr in ("name", "category", "levels", "mount_points", "params_model")
+        if not hasattr(operator, attr)
+    ]
+    if missing:
+        raise TypeError(f"{type(operator).__name__} must set {', '.join(missing)}")
