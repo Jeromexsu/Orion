@@ -131,6 +131,70 @@ graph LR
 
 同一模板同时最多一个活跃子事件；子事件是以年为周期重复发生的事情。
 
+#### 模板定义示例
+
+装入模板时提交的就是一个 `TemplateDef`（`ParentEvent.upsert_template`）。下面的例子：观测两架飞机的位置，
+任意一架进入区域就开启子事件；子事件期间每次进入区域都计数，累计 3 次收敛关闭；关闭时写一份报告草稿。
+
+<!-- template-example:start -->
+```json
+{
+  "id": "east-sea-entry",
+  "version": 1,
+  "name": "东海方向进入",
+  "observable_defs": [
+    {"target_id": "t1", "observed_point": "position", "upstreams": ["adsb"]},
+    {"target_id": "t2", "observed_point": "position", "upstreams": ["adsb", "radar"]}
+  ],
+  "open_condition_def": {
+    "kind": "op",
+    "op": "any",
+    "children": [
+      {"kind": "leaf", "observable": "t1:position", "type": "onEnter",
+       "params": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]]}},
+      {"kind": "leaf", "observable": "t2:position", "type": "onEnter",
+       "params": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]]}}
+    ]
+  },
+  "rule_defs": [
+    {
+      "name": "enter",
+      "condition_def": {
+        "kind": "op",
+        "op": "any",
+        "children": [
+          {"kind": "leaf", "observable": "t1:position", "type": "onEnter",
+           "params": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]], "initial_as_enter": true}},
+          {"kind": "leaf", "observable": "t2:position", "type": "onEnter",
+           "params": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]], "initial_as_enter": true}}
+        ]
+      },
+      "hook_defs": [
+        {"operator": "count_hits", "mount_point": "rule_hit", "params": {"threshold": 3}}
+      ]
+    }
+  ],
+  "hook_defs": [
+    {"operator": "close_report", "mount_point": "closed", "params": {"title": "东海方向进入"}}
+  ]
+}
+```
+<!-- template-example:end -->
+
+| 字段 | 含义 |
+|---|---|
+| `id` / `version` / `name` | 模板 ID、版本号（改模板 = 提交更大的版本，下个周期生效）、展示名 |
+| `observable_defs` | 可观测目标声明：订阅哪些 (目标, 观察点)，以及从哪些上游取数。目标必须在父事件的命名空间里；可观测目标 ID 形如 `t1:position` |
+| `open_condition_def` | 开启条件（必填）：无活跃子事件时命中才开启新周期 |
+| `rule_defs` | 规则：子事件运行期间每条观测都评估；`name` 在模板内唯一；`hook_defs` 只能挂 `rule_hit` |
+| `hook_defs` | 子事件级算子：挂在 `created` / `closed` / `pre` / `status_updated` / `post` |
+| 条件树（`kind: op`） | `op` 为 `all` / `any` / `not`，`children` 是子条件，可任意嵌套 |
+| 条件叶子（`kind: leaf`） | `observable` 引用 `observable_defs` 里声明的可观测目标；`type` 是判断方式（如 `onEnter`）；`params` 由该判断方式解释 |
+
+规则和可观测目标不是一一对应：每棵条件树在叶子里通过 `observable` 引用可观测目标，一条规则可以引用多个，
+同一个可观测目标也可以被多条规则引用。观测到来时交给所有条件树评估，叶子遇到不属于自己的观测返回「不适用」。
+注意：用 `all` 组合不同可观测目标的叶子时，各叶子独立判断，暂时表达不了「两者同时满足」（见待决问题第 4 条）。
+
 ### condition_engine：条件
 
 ```mermaid
