@@ -1,11 +1,83 @@
-"""What a hook may see and do while it runs, built per run from its declaration."""
+"""What a hook gets when it runs: why (Occasion), what it may see and do (HookContext),
+and where its proposals go (ProposalSink).
+
+Occasions have one type per mount point, so a hook can match on it and get fields that
+are always set (no Optional); Pydantic so an occasion can later travel with an async
+output hook through a queue. The context is built per run from the hook's declaration.
+"""
 
 from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
-from typing import Any
+from typing import Annotated, Any, Literal, Protocol
 
+from pydantic import BaseModel, ConfigDict, Field
+
+from core.condition_engine import EvalResult
 from core.hil import Proposal, ProposalOrigin
 from core.hooks.errors import UndeclaredCapabilityError
+from core.observation import ObservationEnvelope
+
+# ------------------------------------------------------------ 调用时机：为什么被调用
+
+
+class CreatedOccasion(BaseModel):
+    """The event was just opened."""
+
+    model_config = ConfigDict(frozen=True)
+
+    mount_point: Literal["created"] = "created"
+
+
+class ObservationOccasion(BaseModel):
+    """An observation arrived: before the rules are evaluated (pre) or after (post)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    mount_point: Literal["pre", "post"]
+    envelope: ObservationEnvelope
+
+
+class RuleHitOccasion(BaseModel):
+    """A rule's condition hit on an observation."""
+
+    model_config = ConfigDict(frozen=True)
+
+    mount_point: Literal["rule_hit"] = "rule_hit"
+    envelope: ObservationEnvelope
+    result: EvalResult          # the hit rule's evaluation result
+
+
+class ClosedOccasion(BaseModel):
+    """The event is being closed."""
+
+    model_config = ConfigDict(frozen=True)
+
+    mount_point: Literal["closed"] = "closed"
+    reason: str                 # why it closes, e.g. "converged"
+
+
+Occasion = Annotated[
+    CreatedOccasion
+    | ObservationOccasion
+    | RuleHitOccasion
+    | ClosedOccasion,
+    Field(discriminator="mount_point"),
+]
+"""Why a hook is being run; tell the kinds apart with match / isinstance."""
+
+
+# ------------------------------------------------------------ 提议的去处
+
+
+class ProposalSink(Protocol):
+    """提议的去处。由 hil 实现，bootstrap 时注入 event。"""
+
+    def receive(self, proposal: Proposal) -> None:
+        """接收一条提议（hil 存为待处理）。"""
+        ...
+
+
+# ------------------------------------------------------------ 上下文：能看到什么、能做什么
 
 
 class EventHandle:

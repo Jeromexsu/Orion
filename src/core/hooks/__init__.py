@@ -13,7 +13,16 @@
 """
 
 from core.hooks.compiler import MountCompiler
-from core.hooks.context import EventHandle, HookContext
+from core.hooks.context import (
+    ClosedOccasion,
+    CreatedOccasion,
+    EventHandle,
+    HookContext,
+    ObservationOccasion,
+    Occasion,
+    ProposalSink,
+    RuleHitOccasion,
+)
 from core.hooks.definitions import MountDef, MountPoint
 from core.hooks.errors import (
     DuplicateHookError,
@@ -30,15 +39,7 @@ from core.hooks.hook import (
     hook,
 )
 from core.hooks.mount import Mount
-from core.hooks.occasion import (
-    ClosedOccasion,
-    CreatedOccasion,
-    ObservationOccasion,
-    Occasion,
-    RuleHitOccasion,
-)
 from core.hooks.registry import HookRegistry
-from core.hooks.sink import ProposalSink
 
 __all__ = [
     "DIRECT_SCOPES",

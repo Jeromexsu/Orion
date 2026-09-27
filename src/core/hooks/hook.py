@@ -6,9 +6,8 @@ from typing import Any, ClassVar, Generic, Literal, TypeVar, get_args, get_origi
 
 from pydantic import BaseModel
 
-from core.hooks.context import HookContext
+from core.hooks.context import HookContext, Occasion
 from core.hooks.definitions import MountPoint
-from core.hooks.occasion import Occasion
 
 # 作用域：钩子影响哪一块。external 是系统外部（报告、通知）；event / parent / target 是监控运行状态
 Scope = Literal["external", "event", "parent", "target"]
