@@ -32,10 +32,10 @@ class MountCompiler:
         at = frozenset(mount_def.at)
         if not at and not mount_def.rules:
             errors.append("mounted nowhere: give `at` and/or `rules`")
-        if "rule_hit" in at:
+        if MountPoint.RULE_HIT in at:
             errors.append("'rule_hit' is not a place of its own: list the rules in `rules`")
-        places = at | ({"rule_hit"} if mount_def.rules else frozenset[MountPoint]())
-        refused = sorted(places - hook.mount_points)
+        places = at | ({MountPoint.RULE_HIT} if mount_def.rules else frozenset[MountPoint]())
+        refused = sorted(str(p) for p in places - hook.mount_points)
         if refused:
             errors.append(f"{hook.name} cannot mount at {refused}")
         try:

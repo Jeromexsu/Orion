@@ -3,14 +3,23 @@
 只依赖 pydantic，不依赖任何运行时对象。
 """
 
-from typing import Any, Literal
+from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-# 挂载点是核心结构事实，固定这几个：
-#   生命周期 created / closed · 数据进入 pre（不算条件，启发钩子专用）
-#   条件命中 rule_hit · 后置 post
-MountPoint = Literal["created", "closed", "pre", "rule_hit", "post"]
+
+class MountPoint(StrEnum):
+    """挂载点：子事件生命周期上钩子能挂的位置。是核心结构事实，固定这几个。
+
+    值就是模板 JSON 里写的字符串（"closed"），代码里用成员（MountPoint.CLOSED）。
+    """
+
+    CREATED = "created"     # 子事件刚开启
+    PRE = "pre"             # 一条观测到达、规则评估之前（不算条件，启发钩子专用）
+    RULE_HIT = "rule_hit"   # 某条规则命中（挂在 rules 里列的规则上，不能写进 at）
+    POST = "post"           # 一条观测处理完之后
+    CLOSED = "closed"       # 子事件关闭
 
 
 class MountDef(BaseModel):

@@ -4,7 +4,7 @@ import pytest
 
 from core.condition_engine import ConditionCompiler, EvaluatorRegistry
 from core.event import EventTemplate, TemplateCompileError, TemplateCompiler, TemplateDef
-from core.hooks import MountCompiler
+from core.hooks import MountCompiler, MountPoint
 from plugins.condition_engine.on_enter import OnEnter
 from plugins.hooks.count_hits import CountHitsParams
 from tests.core.event.conftest import Env, enter, mount, template
@@ -74,7 +74,7 @@ def test_compile_collects_errors(env: Env) -> None:
 
 def test_one_mount_runs_at_several_places(env: Env) -> None:
     t = compile_(env, template(mounts=[mount("closeReport", "closed", rules=["enter"])]))
-    (report,) = t.mounts_at("closed")
+    (report,) = t.mounts_at(MountPoint.CLOSED)
     assert report.name == "closeReport"
     assert [m.name for m in t.rules[0].mounts] == ["countHits", "closeReport"]
     assert t.rules[0].mounts[1] is report       # 同一个挂载，同一份状态

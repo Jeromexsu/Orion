@@ -431,7 +431,7 @@ class OnEnter(Evaluator[OnEnterCriteria, PositionObservation]):   # 判定标准
 | `target` | 目标记录：别名、属性 | ✗ | ✓（`ctx.propose`） |
 
 ```python
-@hook(mount_points={"rule_hit"}, scopes={"event"})
+@hook(mount_points={MountPoint.RULE_HIT}, scopes={Scope.EVENT})
 class CountHits(Hook[CountHitsParams]):          # name 默认 "countHits"，参数模型取泛型参数
     def run(self, params, ctx, occasion):
         hits = ctx.state.get("hits", 0) + 1          # 自己这个挂载的状态（副本）

@@ -38,9 +38,7 @@ from tests.core.report.fakes import InMemoryReportRepository
 from tests.core.target.fakes import InMemoryTargetRepository
 
 SQUARE = [(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0)]
-ALL_MOUNTS: frozenset[MountPoint] = frozenset(
-    {"created", "closed", "pre", "rule_hit", "post"}
-)
+ALL_MOUNTS: frozenset[MountPoint] = frozenset(MountPoint)
 
 
 class Log:
@@ -61,7 +59,7 @@ class Recorder(Hook[NoParams]):
         self.log.calls.append((self.name, occasion.mount_point))
 
 
-@hook(mount_points={"pre"}, proposes=True)
+@hook(mount_points={MountPoint.PRE}, proposes=True)
 class Spotter(Hook[NoParams]):
     """只提议，挂在 pre：每条数据都提一个提议。"""
 

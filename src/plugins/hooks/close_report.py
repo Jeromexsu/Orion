@@ -8,7 +8,16 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from core.hooks import ClosedOccasion, Hook, HookContext, Occasion, RuleHitOccasion, hook
+from core.hooks import (
+    ClosedOccasion,
+    Hook,
+    HookContext,
+    MountPoint,
+    Occasion,
+    RuleHitOccasion,
+    Scope,
+    hook,
+)
 from core.report import ReportWriter
 
 
@@ -18,7 +27,7 @@ class CloseReportParams(BaseModel):
     title: str = "子事件收敛"
 
 
-@hook(mount_points={"rule_hit", "closed"}, scopes={"external"})
+@hook(mount_points={MountPoint.RULE_HIT, MountPoint.CLOSED}, scopes={Scope.EXTERNAL})
 class CloseReport(Hook[CloseReportParams]):
     """rule_hit：记下命中次数和命中的目标；closed：写一份新草稿到所属父事件。"""
 

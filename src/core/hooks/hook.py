@@ -2,18 +2,25 @@
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable
-from typing import Any, ClassVar, Generic, Literal, TypeVar, get_args, get_origin
+from enum import StrEnum
+from typing import Any, ClassVar, Generic, TypeVar, get_args, get_origin
 
 from pydantic import BaseModel
 
 from core.hooks.context import HookContext, Occasion
 from core.hooks.definitions import MountPoint
 
-# 作用域：钩子影响哪一块。external 是系统外部（报告、通知）；event / parent / target 是监控运行状态
-Scope = Literal["external", "event", "parent", "target"]
+
+class Scope(StrEnum):
+    """作用域：钩子影响哪一块。"""
+
+    EXTERNAL = "external"   # 系统外部：报告、通知（输出通道构造时注入）
+    EVENT = "event"         # 子事件（ctx.event）
+    PARENT = "parent"       # 父事件：只能提议
+    TARGET = "target"       # 目标：只能提议
 
 # 可以直接作用的作用域；parent / target 只能经审核（proposes=True）改动
-DIRECT_SCOPES: frozenset[Scope] = frozenset({"external", "event"})
+DIRECT_SCOPES: frozenset[Scope] = frozenset({Scope.EXTERNAL, Scope.EVENT})
 
 P = TypeVar("P", bound=BaseModel)
 
@@ -25,7 +32,7 @@ class NoParams(BaseModel):
 class Hook(ABC, Generic[P]):
     """钩子：挂在子事件生命周期上的动作。每种一个子类，放在 plugins/hooks/ 下，用 @hook 声明：
 
-        @hook(mount_points={"rule_hit"}, scopes={"event"})
+        @hook(mount_points={MountPoint.RULE_HIT}, scopes={Scope.EVENT})
         class CountHits(Hook[CountHitsParams]):
             def run(self, params, ctx, occasion): ...
 

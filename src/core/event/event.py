@@ -15,9 +15,11 @@ from core.hooks import (
     EventHandle,
     HookContext,
     Mount,
+    MountPoint,
     ObservationOccasion,
     Occasion,
     RuleHitOccasion,
+    Scope,
 )
 from core.observation import ObservationEnvelope
 
@@ -75,7 +77,7 @@ class Event:
         event = cls(
             uuid4().hex, parent_id, template, cycle, runtime, target_names, opened_at=_now()
         )
-        event._run_hooks(template.mounts_at("created"), CreatedOccasion())
+        event._run_hooks(template.mounts_at(MountPoint.CREATED), CreatedOccasion())
         return event
 
     @classmethod
@@ -155,8 +157,8 @@ class Event:
             raise EventClosedError(self._id)
 
         self._run_hooks(
-            self._template.mounts_at("pre"),
-            ObservationOccasion(mount_point="pre", envelope=envelope),
+            self._template.mounts_at(MountPoint.PRE),
+            ObservationOccasion(mount_point=MountPoint.PRE, envelope=envelope),
         )
 
         for rule in self._template.rules:
@@ -168,8 +170,8 @@ class Event:
                 self._run_hooks(rule.mounts, RuleHitOccasion(envelope=envelope, result=result))
 
         self._run_hooks(
-            self._template.mounts_at("post"),
-            ObservationOccasion(mount_point="post", envelope=envelope),
+            self._template.mounts_at(MountPoint.POST),
+            ObservationOccasion(mount_point=MountPoint.POST, envelope=envelope),
         )
 
         if self._close_requested is not None:
@@ -189,7 +191,7 @@ class Event:
         """跑 closed 钩子后关闭。重复关闭忽略。不写库（由 runner 存档）。"""
         if self.is_closed:
             return
-        self._run_hooks(self._template.mounts_at("closed"), ClosedOccasion(reason=reason))
+        self._run_hooks(self._template.mounts_at(MountPoint.CLOSED), ClosedOccasion(reason=reason))
         self._closed_at = _now()
         self._close_reason = reason
 
@@ -213,7 +215,7 @@ class Event:
                 target_names=self._target_names(),
                 parent_id=self._parent_id,
                 event_id=self._id,
-                event=EventHandle(self.request_close) if "event" in hook.scopes else None,
+                event=EventHandle(self.request_close) if Scope.EVENT in hook.scopes else None,
                 propose=self._runtime.proposal_sink.receive if hook.proposes else None,
             )
             try:

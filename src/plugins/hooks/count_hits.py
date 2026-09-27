@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.hooks import Hook, HookContext, Occasion, hook
+from core.hooks import Hook, HookContext, MountPoint, Occasion, Scope, hook
 
 
 class CountHitsParams(BaseModel):
@@ -13,7 +13,7 @@ class CountHitsParams(BaseModel):
     threshold: int = Field(default=1, ge=1)
 
 
-@hook(mount_points={"rule_hit"}, scopes={"event"})
+@hook(mount_points={MountPoint.RULE_HIT}, scopes={Scope.EVENT})
 class CountHits(Hook[CountHitsParams]):
     """挂在 rule_hit：自己的状态 hits +1，达到 threshold 时请求关闭（原因 "converged"）。
 

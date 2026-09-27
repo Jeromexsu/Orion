@@ -15,7 +15,7 @@ from core.event import (
     TemplateScopeError,
     TemplateVersionError,
 )
-from core.hooks import Hook, HookContext, NoParams, Occasion, hook
+from core.hooks import Hook, HookContext, MountPoint, NoParams, Occasion, hook
 from core.target import TargetNotFoundError
 from tests.core.event.conftest import Env, mount, template
 
@@ -307,7 +307,7 @@ def test_close_request_waits_for_the_rest_of_the_observation(env: Env) -> None:
 def test_undeclared_capability_is_isolated(env: Env) -> None:
     """没声明 scopes={"event"} 的钩子碰 ctx.event 会出错，但只影响它自己：不关闭、状态不变、别的钩子照跑。"""
 
-    @hook(mount_points={"pre"})
+    @hook(mount_points={MountPoint.PRE})
     class Sneaky(Hook[NoParams]):
         def run(self, params: NoParams, ctx: HookContext, occasion: Occasion) -> dict[str, Any]:
             ctx.event.close("sneaky")

@@ -14,9 +14,11 @@ from core.hooks import (
     MountCompileError,
     MountCompiler,
     MountDef,
+    MountPoint,
     NoParams,
     Occasion,
     RuleHitOccasion,
+    Scope,
     UndeclaredCapabilityError,
     UnknownHookError,
     hook,
@@ -108,8 +110,8 @@ def test_state_is_a_copy_and_names_fall_back_to_ids() -> None:
 
 def test_hook_decorator_defaults() -> None:
     assert CountHits.name == "countHits"
-    assert CountHits.mount_points == frozenset({"rule_hit"})
-    assert CountHits.scopes == frozenset({"event"})
+    assert CountHits.mount_points == frozenset({MountPoint.RULE_HIT})
+    assert CountHits.scopes == frozenset({Scope.EVENT})
     assert CountHits.proposes is False
     assert CountHits.params_model is CountHitsParams
 
@@ -173,8 +175,8 @@ def test_mount_compiles_to_the_hook_with_typed_params() -> None:
 
     for bad, message in [
         (MountDef(hook="nope", rules=["enter"]), "unknown hook"),
-        (MountDef(hook="countHits", at=["closed"]), r"cannot mount at \['closed'\]"),
-        (MountDef(hook="countHits", at=["rule_hit"]), "list the rules"),
+        (MountDef(hook="countHits", at=[MountPoint.CLOSED]), r"cannot mount at \['closed'\]"),
+        (MountDef(hook="countHits", at=[MountPoint.RULE_HIT]), "list the rules"),
         (MountDef(hook="countHits"), "mounted nowhere"),
         (MountDef(hook="countHits", rules=["enter"], params={"threshold": 0}), "invalid params"),
     ]:

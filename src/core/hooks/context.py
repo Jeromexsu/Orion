@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from core.condition_engine import EvalResult
 from core.hil import Proposal, ProposalOrigin
+from core.hooks.definitions import MountPoint
 from core.hooks.errors import UndeclaredCapabilityError
 from core.observation import ObservationEnvelope
 
@@ -25,7 +26,7 @@ class CreatedOccasion(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    mount_point: Literal["created"] = "created"
+    mount_point: Literal[MountPoint.CREATED] = MountPoint.CREATED
 
 
 class ObservationOccasion(BaseModel):
@@ -33,7 +34,7 @@ class ObservationOccasion(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    mount_point: Literal["pre", "post"]
+    mount_point: Literal[MountPoint.PRE, MountPoint.POST]
     envelope: ObservationEnvelope
 
 
@@ -42,7 +43,7 @@ class RuleHitOccasion(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    mount_point: Literal["rule_hit"] = "rule_hit"
+    mount_point: Literal[MountPoint.RULE_HIT] = MountPoint.RULE_HIT
     envelope: ObservationEnvelope
     result: EvalResult          # the hit rule's evaluation result
 
@@ -52,7 +53,7 @@ class ClosedOccasion(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    mount_point: Literal["closed"] = "closed"
+    mount_point: Literal[MountPoint.CLOSED] = MountPoint.CLOSED
     reason: str                 # why it closes, e.g. "converged"
 
 
