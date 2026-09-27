@@ -133,6 +133,20 @@ graph LR
 
 同一模板同时最多一个活跃子事件；子事件是以年为周期重复发生的事情。
 
+#### 可观测目标：声明 → 编译 → 订阅
+
+| 阶段 | 形态 | 放在哪 | 可变性 |
+|---|---|---|---|
+| 声明 | `ObservableDef`（目标 ID + 观察点名 + 上游） | `TemplateDef.observable_defs`，存库 | 纯数据，不可变 |
+| 编译 | `CompiledObservable`（可观测目标实例 + 要订阅的上游） | `EventTemplate.compiled_observables` | 随模板版本，不可变 |
+| 订阅 | `ObservableTarget`（按 ID 索引） | `EventRunner._subscribed_observables` | runner 当前的订阅，会变 |
+
+- 三个阶段指向同一个对象：编译时由 `TargetManager` 取得（必要时创建）唯一的 `ObservableTarget`，
+  订阅只是 runner 把自己登记为它的订阅者，不产生新对象。
+- 编译了不等于订阅了：挂起的新版本已有自己的 `compiled_observables`，要等当前周期结束、切换版本时
+  才经 `_sync_subscriptions` 变成已订阅。所以编译结果放在模板里（跟版本走），订阅状态放在 runner 里（只表示“现在订阅着什么”）。
+- 反向由 runner 负责：切换版本时退订新版本不再需要的，`dispose` 时全部退订；可观测目标本身保留到目标被删除。
+
 #### 模板定义示例
 
 装入模板时提交的就是一个 `TemplateDef`（`ParentEvent.upsert_template`）。下面的例子：观测两架飞机的位置，
