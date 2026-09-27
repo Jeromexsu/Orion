@@ -162,6 +162,10 @@ class RadarAdapter(UpstreamAdapter): ...
   `CreatedTrigger` / `ObservationTrigger`（pre、post：envelope）/ `RuleHitTrigger`（envelope + result）/
   `StatusUpdatedTrigger`（patch）/ `ClosedTrigger`，以 `mount_point` 区分；算子 `match` 后字段类型确定，
   只挂 `rule_hit` 的算子可直接声明只收 `RuleHitTrigger`。
+- **`Trigger` 改名 `Occasion`**（已定）：它只是一条记录——算子这次在哪个挂载点、因为什么被调用，附带当时的数据；
+  「trigger」听起来像会触发动作。按挂载点分类型后为 `CreatedOccasion` / `ObservationOccasion` / `RuleHitOccasion` /
+  `StatusUpdatedOccasion` / `ClosedOccasion`；`run(occasion, ctx)`。
+- **`Category` / `Level` / `MountPoint` 挪到 `operator.py`**（已定）：它们描述算子是什么、能挂在哪，现在放在 `trigger.py`。
 - 算子是否也改为装饰器声明（`@operator(...)`）；上下文里的 `params` 怎么传。
 
 ### 8. 其他（随审阅推进逐条确认）
