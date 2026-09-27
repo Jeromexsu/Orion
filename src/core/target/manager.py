@@ -167,7 +167,7 @@ class TargetManager:
         """取（必要时创建）唯一的 ObservableTarget。observed_point 是观察点名。
 
         首次创建时放进内存单例表并写库；检查与 inspect_observable 相同，不通过时抛同样的异常。
-        上游列表由这里问 UpstreamCatalog 得到；调用方随后自行 acquire(subscriber, upstreams)。
+        上游列表由这里问 UpstreamCatalog 得到；调用方随后自行 subscribe(subscriber, upstreams)。
         """
         key = observable_key(target_id, observed_point)
         live = self._live.get(key)

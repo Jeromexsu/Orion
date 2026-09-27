@@ -114,7 +114,7 @@ def test_one_upstream_several_query_ways() -> None:
 
 
 def test_query_spec_carries_matched_query(env: Env) -> None:
-    env.observable().acquire(Subscriber(), ["adsb"])
+    env.observable().subscribe(Subscriber(), ["adsb"])
     env.collector.collect()
     (spec,) = env.adsb.specs
     assert spec.query == {"registration": "B-2447"}
@@ -129,7 +129,7 @@ def test_inactive_observables_are_not_collected(env: Env) -> None:
 
 def test_collect_validates_dedups_persists_and_dispatches(env: Env) -> None:
     sub = Subscriber()
-    env.observable().acquire(sub, ["adsb"])
+    env.observable().subscribe(sub, ["adsb"])
     env.adsb.records = [
         rec("a#2", 2, lat="31.2", lon=121.3),
         rec("a#1", 1, lat=31.0, lon=121.0),
@@ -146,7 +146,7 @@ def test_collect_validates_dedups_persists_and_dispatches(env: Env) -> None:
 
 
 def test_cursor_feeds_next_query(env: Env) -> None:
-    env.observable().acquire(Subscriber(), ["adsb"])
+    env.observable().subscribe(Subscriber(), ["adsb"])
     env.adsb.records = [rec("a#1", 1, lat=1, lon=2)]
     env.collector.collect()
     env.adsb.records.append(rec("a#2", 5, lat=1, lon=2))
@@ -158,7 +158,7 @@ def test_cursor_feeds_next_query(env: Env) -> None:
 
 
 def test_upstream_failure_is_isolated(env: Env) -> None:
-    env.observable().acquire(Subscriber(), ["adsb"])
+    env.observable().subscribe(Subscriber(), ["adsb"])
     env.adsb.fail = True
     assert env.collector.collect() == []
     assert env.cursors.get("t1:position", "adsb") is None
@@ -171,8 +171,8 @@ def test_subscriber_failure_is_isolated(env: Env) -> None:
 
     good = Subscriber()
     obs = env.observable()
-    obs.acquire(Broken(), ["adsb"])
-    obs.acquire(good, ["adsb"])
+    obs.subscribe(Broken(), ["adsb"])
+    obs.subscribe(good, ["adsb"])
     env.adsb.records = [rec("a#1", 1, lat=1, lon=2)]
 
     assert len(env.collector.collect()) == 1
@@ -186,8 +186,8 @@ def test_dispatcher_counts_failures(env: Env) -> None:
             raise RuntimeError("boom")
 
     obs = env.observable()
-    obs.acquire(Broken(), ["adsb"])
-    obs.acquire(Subscriber(), ["adsb"])
+    obs.subscribe(Broken(), ["adsb"])
+    obs.subscribe(Subscriber(), ["adsb"])
     envelope = ObservationEnvelope(
         observable_id=obs.id,
         upstream="adsb",
@@ -205,8 +205,8 @@ def test_only_subscribed_upstreams_are_fetched_and_routed(env: Env) -> None:
     assert obs.upstreams == ("adsb", "radar")
 
     adsb_only, both = Subscriber(), Subscriber()
-    obs.acquire(adsb_only, ["adsb"])
-    obs.acquire(both, ["adsb", "radar"])
+    obs.subscribe(adsb_only, ["adsb"])
+    obs.subscribe(both, ["adsb", "radar"])
     env.adsb.records = [rec("a#1", 1, lat=1, lon=2)]
     radar.records = [rec("r#1", 2, lat=1, lon=2)]
 
@@ -220,7 +220,7 @@ def test_only_subscribed_upstreams_are_fetched_and_routed(env: Env) -> None:
     assert env.cursors.get(obs.id, "radar") == at(2).isoformat()
 
     # 没人订阅 radar 之后不再拉取它
-    obs.release(both)
+    obs.unsubscribe(both)
     env.collector.collect()
     assert len(radar.specs) == 1
     assert len(env.adsb.specs) == 2

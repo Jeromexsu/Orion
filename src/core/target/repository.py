@@ -29,7 +29,7 @@ class TargetRepository(Protocol):
 class ObservableTargetRepository(Protocol):
     """存取可观测目标。key 是可观测目标 ID（`目标ID:观察点名`）。是否保留见 docs/open-questions.md 第 2 条。
 
-    订阅者集合不持久化——重启后由 event 模块重新加载父事件、runner 重新 acquire 恢复。
+    订阅者集合不持久化——重启后由 event 模块重新加载父事件、runner 重新订阅恢复。
     """
 
     def get(self, key: str) -> ObservableTarget | None:

@@ -18,24 +18,24 @@ from plugins.observed_points.position import Position, PositionObservation
 from tests.core.target.conftest import Subscriber
 
 
-def test_acquire_is_idempotent_and_release_tolerant(manager: TargetManager, plane: Target) -> None:
+def test_subscribe_is_idempotent_and_unsubscribe_tolerant(manager: TargetManager, plane: Target) -> None:
     obs = manager.get_observable(plane.id, "position")
     sub = Subscriber()
-    obs.acquire(sub, ["adsb"])
-    obs.acquire(sub, ["adsb"])
+    obs.subscribe(sub, ["adsb"])
+    obs.subscribe(sub, ["adsb"])
     assert obs.subscribers() == frozenset({sub})
-    obs.release(sub)
-    obs.release(sub)
+    obs.unsubscribe(sub)
+    obs.unsubscribe(sub)
     assert not obs.is_active
 
 
 def test_subscribers_is_a_snapshot(manager: TargetManager, plane: Target) -> None:
     obs = manager.get_observable(plane.id, "position")
     a, b = Subscriber(), Subscriber()
-    obs.acquire(a, ["adsb"])
-    obs.acquire(b, ["adsb"])
+    obs.subscribe(a, ["adsb"])
+    obs.subscribe(b, ["adsb"])
     snapshot = obs.subscribers()
-    obs.release(a)
+    obs.unsubscribe(a)
     assert snapshot == frozenset({a, b})
 
 
@@ -87,32 +87,32 @@ def test_constructor_validates_observed_point_and_upstreams(plane: Target) -> No
     assert obs.id == "t1:position"
 
 
-def test_acquire_validates_upstreams(plane: Target) -> None:
+def test_subscribe_validates_upstreams(plane: Target) -> None:
     obs = ObservableTarget(plane, Position, ["adsb", "radar"])
     with pytest.raises(UnsupportedUpstreamError):
-        obs.acquire(Subscriber(), [])
+        obs.subscribe(Subscriber(), [])
     with pytest.raises(UnsupportedUpstreamError):
-        obs.acquire(Subscriber(), ["adsb", "satellite"])
+        obs.subscribe(Subscriber(), ["adsb", "satellite"])
     assert not obs.is_active
 
 
 def test_routing_by_upstream(plane: Target) -> None:
     obs = ObservableTarget(plane, Position, ["adsb", "radar", "satellite"])
     a, b = Subscriber(), Subscriber()
-    obs.acquire(a, ["adsb"])
-    obs.acquire(b, ["adsb", "radar"])
+    obs.subscribe(a, ["adsb"])
+    obs.subscribe(b, ["adsb", "radar"])
 
     assert obs.subscribers_for("adsb") == {a, b}
     assert obs.subscribers_for("radar") == {b}
     assert obs.subscribers_for("satellite") == frozenset()
     assert obs.active_upstreams() == ("adsb", "radar")
 
-    obs.acquire(b, ["satellite"])  # 再次 acquire 替换订阅
+    obs.subscribe(b, ["satellite"])  # 再次 subscribe 替换订阅
     assert obs.subscription(b) == {"satellite"}
     assert obs.active_upstreams() == ("adsb", "satellite")
 
-    obs.release(a)
-    obs.release(b)
+    obs.unsubscribe(a)
+    obs.unsubscribe(b)
     assert obs.active_upstreams() == ()
 
 

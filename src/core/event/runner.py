@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class EventRunner:
     """运行中的模板：管理这个模板的子事件生命周期。
 
-    - 订阅：按模板的可观测目标声明 acquire 可观测目标，自己就是订阅者（Dispatcher 直接回调）；
+    - 订阅：按模板的可观测目标声明订阅可观测目标，自己就是订阅者（Dispatcher 直接回调）；
     - 开启：每条数据都评估开启条件并更新其状态；无活跃子事件且命中时开新子事件，并把该条数据交给它；
     - 运行：有活跃子事件时数据交给子事件处理（同一模板最多一个活跃子事件）；
     - 换版本：新版本只对下一个周期生效——有活跃子事件时挂起，子事件关闭后切换并重新订阅；
@@ -54,7 +54,7 @@ class EventRunner:
     ) -> "EventRunner":
         """新装入模板：订阅并开始评估开启条件。模板须已编译通过（可观测目标声明已校验）。"""
         runner = cls(parent_id, template, runtime, on_change)
-        runner._subscribe()
+        runner._sync_subscriptions()
         return runner
 
     @classmethod
@@ -76,7 +76,7 @@ class EventRunner:
             open_state=runtime.runner_state_repository.get(parent_id, template.id),
         )
         runner._active = runner._restore_active()
-        runner._subscribe()
+        runner._sync_subscriptions()
         return runner
 
     # ------------------------------------------------------------ 只读
@@ -188,7 +188,7 @@ class EventRunner:
             self._runtime.event_repository.save(self._active.to_record())
             self._active = None
         for observable in self._observables.values():
-            observable.release(self)
+            observable.unsubscribe(self)
         self._observables = {}
         self._runtime.runner_state_repository.remove(self._parent_id, self._template.id)
 
@@ -205,18 +205,18 @@ class EventRunner:
         self._pending = None
         self._open_state = {}
         self._runtime.runner_state_repository.save(self._parent_id, template.id, self._open_state)
-        self._subscribe()
+        self._sync_subscriptions()
         self._on_change()
 
-    def _subscribe(self) -> None:
-        """按模板里解析好的可观测目标订阅；新版本不再需要的可观测目标 release。"""
+    def _sync_subscriptions(self) -> None:
+        """按模板里解析好的可观测目标订阅；新版本不再需要的可观测目标 unsubscribe。"""
         subscribed: dict[str, ObservableTarget] = {}
         for c in self._template.compiled_observables:
-            c.observable.acquire(self, c.upstreams)
+            c.observable.subscribe(self, c.upstreams)
             subscribed[c.observable.id] = c.observable
         for oid, observable in self._observables.items():
             if oid not in subscribed:
-                observable.release(self)
+                observable.unsubscribe(self)
         self._observables = subscribed
 
     def _restore_active(self) -> Event | None:

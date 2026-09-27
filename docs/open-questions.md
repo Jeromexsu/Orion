@@ -12,7 +12,7 @@
 ### 2. `ObservableTargetRepository` 是否保留
 
 它按文档第九节返回 `ObservableTarget` 活对象；`TargetManager` 只在创建时写入、删除目标时移除，
-从未读取——重启恢复靠 event 模块重新 acquire。选项：保留 / 改为存纯数据记录 / 去掉。
+从未读取——重启恢复靠 event 模块重新订阅。选项：保留 / 改为存纯数据记录 / 去掉。
 **状态**：等审阅到 `core/target/repository.py` 和 `manager.py` 时决定。
 
 ### 3. Adapter 与 Target 子类的对应关系只靠约定
@@ -156,4 +156,4 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
   - `ObservableTarget(target, observed_point, upstreams)`；`QuerySpec.observed_point`、`ObservableDef.observed_point`
     存观察点名；`TargetManager` 从已注册目标类型收集观察点，重名报错。
 - **上游归属**：可观测目标的上游列表由 `TargetManager` 问 `UpstreamCatalog` 得到，不由外部传入；
-  订阅者 acquire 时指定要哪些上游，可观测目标内部按上游路由。
+  订阅者 subscribe 时指定要哪些上游，可观测目标内部按上游路由。

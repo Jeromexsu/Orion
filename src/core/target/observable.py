@@ -15,7 +15,7 @@ class Subscriber(Protocol):
     """
 
     def on_observation(self, envelope: ObservationEnvelope) -> None:
-        """收到一条订阅的观测。只会收到自己 acquire 过的上游的数据。"""
+        """收到一条订阅的观测。只会收到自己订阅过的上游的数据。"""
         ...
 
 
@@ -28,9 +28,9 @@ class ObservableTarget:
     """具体目标实例 + 一个观察点，全局唯一（只由 TargetManager 创建）。
 
     upstreams 是 TargetManager 问 UpstreamCatalog 得到的全部可用上游。
-    订阅者 acquire 时指定要哪些上游，对象内部维护路由：某个上游的数据
+    订阅者 subscribe 时指定要哪些上游，对象内部维护路由：某个上游的数据
     只推给订阅了该上游的订阅者。某个上游没人订阅就不采集。
-    订阅关系只在内存里，不持久化——重启后由 event 模块重新 acquire。
+    订阅关系只在内存里，不持久化——重启后由 event 模块重新订阅。
     """
 
     def __init__(
@@ -75,8 +75,8 @@ class ObservableTarget:
 
     # ------------------------------------------------------------ 订阅
 
-    def acquire(self, subscriber: Subscriber, upstreams: Iterable[str]) -> None:
-        """订阅指定上游。同一订阅者再次 acquire 会用新的上游集合替换旧的。
+    def subscribe(self, subscriber: Subscriber, upstreams: Iterable[str]) -> None:
+        """订阅指定上游。同一订阅者再次 subscribe 会用新的上游集合替换旧的。
 
         上游为空或不在可用上游里抛 UnsupportedUpstreamError。只改内存，不写库。
         """
@@ -90,7 +90,7 @@ class ObservableTarget:
             )
         self._subscriptions[subscriber] = wanted
 
-    def release(self, subscriber: Subscriber) -> None:
+    def unsubscribe(self, subscriber: Subscriber) -> None:
         """取消订阅。未订阅过的对象忽略。"""
         self._subscriptions.pop(subscriber, None)
 
@@ -103,7 +103,7 @@ class ObservableTarget:
         return frozenset(self._subscriptions)
 
     def subscribers_for(self, upstream: str) -> frozenset[Subscriber]:
-        """订阅了该上游的订阅者快照；回调期间有人 release 也不影响遍历。"""
+        """订阅了该上游的订阅者快照；回调期间有人 unsubscribe 也不影响遍历。"""
         return frozenset(r for r, ups in self._subscriptions.items() if upstream in ups)
 
     def active_upstreams(self) -> tuple[str, ...]:
