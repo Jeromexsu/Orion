@@ -463,3 +463,26 @@ class CountHits(Hook[CountHitsParams]):          # name 默认 "countHits"，参
 被管理的对象只在变更后通知（`on_change`），自己不碰仓库。
 
 命名约定：纯数据定义的类型以 `Def` 结尾，装着它的字段以 `_def` / `_defs` 结尾；运行时对象不带后缀。
+
+### 插件与注册表
+
+另一个贯穿 core 的模式：**数据里只有名字，注册表把名字变回写框架时还不知道的插件**。这是通用的插件注册表模式
+（plugin registry），和 Kubernetes 的 `runtime.Scheme`（`kind` → Go 类型）、Pydantic 的 discriminated union、
+Django 的 `apps.get_model` 是一回事；加上「按名字创建对象」就是可扩展的工厂。
+
+| 数据里的名字 | 注册表 | 查到的插件 | 谁查 |
+|---|---|---|---|
+| 目标记录 / JSON 的 `type`（`"aircraft"`） | `TargetTypeRegistry` | 目标类型（类，如 `Aircraft`） | `TargetManager`：还原记录、解析 JSON |
+| 模板里的 `observed_point`（`"position"`） | `TargetTypeRegistry`（从目标类型的声明收集） | 观察点（类） | `TargetManager`：取得可观测目标 |
+| 模板里的 `upstreams`（`"opensky"`） | `UpstreamAdapterRegistry` | 上游适配器（实例） | `Collector`、`TargetManager`（经 `UpstreamCatalog`） |
+| 条件叶子的 `op`（`"onEnter"`） | `EvaluatorRegistry` | 判断方式（实例） | `ConditionCompiler` |
+| 挂载的 `hook`（`"countHits"`） | `HookRegistry` | 钩子（实例） | `MountCompiler` |
+
+- 要不要注册表只看数据里会不会出现它的名字：查询键只在代码里按类引用（`provides(Icao24)`），所以没有注册表。
+- 注册表只有 `register` / `get` / 列出全部，外加注册时的声明检查（没用装饰器声明、名字重复都在启动时报错）；
+  查不到抛有类型的异常（如 `UnknownHookError`），编译器据此给出可读的错误。
+- 两个刻意的选择，避开这个模式常见的毛病：
+  - **装饰器只声明，不注册**。`@hook`、`@target_type` 等只在类上写声明；由 `bootstrap.py` 显式 `register`，
+    一眼能看出系统装了哪些插件，不会因为 import 了哪个文件就多出插件，测试之间也不互相污染。
+  - **注册表注入，不做全局**。注册表是构造参数，交给用它的一方（Compiler、Manager），是普通的依赖，
+    避开 Service Locator（全局、隐式地按名字取依赖）的问题。
