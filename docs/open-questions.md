@@ -139,6 +139,23 @@ class RadarAdapter(UpstreamAdapter): ...
 - 合并方式（相乘 / 取小）；组合节点（all / any）对可信度的合并规则是否要随之调整；
 - 同一观察点的不同观测（如有无高度）是否也影响可信度。
 
+### 12. 算子挂载编译后仍是纯数据
+
+**发现于**：审阅 `TemplateCompiler._bind` 时。**状态**：看完 operators 模块后与算子写法、上下文传参一起改。
+
+编译只校验挂载并把 `params` 规范化（校验后 `model_dump()` 回 dict），结果仍是 `OperatorMountDef`。与条件一侧不对称：
+
+| | 条件（叶子） | 算子挂载 |
+|---|---|---|
+| 编译结果 | `LeafNode`：持有判断方式实例 + 有类型的 `criteria` | 仍是 `OperatorMountDef`，`params` 是 dict |
+| 运行时找插件 | 已持有 | 每次 `operator_registry.get(name)` |
+| 运行时拿参数 | 有类型的实例 | dict，算子自己再 `model_validate` 一次 |
+
+另外 `CompiledRule.hook_defs`、`EventTemplate.hooks_at` 是运行时对象里装着 Def，违反命名约定。
+
+可能的做法：编译成运行时对象 `Hook`（算子实例 + 有类型的参数 + 挂载点）；`Event._run_hooks` 直接用 `hook.operator`，
+算子的 `run` 拿到有类型的参数。
+
 ### 8. 其他（随审阅推进逐条确认）
 
 - 模板 ID 全局还是按父事件区分（现为全局：`TemplateRepository` 只按 template_id 存取）。
