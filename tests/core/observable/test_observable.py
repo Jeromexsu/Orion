@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from core.observable import ObservableTarget, ObservableTargetManager, UnsupportedUpstreamError
+from core.observable import ObservableTarget, ObservableTargetFactory, UnsupportedUpstreamError
 from core.observation import Observation, ObservationEnvelope
 from core.target import Target
 from plugins.observed_points.position import Position, PositionObservation
@@ -10,9 +10,9 @@ from tests.core.observable.fakes import Subscriber
 
 
 def test_subscribe_is_idempotent_and_unsubscribe_tolerant(
-    observable_manager: ObservableTargetManager, plane: Target
+    observable_factory: ObservableTargetFactory, plane: Target
 ) -> None:
-    obs = observable_manager.get_observable(plane.id, "position")
+    obs = observable_factory.get_observable(plane.id, "position")
     sub = Subscriber()
     obs.subscribe(sub, ["adsb"])
     obs.subscribe(sub, ["adsb"])
@@ -23,9 +23,9 @@ def test_subscribe_is_idempotent_and_unsubscribe_tolerant(
 
 
 def test_subscribers_is_a_snapshot(
-    observable_manager: ObservableTargetManager, plane: Target
+    observable_factory: ObservableTargetFactory, plane: Target
 ) -> None:
-    obs = observable_manager.get_observable(plane.id, "position")
+    obs = observable_factory.get_observable(plane.id, "position")
     a, b = Subscriber(), Subscriber()
     obs.subscribe(a, ["adsb"])
     obs.subscribe(b, ["adsb"])
@@ -35,12 +35,12 @@ def test_subscribers_is_a_snapshot(
 
 
 def test_accepts_only_its_observation_class(
-    observable_manager: ObservableTargetManager, plane: Target
+    observable_factory: ObservableTargetFactory, plane: Target
 ) -> None:
     class Other(Observation):
         x: int
 
-    obs = observable_manager.get_observable(plane.id, "position")
+    obs = observable_factory.get_observable(plane.id, "position")
     assert obs.accepts(PositionObservation(lat=31.2, lon=121.3))
     assert not obs.accepts(Other(x=1))
 
@@ -94,9 +94,9 @@ def test_envelope_serializes_the_concrete_observation() -> None:
 
 
 def test_publish_rejects_foreign_envelopes(
-    observable_manager: ObservableTargetManager, plane: Target
+    observable_factory: ObservableTargetFactory, plane: Target
 ) -> None:
-    obs = observable_manager.get_observable(plane.id, "position")
+    obs = observable_factory.get_observable(plane.id, "position")
 
     def envelope(observable_id: str, upstream: str) -> ObservationEnvelope:
         return ObservationEnvelope(

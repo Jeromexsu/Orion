@@ -12,7 +12,7 @@ from core.collector import (
     UpstreamAdapterRegistry,
     upstream_adapter,
 )
-from core.observable import ObservableTarget, ObservableTargetManager
+from core.observable import ObservableTarget, ObservableTargetFactory
 from core.observation import Observation, ObservationEnvelope, ObservedPoint, observed_point
 from core.target import (
     QueryKey,
@@ -33,7 +33,7 @@ from tests.core.collector.fakes import (
     InMemoryCursorRepository,
     InMemoryObservationRepository,
 )
-from tests.core.observable.fakes import InMemoryObservableTargetRepository, Subscriber
+from tests.core.observable.fakes import Subscriber
 from tests.core.target.fakes import InMemoryTargetRepository
 
 
@@ -72,8 +72,8 @@ class Env:
         target_types = TargetTypeRegistry()
         target_types.register(Aircraft)
         self.manager = TargetManager(target_types, InMemoryTargetRepository())
-        self.observables = ObservableTargetManager(
-            self.manager, InMemoryObservableTargetRepository(), self.registry
+        self.observables = ObservableTargetFactory(
+            self.manager, self.registry
         )
         self.manager.upsert_target(Aircraft(id="t1", name="x", registration="B-2447"))
         self.cursors = InMemoryCursorRepository()
@@ -328,8 +328,8 @@ def test_one_adapter_serves_several_observed_points() -> None:
     target_types = TargetTypeRegistry()
     target_types.register(Tanker)
     manager = TargetManager(target_types, InMemoryTargetRepository())
-    observables = ObservableTargetManager(
-        manager, InMemoryObservableTargetRepository(), registry
+    observables = ObservableTargetFactory(
+        manager, registry
     )
     manager.upsert_target(Tanker(id="k1", name="x", registration="B-1"))
     cursors = InMemoryCursorRepository()

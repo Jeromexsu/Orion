@@ -21,7 +21,7 @@ class Subscriber(Protocol):
 
 class ObservableTarget:
     """A reference to a target at one observed point, plus who subscribes to which
-    upstreams. Globally unique; created only by ObservableTargetManager.
+    upstreams. Globally unique; created only by ObservableTargetFactory.
 
     Holds only the target ID, never the target itself: whoever needs the target (its
     query values, its name) reads the current one from TargetManager, so a target
@@ -42,7 +42,7 @@ class ObservableTarget:
         """Build the ID of the observable target for a target at an observed point.
 
         Static because callers often need the ID before the observable target
-        exists, e.g. to look it up in ObservableTargetManager's singleton table.
+        exists, e.g. to look it up in ObservableTargetFactory's singleton table.
 
         Returns:
             `<target_id>:<observed_point_name>`, e.g. `t1:position`.
@@ -74,7 +74,7 @@ class ObservableTarget:
         """订阅指定上游。同一订阅者再次 subscribe 会用新的上游集合替换旧的。只改内存，不写库。
 
         不检查上游是否可用：那取决于当时的目标，由调用方事先查（模板编译时经
-        ObservableTargetManager.inspect_observable）；采集时目标已不满足的上游由 collector 跳过。
+        ObservableTargetFactory.inspect_observable）；采集时目标已不满足的上游由 collector 跳过。
         上游为空抛 UnsupportedUpstreamError。
         """
         wanted = frozenset(upstreams)

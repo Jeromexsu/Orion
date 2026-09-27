@@ -27,7 +27,7 @@ from core.event import (
 )
 from core.hil import HilManager, ProposalRepository
 from core.hooks import HookRegistry, MountCompiler
-from core.observable import ObservableTargetManager, ObservableTargetRepository
+from core.observable import ObservableTargetFactory
 from core.report import ReportManager, ReportRepository
 from core.target import TargetManager, TargetRepository, TargetTypeRegistry
 from plugins.condition_engine.on_enter import OnEnter
@@ -45,7 +45,6 @@ class Repositories:
     def __init__(
         self,
         target_repository: TargetRepository,
-        observable_target_repository: ObservableTargetRepository,
         cursor_repository: CursorRepository,
         observation_repository: ObservationRepository,
         parent_event_repository: ParentEventRepository,
@@ -56,7 +55,6 @@ class Repositories:
         proposal_repository: ProposalRepository,
     ) -> None:
         self.target_repository = target_repository
-        self.observable_target_repository = observable_target_repository
         self.cursor_repository = cursor_repository
         self.observation_repository = observation_repository
         self.parent_event_repository = parent_event_repository
@@ -74,7 +72,7 @@ class App:
         self,
         target_type_registry: TargetTypeRegistry,
         target_manager: TargetManager,
-        observable_target_manager: ObservableTargetManager,
+        observable_target_factory: ObservableTargetFactory,
         upstream_adapter_registry: UpstreamAdapterRegistry,
         collector: Collector,
         condition_compiler: ConditionCompiler,
@@ -85,7 +83,7 @@ class App:
     ) -> None:
         self.target_type_registry = target_type_registry
         self.target_manager = target_manager
-        self.observable_target_manager = observable_target_manager
+        self.observable_target_factory = observable_target_factory
         self.upstream_adapter_registry = upstream_adapter_registry
         self.collector = collector
         self.condition_compiler = condition_compiler
@@ -103,15 +101,14 @@ def build_app(repos: Repositories) -> App:
     target_type_registry = TargetTypeRegistry()
     target_type_registry.register(Aircraft)
     target_manager = TargetManager(target_type_registry, repos.target_repository)
-    observable_target_manager = ObservableTargetManager(
+    observable_target_factory = ObservableTargetFactory(
         target_manager,
-        repos.observable_target_repository,
         upstream_adapter_registry,
     )
 
     collector = Collector(
         target_manager,
-        observable_target_manager,
+        observable_target_factory,
         upstream_adapter_registry,
         repos.cursor_repository,
         repos.observation_repository,
@@ -134,7 +131,7 @@ def build_app(repos: Repositories) -> App:
             target_manager=target_manager,
             template_repository=repos.template_repository,
             template_compiler=TemplateCompiler(
-                condition_compiler, MountCompiler(hook_registry), observable_target_manager
+                condition_compiler, MountCompiler(hook_registry), observable_target_factory
             ),
             report_manager=report_manager,
         ),
@@ -154,7 +151,7 @@ def build_app(repos: Repositories) -> App:
     return App(
         target_type_registry=target_type_registry,
         target_manager=target_manager,
-        observable_target_manager=observable_target_manager,
+        observable_target_factory=observable_target_factory,
         upstream_adapter_registry=upstream_adapter_registry,
         collector=collector,
         condition_compiler=condition_compiler,

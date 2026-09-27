@@ -2,14 +2,14 @@ from datetime import UTC, datetime
 from typing import Any
 
 from core.collector import Collector, UpstreamAdapterRegistry
-from core.observable import ObservableTargetManager
+from core.observable import ObservableTargetFactory
 from core.target import TargetManager, TargetTypeRegistry
 from plugins.observed_points.position import Position, PositionObservation
 from plugins.query_keys.icao24 import Icao24
 from plugins.target.aircraft import Aircraft
 from plugins.upstream_adapters.opensky import OpenSkyAdapter
 from tests.core.collector.fakes import InMemoryCursorRepository, InMemoryObservationRepository
-from tests.core.observable.fakes import InMemoryObservableTargetRepository, Subscriber
+from tests.core.observable.fakes import Subscriber
 from tests.core.target.fakes import InMemoryTargetRepository
 
 T0 = 1790000000   # Unix 秒
@@ -66,8 +66,8 @@ def test_collector_end_to_end() -> None:
     target_types = TargetTypeRegistry()
     target_types.register(Aircraft)
     manager = TargetManager(target_types, InMemoryTargetRepository())
-    observables = ObservableTargetManager(
-        manager, InMemoryObservableTargetRepository(), registry
+    observables = ObservableTargetFactory(
+        manager, registry
     )
     manager.upsert_target(
         Aircraft(id="t1", name="MU5101", registration="B-2447", icao24="780a3b")

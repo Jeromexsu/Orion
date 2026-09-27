@@ -2,7 +2,7 @@ import pytest
 
 from core.observable import (
     NoUpstreamError,
-    ObservableTargetManager,
+    ObservableTargetFactory,
     UnsupportedObservedPointError,
 )
 from core.target import (
@@ -15,7 +15,6 @@ from plugins.observed_points.position import Position
 from plugins.query_keys.registration import Registration
 from plugins.target.aircraft import Aircraft
 from tests.core.observable.fakes import (
-    InMemoryObservableTargetRepository,
     StaticUpstreamCatalog,
     Subscriber,
 )
@@ -24,52 +23,48 @@ from tests.core.target.fakes import InMemoryTargetRepository, Ship
 
 def make(
     table: dict[tuple[str, str], list[str]], *types: type[Target]
-) -> tuple[TargetManager, ObservableTargetManager]:
+) -> tuple[TargetManager, ObservableTargetFactory]:
     target_types = TargetTypeRegistry()
     for t in types:
         target_types.register(t)
     targets = TargetManager(target_types, InMemoryTargetRepository())
-    observables = ObservableTargetManager(
-        targets, InMemoryObservableTargetRepository(), StaticUpstreamCatalog(table)
+    observables = ObservableTargetFactory(
+        targets, StaticUpstreamCatalog(table)
     )
     return targets, observables
 
 
 def test_get_observable_is_singleton(
-    observable_manager: ObservableTargetManager,
-    plane: Target,
-    observables: InMemoryObservableTargetRepository,
+    observable_factory: ObservableTargetFactory, plane: Target
 ) -> None:
-    a = observable_manager.get_observable(plane.id, "position")
-    b = observable_manager.get_observable(plane.id, "position")
+    a = observable_factory.get_observable(plane.id, "position")
+    b = observable_factory.get_observable(plane.id, "position")
     assert a is b
     assert a.id == "t1:position"
     assert a.target_id == plane.id
-    assert observables.items[a.id] is a
+    assert observable_factory.observables() == [a]
 
 
 def test_inspect_observable_does_not_create(
-    observable_manager: ObservableTargetManager,
-    plane: Target,
-    observables: InMemoryObservableTargetRepository,
+    observable_factory: ObservableTargetFactory, plane: Target
 ) -> None:
-    point, upstreams = observable_manager.inspect_observable(plane.id, "position")
+    point, upstreams = observable_factory.inspect_observable(plane.id, "position")
     assert (point, upstreams) == (Position, ("adsb",))
-    assert observables.items == {}
+    assert observable_factory.observables() == []
     with pytest.raises(UnsupportedObservedPointError):
-        observable_manager.inspect_observable(plane.id, "fuel")
+        observable_factory.inspect_observable(plane.id, "fuel")
 
 
 def test_get_observable_errors(
-    observable_manager: ObservableTargetManager, target_types: TargetTypeRegistry, plane: Target
+    observable_factory: ObservableTargetFactory, target_types: TargetTypeRegistry, plane: Target
 ) -> None:
     with pytest.raises(TargetNotFoundError):
-        observable_manager.get_observable("missing", "position")
+        observable_factory.get_observable("missing", "position")
     with pytest.raises(UnsupportedObservedPointError):     # 没有哪种类型有这个观察点
-        observable_manager.get_observable(plane.id, "fuel")
+        observable_factory.get_observable(plane.id, "fuel")
     target_types.register(Ship)
     with pytest.raises(UnsupportedObservedPointError):  # 吃水是船的观察点，飞机不能被这样观测
-        observable_manager.get_observable(plane.id, "draught")
+        observable_factory.get_observable(plane.id, "draught")
 
 
 def test_get_observable_without_upstream() -> None:
@@ -94,23 +89,23 @@ def test_shared_observed_point_across_types() -> None:
 
 
 def test_active_observables_follow_subscribers(
-    observable_manager: ObservableTargetManager, plane: Target
+    observable_factory: ObservableTargetFactory, plane: Target
 ) -> None:
-    obs = observable_manager.get_observable(plane.id, "position")
-    assert observable_manager.active_observables() == []
+    obs = observable_factory.get_observable(plane.id, "position")
+    assert observable_factory.active_observables() == []
 
     sub = Subscriber()
     obs.subscribe(sub, ["adsb"])
-    assert observable_manager.active_observables() == [obs]
+    assert observable_factory.active_observables() == [obs]
 
     obs.unsubscribe(sub)
-    assert observable_manager.active_observables() == []
+    assert observable_factory.active_observables() == []
 
 
 def test_observable_reads_the_current_target(
-    manager: TargetManager, observable_manager: ObservableTargetManager, plane: Target
+    manager: TargetManager, observable_factory: ObservableTargetFactory, plane: Target
 ) -> None:
     """可观测目标只存目标 ID：目标更新后，经它读到的就是新目标，不需要通知。"""
-    obs = observable_manager.get_observable(plane.id, "position")
+    obs = observable_factory.get_observable(plane.id, "position")
     manager.upsert_target(plane.model_copy(update={"registration": "B-9999"}))
     assert manager.get_target(obs.target_id).query_values() == {Registration: "B-9999"}

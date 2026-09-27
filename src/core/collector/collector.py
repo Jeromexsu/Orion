@@ -3,7 +3,7 @@ from datetime import datetime
 
 from core.collector.registry import UpstreamAdapterRegistry
 from core.collector.repository import CursorRepository, ObservationRepository
-from core.observable import ObservableTarget, ObservableTargetManager
+from core.observable import ObservableTarget, ObservableTargetFactory
 from core.observation import ObservationEnvelope
 from core.target import TargetManager
 
@@ -22,13 +22,13 @@ class Collector:
     def __init__(
         self,
         target_manager: TargetManager,
-        observable_target_manager: ObservableTargetManager,
+        observable_target_factory: ObservableTargetFactory,
         upstream_adapter_registry: UpstreamAdapterRegistry,
         cursor_repository: CursorRepository,
         observation_repository: ObservationRepository,
     ) -> None:
         self._target_manager = target_manager
-        self._observable_target_manager = observable_target_manager
+        self._observable_target_factory = observable_target_factory
         self._upstream_adapter_registry = upstream_adapter_registry
         self._cursor_repository = cursor_repository
         self._observation_repository = observation_repository
@@ -37,7 +37,7 @@ class Collector:
         """Run one collection round over all active observable targets.
 
         Active observable targets (at least one subscriber) are asked from the
-        ObservableTargetManager; each is collected with collect_one, which stores and
+        ObservableTargetFactory; each is collected with collect_one, which stores and
         publishes its new observations. An observable target that raises is logged
         and skipped without affecting the others. Called periodically by the
         in-process scheduler.
@@ -46,7 +46,7 @@ class Collector:
             Newly stored envelopes of this round, grouped per observable target.
         """
         collected: list[ObservationEnvelope] = []
-        for observable in self._observable_target_manager.active_observables():
+        for observable in self._observable_target_factory.active_observables():
             try:
                 collected.extend(self.collect_one(observable))
             except Exception:

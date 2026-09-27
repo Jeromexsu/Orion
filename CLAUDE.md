@@ -40,7 +40,7 @@ def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list
 - 按职责给类起名：
   - `*Manager`：管数据——运行期间不断变化、要存库的业务数据的生命周期，不只是增删改查，还有状态流转和规则
     （如「有订阅者不能删目标」「已发出的报告不能改」）。它是有自己数据的模块的入口，仓库注入在它身上，用仓库存取；
-    规则在 manager 里，不在仓库里（`TargetManager` 管目标实例，`ObservableTargetManager` 管可观测目标，`ParentEventManager`、
+    规则在 manager 里，不在仓库里（`TargetManager` 管目标实例，`ParentEventManager`、
     `HilManager`、`ReportManager`）。没有自己数据的模块没有 manager。入口做的事能用一个动词说清时可以用动词名词化（`Collector`）。
   - `*Registry`：管插件——数据（模板 JSON、库里的记录）里只有名字，注册表把名字变回写框架时还不知道的插件。
     要不要注册表只看数据里会不会出现它的名字，以及能不能在上下文里解析：查询键只在代码里按类引用，所以没有；
@@ -48,6 +48,8 @@ def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list
     bootstrap 注册，之后只读，注入给用它的一方。按它装的东西命名：目标类型的插件是类（`Aircraft`），所以叫
     `TargetTypeRegistry`，不叫 `TargetRegistry`（目标是这些类的实例，是数据，归 `TargetManager`）；其余插件是实例
     （`UpstreamAdapterRegistry`、`EvaluatorRegistry`、`HookRegistry`）。
+  - `*Factory`：纯运行时、不存库的单例工厂——按键取共享实例，没有就创建（享元模式的 FlyweightFactory），
+    如 `ObservableTargetFactory`。不存库、没有生命周期的东西不叫 manager。
   - `*Repository`：只管数据怎么存取，协议定义在 core，由 repo 层实现。协议和它收发的持久化记录（`*Record`）是同一份契约，
     放在同一个 `repository.py` 里（端口 + 它的数据类型）。活对象和记录之间的转换成对命名：`to_record()` / 类方法 `from_record(record, ...)`；
     领域代码只在这两处碰记录，要从历史里查东西就给仓库加一个窄的查询（如 `count_closed`），不把整批记录交出去。

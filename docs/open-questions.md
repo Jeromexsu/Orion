@@ -9,13 +9,6 @@
 第 1 条主体已决并实现（见「已决」），剩余：
 - 关闭条件是否在模板里显式声明（现由声明了 `scopes={"event"}` 的钩子经 `ctx.event.close(reason)` 请求关闭；年度事件「何时算结束」是关键问题）。
 
-### 2. `ObservableTargetRepository` 是否保留
-
-它按文档第九节返回 `ObservableTarget` 活对象；`ObservableTargetManager` 只在创建时写入、删除目标时移除，
-从未读取——重启恢复靠 event 模块重新订阅。可观测目标现在只存目标 ID、观察点（订阅关系本就不存），
-存下来的东西几乎都能从目标和模板推出来。选项：保留 / 改为存纯数据记录 / 去掉。
-**状态**：待定（`core/observable/repository.py`）。
-
 ### 3. UpstreamAdapter 与 Target 子类的对应关系只靠约定
 
 **已解决**：观察点与目标类型解耦后，UpstreamAdapter 不再引用目标类型（见「已决 · 观察点」）；查询也不再靠字段名
@@ -154,16 +147,20 @@ class RadarAdapter(UpstreamAdapter): ...
 
 ## 已决
 
+- **可观测目标不存库，`ObservableTargetManager` 改名 `ObservableTargetFactory`**（原待决第 2 条「`ObservableTargetRepository` 是否保留」）：
+  仓库只写不读，重启靠 event 重新编译模板、重新订阅；可观测目标只剩目标 ID + 观察点，都能从模板推出来——去掉。
+  没了存库和生命周期，它就不是 manager，而是单例工厂（享元模式的 FlyweightFactory：按键取共享实例，没有就创建）。
+  单例表 `_live` 改名 `_observables`（它装的是全部已创建的实例，不分死活）；新增 `observables()` 列出全部。
 - **观察点不需要注册表，按目标类型解析**（原待决「观察点不单独注册」）：模板里观察点名总和目标成对出现，
-  `ObservableTargetManager` 取到目标后在它类型的 `observed_points` 里按名字找，不需要全局的「名字 → 观察点」表。
-  `TargetTypeRegistry` 只剩目标类型；`ObservableTargetManager` 不再依赖它；`UnknownObservedPointError` 与
+  `ObservableTargetFactory` 取到目标后在它类型的 `observed_points` 里按名字找，不需要全局的「名字 → 观察点」表。
+  `TargetTypeRegistry` 只剩目标类型；`ObservableTargetFactory` 不再依赖它；`UnknownObservedPointError` 与
   `UnsupportedObservedPointError` 合并为后者；跨类型同名不再冲突（`DuplicateObservedPointError` 去掉），同一类型内
   重名由 `@target_type` 声明时报错。原记的缺口「上游适配器引用了没有任何目标类型声明的观察点」仍在（死适配器，无害）。
 - **target 拆成 observation / target / observable 三个模块**：
   - observation（零依赖）：观察点、观测、观测外壳——观测长什么样，与目标无关。
   - target（→ observation）：目标类型、目标实例、查询键、`TargetTypeRegistry`、`TargetManager`。
-  - observable（→ target、observation）：`ObservableTarget`、单例表 `ObservableTargetManager`、`UpstreamCatalog`、
-    `ObservableTargetRepository`。可观测目标是对目标的引用（只存 ID）+ 观察点 + 订阅，不是目标的增强版。
+  - observable（→ target、observation）：`ObservableTarget`、单例表 `ObservableTargetFactory`、`UpstreamCatalog`、
+    `ObservableTargetRepository`（后来去掉，见「可观测目标不存库」）。可观测目标是对目标的引用（只存 ID）+ 观察点 + 订阅，不是目标的增强版。
   - 删目标时「有没有人在用」一度做成 `TargetReferrer`（删前逐个问引用方），后来去掉：被引用方不该负责跨聚合的规则，
     而且现在没有任何地方会删目标。`remove_target` 只删记录；引用方按 ID 取不到就跳过（collector 记日志）。
     真正的做法见待决「目标的删除改为归档」。

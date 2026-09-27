@@ -63,7 +63,7 @@ def test_template_must_observe_namespace_targets(env: Env) -> None:
     with pytest.raises(TemplateScopeError):
         parent.upsert_template(TemplateDef.model_validate(template()))
     # 在编译之前就被拒：没有为越界的模板创建可观测目标，也没有存定义
-    assert env.observable_repo.items == {}
+    assert env.observables.observables() == []
     assert env.templates.list_versions("enter-zone") == []
 
 

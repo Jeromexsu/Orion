@@ -8,7 +8,7 @@ from core.event.definitions import TemplateDef
 from core.event.errors import TemplateCompileError
 from core.event.template import CompiledObservable, CompiledRule, EventTemplate
 from core.hooks import Mount, MountCompileError, MountCompiler
-from core.observable import ObservableError, ObservableTargetManager
+from core.observable import ObservableError, ObservableTargetFactory
 from core.observation import Observation
 from core.target import TargetError
 
@@ -20,16 +20,16 @@ class TemplateCompiler:
         self,
         condition_compiler: ConditionCompiler,
         mount_compiler: MountCompiler,
-        observable_target_manager: ObservableTargetManager,
+        observable_target_factory: ObservableTargetFactory,
     ) -> None:
         self._condition_compiler = condition_compiler
         self._mount_compiler = mount_compiler
-        self._observable_target_manager = observable_target_manager
+        self._observable_target_factory = observable_target_factory
 
     def compile(self, template_def: TemplateDef) -> EventTemplate:
         """编译并校验整个模板，所有错误一次收集进 TemplateCompileError。
 
-        分两个阶段：先只校验、不产生副作用（可观测目标声明用 ObservableTargetManager.inspect_observable 检查，
+        分两个阶段：先只校验、不产生副作用（可观测目标声明用 ObservableTargetFactory.inspect_observable 检查，
         观察点产出的观测类交给条件编译器）；全部通过后，才取得（必要时创建）可观测目标。
         因此被拒绝的模板不会留下可观测目标。
         """
@@ -80,7 +80,7 @@ class TemplateCompiler:
                 errors.append(f"{where}: duplicate")
                 continue
             try:
-                point, available = self._observable_target_manager.inspect_observable(
+                point, available = self._observable_target_factory.inspect_observable(
                     o.target_id, o.observed_point
                 )
             except (TargetError, ObservableError) as e:
@@ -96,7 +96,7 @@ class TemplateCompiler:
         """全部校验通过后调用：取得（必要时创建）可观测目标，组装 runner 要订阅的项。"""
         return tuple(
             CompiledObservable(
-                self._observable_target_manager.get_observable(o.target_id, o.observed_point),
+                self._observable_target_factory.get_observable(o.target_id, o.observed_point),
                 frozenset(o.upstreams),
             )
             for o in template_def.observable_defs

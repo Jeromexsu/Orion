@@ -129,7 +129,7 @@ sequenceDiagram
 | `Observation` 子类（如 `PositionObservation`） | 观测：观察点返回的数据，字段即形状 | 开发者（和观察点放在一起） |
 | `QueryKey` 子类（如 `Icao24`） | 查询键：拿什么去查一个目标，名字 + 取值的类型与格式 | 开发者（`plugins/query_keys/`） |
 | `UpstreamAdapter`（上游） | 接入一个数据提供方（上游，如 OpenSky）：服务哪些观察点（`observed_points`，可多个）、支持哪些查询方式（`query_key_sets`，每种是一组查询键，目标能提供其一即可），把查询键翻译成上游 API、把响应翻译成观测 | 开发者（`plugins/upstream_adapters/`） |
-| `ObservableTarget`（obs） | 对目标的引用（只存目标 ID）+ 观察点 + 订阅关系，全局唯一；订阅者按上游订阅（`subscribe`），它把观测发布（`publish`）给订阅了该上游的订阅者。不缓存目标，也不缓存可用上游：用到时按当前的目标现读、现算 | `ObservableTargetManager` 按需创建 |
+| `ObservableTarget`（obs） | 对目标的引用（只存目标 ID）+ 观察点 + 订阅关系，全局唯一；订阅者按上游订阅（`subscribe`），它把观测发布（`publish`）给订阅了该上游的订阅者。不缓存目标，也不缓存可用上游：用到时按当前的目标现读、现算 | `ObservableTargetFactory` 按需创建 |
 | `ObservationEnvelope` | 观测的外壳：来源信息（可观测目标、上游、发生时间、去重 ID）+ 观测实例 | collector 产出 |
 
 ```mermaid
@@ -143,7 +143,7 @@ graph LR
 ```
 
 可用上游 = 服务该观察点、且目标能提供其某种查询方式要的全部查询键（字段有值）的 UpstreamAdapter。
-每次用到都按目标当前的查询键现算（`ObservableTargetManager.inspect_observable`），目标更新后自然生效。
+每次用到都按目标当前的查询键现算（`ObservableTargetFactory.inspect_observable`），目标更新后自然生效。
 一个上游 = 一个数据提供方，可以服务多个观察点（`fetch` 按 `observed_point` 分支）；模板里写的上游名就是提供方的名字。
 游标、订阅、路由都按（可观测目标, 上游）组织，可观测目标里已带观察点，所以同一上游的不同观察点互不干扰。
 上游不认识目标类型：同一个上游可以对飞机按 `Icao24`、对船按 `Mmsi` 查询。
@@ -195,18 +195,19 @@ class Aircraft(Target):
 
 | 使用方 | 窗口 | 用来做什么 |
 |---|---|---|
-| bootstrap | `TargetTypeRegistry.register` | 启动时注册目标类型（检查声明和查询键关联），注册表注入 `TargetManager` / `ObservableTargetManager` |
+| bootstrap | `TargetTypeRegistry.register` | 启动时注册目标类型（检查声明和查询键关联），注册表注入 `TargetManager` / `ObservableTargetFactory` |
 | API 层（待建） | `TargetManager.parse` / `upsert_target` / `get_target` / `find_by_alias` / `remove_target` | 目标的增删改查；`parse` 把 JSON 按 `type` 还原成对应的目标类型 |
 | event · 父事件 | `TargetManager.get_target` | 确认目标存在、取展示名 |
-| event · 模板编译器 | `ObservableTargetManager.inspect_observable` / `get_observable` | 先只检查（不创建），全部通过后取得 / 创建可观测目标 |
+| event · 模板编译器 | `ObservableTargetFactory.inspect_observable` / `get_observable` | 先只检查（不创建），全部通过后取得 / 创建可观测目标 |
 | event · runner | `ObservableTarget.subscribe` / `unsubscribe`；回调 `Subscriber.on_observation` | 按上游订阅；收观测 |
-| collector | `ObservableTargetManager.active_observables`；`ObservableTarget.active_upstreams` / `accepts` / `publish`；`TargetManager.get_target` + `Target.query_values` | 找要采集的可观测目标和上游；检查观测类型；发布；采集时按 `target_id` 取当前的目标及其查询键 |
+| collector | `ObservableTargetFactory.active_observables`；`ObservableTarget.active_upstreams` / `accepts` / `publish`；`TargetManager.get_target` + `Target.query_values` | 找要采集的可观测目标和上游；检查观测类型；发布；采集时按 `target_id` 取当前的目标及其查询键 |
 
 要别人提供的：
 
 - target：`TargetRepository`（持久化层实现）。target 不知道谁在引用它：别的模块只按 ID 引用、用到时现读，
   取不到就当目标已不存在（collector 记日志跳过）。删除目标改为归档见 open-questions。
-- observable：`UpstreamCatalog`（collector 的 `UpstreamAdapterRegistry` 实现）、`ObservableTargetRepository`（持久化层实现）。
+- observable：`UpstreamCatalog`（collector 的 `UpstreamAdapterRegistry` 实现）。可观测目标纯运行时、不存库：
+  重启后 event 重新编译模板、重新订阅时再建。
 
 扩展点有三个，都用装饰器声明（写法见上文）：
 
@@ -224,7 +225,7 @@ class Aircraft(Target):
 |---|---|---|
 | `Collector.collect()` | 调度器 | 运行时，定时：对全部活跃可观测目标采集一轮 |
 | `Collector.collect_one(observable)` | 调度器 / 以后的「手动刷新」 | 运行时，按需：立即采集一个可观测目标 |
-| `UpstreamAdapterRegistry.upstreams_for()`（即 observable 的 `UpstreamCatalog`） | `ObservableTargetManager` | 运行时，查可观测目标时问「哪些上游能观测它」（按当前的目标现算）。observable 只认协议，bootstrap 注入 |
+| `UpstreamAdapterRegistry.upstreams_for()`（即 observable 的 `UpstreamCatalog`） | `ObservableTargetFactory` | 运行时，查可观测目标时问「哪些上游能观测它」（按当前的目标现算）。observable 只认协议，bootstrap 注入 |
 | `UpstreamAdapterRegistry.register()` | bootstrap | 启动时注册全部上游适配器 |
 
 要别人提供的（collector 定义接口，持久化层实现）：`CursorRepository`（每个（可观测目标, 上游）一个游标）、
@@ -279,7 +280,7 @@ graph LR
 | 编译 | `CompiledObservable`（可观测目标实例 + 要订阅的上游） | `EventTemplate.compiled_observables` | 随模板版本，不可变 |
 | 订阅 | `ObservableTarget`（按 ID 索引） | `EventRunner._subscribed_observables` | runner 当前的订阅，会变 |
 
-- 三个阶段指向同一个对象：编译时由 `ObservableTargetManager` 取得（必要时创建）唯一的 `ObservableTarget`，
+- 三个阶段指向同一个对象：编译时由 `ObservableTargetFactory` 取得（必要时创建）唯一的 `ObservableTarget`，
   订阅只是 runner 把自己登记为它的订阅者，不产生新对象。
 - 编译了不等于订阅了：挂起的新版本已有自己的 `compiled_observables`，要等当前周期结束、切换版本时
   才经 `_sync_subscriptions` 变成已订阅。所以编译结果放在模板里（跟版本走），订阅状态放在 runner 里（只表示“现在订阅着什么”）。
@@ -489,12 +490,12 @@ Django 的 `apps.get_model` 是一回事；加上「按名字创建对象」就�
 | 数据里的名字 | 注册表 | 查到的插件 | 谁查 |
 |---|---|---|---|
 | 目标记录 / JSON 的 `type`（`"aircraft"`） | `TargetTypeRegistry` | 目标类型（类，如 `Aircraft`） | `TargetManager`：还原记录、解析 JSON |
-| 模板里的 `upstreams`（`"opensky"`） | `UpstreamAdapterRegistry` | 上游适配器（实例） | `Collector`、`ObservableTargetManager`（经 `UpstreamCatalog`） |
+| 模板里的 `upstreams`（`"opensky"`） | `UpstreamAdapterRegistry` | 上游适配器（实例） | `Collector`、`ObservableTargetFactory`（经 `UpstreamCatalog`） |
 | 条件叶子的 `op`（`"onEnter"`） | `EvaluatorRegistry` | 判断方式（实例） | `ConditionCompiler` |
 | 挂载的 `hook`（`"countHits"`） | `HookRegistry` | 钩子（实例） | `MountCompiler` |
 
 - 要不要注册表只看数据里会不会出现它的名字，以及能不能在上下文里解析：查询键只在代码里按类引用（`provides(Icao24)`），
-  所以没有注册表；观察点名在模板里总和目标成对出现（`target_id` + `observed_point`），`ObservableTargetManager` 在那个
+  所以没有注册表；观察点名在模板里总和目标成对出现（`target_id` + `observed_point`），`ObservableTargetFactory` 在那个
   目标类型的 `observed_points` 里按名字找，也不需要全局注册表。
 - 注册表只有 `register` / `get` / 列出全部，外加注册时的声明检查（没用装饰器声明、名字重复都在启动时报错）；
   查不到抛有类型的异常（如 `UnknownHookError`），编译器据此给出可读的错误。
@@ -512,7 +513,7 @@ core 里反复出现的几条原则，都有通用的名字：
 |---|---|---|
 | **按身份引用，不持有别人的对象** | `ObservableTarget` 只存 `target_id`，用到目标时向 `TargetManager` 现读；父事件的命名空间也只存目标 ID | DDD：聚合之间按身份引用（reference other aggregates by identity） |
 | **一份数据只存一处，派生的现算** | 可用上游按目标当前的查询键现算，不存快照；子事件的钩子状态、条件状态各存一处 | 单一数据源（single source of truth）；不做反规范化缓存 |
-| **同一身份在内存里只有一个对象** | `ObservableTargetManager` 保证每个（目标, 观察点）只有一个 `ObservableTarget` | 标识映射（Identity Map，Fowler《企业应用架构模式》） |
+| **同一身份在内存里只有一个对象** | `ObservableTargetFactory` 保证每个（目标, 观察点）只有一个 `ObservableTarget` | 标识映射（Identity Map，Fowler《企业应用架构模式》）；享元工厂（FlyweightFactory，GoF） |
 | **按上游路由的发布 / 订阅** | runner 按上游订阅可观测目标，collector 采集后由可观测目标 `publish` | 观察者模式；消息系统的 topic / subscription |
 | **接口定义在使用方** | `UpstreamCatalog`、`ProposalSink`、`ReportWriter`、各 `*Repository` 由用它的模块定义，提供方结构化实现，bootstrap 装配 | 依赖倒置（DIP）；端口与适配器（六边形架构） |
 | **按 ID 引用就要容忍对方不在** | 被引用方不去问「谁在引用我」；引用方取不到就跳过（collector 取不到目标时记日志跳过）。父事件内部的规则仍立即保证（模板还用着的目标不能从命名空间删，`TargetStillReferencedError`） | DDD：聚合内的规则立即保证，跨聚合的规则最终一致；删除常改为归档（软删除） |
