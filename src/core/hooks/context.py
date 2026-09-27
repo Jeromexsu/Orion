@@ -1,4 +1,4 @@
-"""What an operator may see and do while it runs, built per run from its declaration."""
+"""What a hook may see and do while it runs, built per run from its declaration."""
 
 from collections.abc import Callable, Mapping
 from copy import deepcopy
@@ -6,14 +6,14 @@ from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel
 
-from core.hil import Suggestion
-from core.operators.errors import UndeclaredCapabilityError
+from core.hil import Proposal
+from core.hooks.errors import UndeclaredCapabilityError
 
 P = TypeVar("P", bound=BaseModel)
 
 
 class EventHandle:
-    """What an operator with the event scope may do to the event it runs on."""
+    """What a hook with the event scope may do to the event it runs on."""
 
     def __init__(
         self,
@@ -36,15 +36,15 @@ class EventHandle:
         self._request_close(reason)
 
 
-class OperatorContext(Generic[P]):
-    """Everything an operator gets besides the occasion.
+class HookContext(Generic[P]):
+    """Everything a hook gets besides the occasion.
 
     Always available, read-only: the mount parameters, a copy of the event's
     status, target display names and where it runs. Capabilities exist only if
     declared: ctx.event needs scopes={"event"}, ctx.propose needs proposes=True;
     using an undeclared one raises UndeclaredCapabilityError. The external scope
     has no capability here: output channels (reports, notifications) are injected
-    into the operator when it is constructed.
+    into the hook when it is constructed.
     """
 
     def __init__(
@@ -56,7 +56,7 @@ class OperatorContext(Generic[P]):
         parent_id: str,
         event_id: str,
         event: EventHandle | None = None,
-        propose: Callable[[Suggestion], None] | None = None,
+        propose: Callable[[Proposal], None] | None = None,
     ) -> None:
         self.params = params                # the mount's parameters, validated at compile time
         self.state = deepcopy(dict(state))  # a copy: changing it does not change the event
@@ -83,7 +83,7 @@ class OperatorContext(Generic[P]):
             raise UndeclaredCapabilityError("declare scopes={'event'} to change the event")
         return self._event
 
-    def propose(self, suggestion: Suggestion) -> None:
+    def propose(self, proposal: Proposal) -> None:
         """Send a proposal for review; nothing changes until an analyst accepts it.
 
         What it would change (the parent event, a target, ...) is decided by the
@@ -91,4 +91,4 @@ class OperatorContext(Generic[P]):
         """
         if self._propose is None:
             raise UndeclaredCapabilityError("declare proposes=True to make proposals")
-        self._propose(suggestion)
+        self._propose(proposal)

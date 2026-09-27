@@ -103,7 +103,7 @@ class EventRunner:
         return ids | self._pending.target_ids if self._pending else ids
 
     def target_names(self) -> dict[str, str]:
-        """订阅中的可观测目标 ID → 目标展示名，给算子上下文用。"""
+        """订阅中的可观测目标 ID → 目标展示名，给钩子上下文用。"""
         return {oid: obs.target.name for oid, obs in self._subscribed_observables.items()}
 
     def history(self) -> list[EventRecord]:

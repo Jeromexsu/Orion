@@ -1,7 +1,7 @@
 from typing import Any
 
 from core.event import EventRecord, ParentEventRecord, TemplateDef
-from core.hil import Suggestion
+from core.hil import Proposal
 
 
 class InMemoryParentEventRepository:
@@ -66,10 +66,10 @@ class InMemoryEventRepository:
 
 class RecordingSink:
     def __init__(self) -> None:
-        self.received: list[Suggestion] = []
+        self.received: list[Proposal] = []
 
-    def receive(self, suggestion: Suggestion) -> None:
-        self.received.append(suggestion)
+    def receive(self, proposal: Proposal) -> None:
+        self.received.append(proposal)
 
 
 class InMemoryRunnerStateRepository:

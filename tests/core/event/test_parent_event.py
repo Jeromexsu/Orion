@@ -15,7 +15,7 @@ from core.event import (
     TemplateScopeError,
     TemplateVersionError,
 )
-from core.operators import NoParams, Occasion, Operator, OperatorContext, operator
+from core.hooks import Hook, HookContext, NoParams, Occasion, hook
 from core.target import TargetNotFoundError
 from tests.core.event.conftest import Env, mount, template
 
@@ -121,7 +121,7 @@ def test_open_condition_gates_instances(env: Env) -> None:
 
 
 def test_lifecycle_and_open_state_during_run(env: Env) -> None:
-    parent = make_parent(env, threshold=3, hooks=[mount("recorder", m) for m in ("created", "closed")])
+    parent = make_parent(env, threshold=3, mounts=[mount("recorder", m) for m in ("created", "closed")])
     runner = parent.runner("enter-zone")
     runner.on_observation(env.envelope(*OUTSIDE))
     runner.on_observation(env.envelope(*INSIDE))  # 开启，hits=1
@@ -156,7 +156,7 @@ def test_unsubscribed_data_ignored(env: Env) -> None:
 
 
 def test_status_hook_recursion_is_bounded(env: Env) -> None:
-    parent = make_parent(env, threshold=5, hooks=[mount("echo", "status_updated")])
+    parent = make_parent(env, threshold=5, mounts=[mount("echo", "status_updated")])
     runner = parent.runner("enter-zone")
     open_cycle(env, runner)
     runner.on_observation(env.envelope(*OUTSIDE))
@@ -166,8 +166,8 @@ def test_status_hook_recursion_is_bounded(env: Env) -> None:
     assert active.status == {"hits": 2, "echoed": 2}
 
 
-def test_suggestions_flow_to_sink(env: Env) -> None:
-    parent = make_parent(env, hooks=[mount("spotter", "pre")])
+def test_proposals_flow_to_sink(env: Env) -> None:
+    parent = make_parent(env, mounts=[mount("spotter", "pre")])
     runner = parent.runner("enter-zone")
     runner.on_observation(env.envelope(*OUTSIDE))  # 未开启：实例级钩子不跑
     assert env.sink.received == []
@@ -175,8 +175,8 @@ def test_suggestions_flow_to_sink(env: Env) -> None:
     assert [s.reason for s in env.sink.received] == ["saw MU5101"]
 
 
-def test_operator_failure_is_isolated(env: Env) -> None:
-    parent = make_parent(env, hooks=[mount("boom", "pre"), mount("recorder", "pre")])
+def test_hook_failure_is_isolated(env: Env) -> None:
+    parent = make_parent(env, mounts=[mount("boom", "pre"), mount("recorder", "pre")])
     open_cycle(env, parent.runner("enter-zone"))
     assert env.log.calls == [("recorder", "pre")]
 
@@ -282,7 +282,7 @@ def test_restore_failure_is_isolated(env: Env) -> None:
 def test_close_request_waits_for_the_rest_of_the_observation(env: Env) -> None:
     """countHits 在 rule_hit 请求关闭；post 钩子照样跑完，之后才关闭。"""
     parent = make_parent(
-        env, threshold=1, hooks=[mount("recorder", m) for m in ("post", "closed")]
+        env, threshold=1, mounts=[mount("recorder", m) for m in ("post", "closed")]
     )
     runner = parent.runner("enter-zone")
     runner.on_observation(env.envelope(20, 20))
@@ -293,15 +293,15 @@ def test_close_request_waits_for_the_rest_of_the_observation(env: Env) -> None:
 
 
 def test_undeclared_capability_is_isolated(env: Env) -> None:
-    """没声明 scopes={"event"} 的算子碰 ctx.event 会出错，但只影响它自己：状态不变、别的钩子照跑。"""
+    """没声明 scopes={"event"} 的钩子碰 ctx.event 会出错，但只影响它自己：状态不变、别的钩子照跑。"""
 
-    @operator(mount_points={"pre"})
-    class Sneaky(Operator[NoParams]):
-        def run(self, occasion: Occasion, ctx: OperatorContext[NoParams]) -> None:
+    @hook(mount_points={"pre"})
+    class Sneaky(Hook[NoParams]):
+        def run(self, occasion: Occasion, ctx: HookContext[NoParams]) -> None:
             ctx.event.update_status({"sneaky": True})
 
-    env.operator_registry.register(Sneaky())
-    parent = make_parent(env, hooks=[mount("sneaky", "pre"), mount("recorder", "pre")])
+    env.hook_registry.register(Sneaky())
+    parent = make_parent(env, mounts=[mount("sneaky", "pre"), mount("recorder", "pre")])
     runner = parent.runner("enter-zone")
     runner.on_observation(env.envelope(20, 20))
     runner.on_observation(env.envelope(5, 5))

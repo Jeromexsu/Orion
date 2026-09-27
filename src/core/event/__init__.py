@@ -1,4 +1,4 @@
-"""事件：把观测变成有生命周期的子事件，驱动算子和报告。
+"""事件：把观测变成有生命周期的子事件，驱动钩子和报告。
 
 负责：
 - 父事件（ParentEvent）：静态的目标命名空间 + 模板集合 + 汇总报告；自己不订阅；
@@ -6,12 +6,12 @@
 - 运行：每个模板一个 EventRunner，订阅可观测目标、评估开启条件、管理子事件（Event，同一模板最多一个活跃）。
 对外：ParentEventManager 是入口；TemplateDef 等定义是纯数据（前端 / API 构造）；
       ParentEventServices / EventRuntime 是 bootstrap 装配的依赖包。
-依赖：target、condition_engine、operators、report（不直接依赖 collector / hil，分别经订阅回调和 SuggestionSink 连接）。
+依赖：target、condition_engine、hooks、report（不直接依赖 collector / hil，分别经订阅回调和 ProposalSink 连接）。
 关系图见 README「架构」一节。
 """
 
 from core.event.compiler import TemplateCompiler
-from core.event.definitions import ObservableDef, OperatorMountDef, RuleDef, TemplateDef
+from core.event.definitions import ObservableDef, RuleDef, TemplateDef
 from core.event.errors import (
     DuplicateParentEventError,
     EventClosedError,
@@ -35,7 +35,7 @@ from core.event.repository import (
 )
 from core.event.runner import EventRunner
 from core.event.runtime import EventRuntime, ParentEventServices
-from core.event.template import CompiledObservable, CompiledRule, EventTemplate, Hook
+from core.event.template import CompiledObservable, CompiledRule, EventTemplate
 
 __all__ = [
     "CompiledObservable",
@@ -48,7 +48,6 @@ __all__ = [
     "EventRecord",
     "EventRepository",
     "ObservableDef",
-    "OperatorMountDef",
     "ParentEvent",
     "ParentEventNotFoundError",
     "ParentEventRecord",
@@ -59,7 +58,6 @@ __all__ = [
     "Event",
     "EventRunner",
     "EventTemplate",
-    "Hook",
     "TargetStillReferencedError",
     "TemplateCompileError",
     "TemplateDef",

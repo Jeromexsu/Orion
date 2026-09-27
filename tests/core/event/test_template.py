@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 
 from core.event import EventTemplate, TemplateCompileError, TemplateDef
-from plugins.operators.count_hits import CountHitsParams
+from plugins.hooks.count_hits import CountHitsParams
 from tests.core.event.conftest import Env, enter, mount, template
 
 
@@ -15,9 +15,9 @@ def test_compile(env: Env) -> None:
     t = compile_(env, template(threshold=3))
     assert t.target_ids == {"t1"}
     assert [o.observable_id for o in t.observable_defs] == ["t1:position"]
-    (hook,) = t.rules[0].hooks
-    assert hook.operator.name == "countHits"
-    assert hook.params == CountHitsParams(threshold=3)   # 编译好的是有类型的参数
+    (mount_,) = t.rules[0].mounts
+    assert mount_.hook.name == "countHits"
+    assert mount_.params == CountHitsParams(threshold=3)   # 编译好的是有类型的参数
 
 
 def test_observables_are_compiled_once(env: Env) -> None:
@@ -30,7 +30,7 @@ def test_observables_are_compiled_once(env: Env) -> None:
 
 def test_failed_compile_creates_no_observable(env: Env) -> None:
     with pytest.raises(TemplateCompileError):
-        compile_(env, template(threshold=0))  # 可观测目标声明合法，但算子参数非法
+        compile_(env, template(threshold=0))  # 可观测目标声明合法，但钩子参数非法
     assert env.observable_repo.items == {}
 
 
@@ -42,14 +42,14 @@ def test_open_condition_is_required(env: Env) -> None:
 
 
 def test_compile_collects_errors(env: Env) -> None:
-    raw = template(hooks=[mount("countHits", "rule_hit"), mount("nope", "post")])
+    raw = template(mounts=[mount("countHits", "rule_hit"), mount("nope", "post")])
     raw["observable_defs"].append(dict(raw["observable_defs"][0]))
     raw["open_condition_def"] = enter("t2:position")  # 未在可观测目标声明里
     raw["rule_defs"].append(
         {
             "name": "enter",
             "condition_def": enter("ghost:position"),
-            "hook_defs": [mount("recorder", "post")],
+            "mount_defs": [mount("recorder", "post")],
         }
     )
     with pytest.raises(TemplateCompileError) as info:
@@ -60,12 +60,12 @@ def test_compile_collects_errors(env: Env) -> None:
     assert any(e.startswith("open_condition_def: root: unknown observable 't2:position'") for e in errors)
     assert any("duplicate rule names ['enter']" in e for e in errors)
     assert any(e.startswith("rule 'enter': root: unknown observable") for e in errors)
-    assert any("rule hooks must mount at 'rule_hit'" in e for e in errors)
-    assert any("hook 0: 'rule_hit' hooks belong on a rule" in e for e in errors)
-    assert any(e.startswith("hook 1: ") and "nope" in e for e in errors)
+    assert any("rule mounts must be at 'rule_hit'" in e for e in errors)
+    assert any("mount 0: 'rule_hit' mounts belong on a rule" in e for e in errors)
+    assert any(e.startswith("mount 1: ") and "nope" in e for e in errors)
 
 
-def test_invalid_operator_params(env: Env) -> None:
+def test_invalid_mount_params(env: Env) -> None:
     with pytest.raises(TemplateCompileError):
         compile_(env, template(threshold=0))
 

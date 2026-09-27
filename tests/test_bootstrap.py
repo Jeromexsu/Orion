@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 
 from bootstrap import App, Repositories, build_app
-from core.hil import Proposal, Suggestion
+from core.hil import Proposal
 from core.target import TargetNotFoundError, type_name
 from plugins.target.aircraft import Aircraft
 from tests.core.collector.fakes import InMemoryCursorRepository, InMemoryObservationRepository
@@ -13,7 +13,7 @@ from tests.core.event.fakes import (
     InMemoryRunnerStateRepository,
     InMemoryTemplateRepository,
 )
-from tests.core.hil.fakes import InMemorySuggestionRepository
+from tests.core.hil.fakes import InMemoryProposalRepository
 from tests.core.report.fakes import InMemoryDraftRepository
 from tests.core.target.fakes import InMemoryObservableTargetRepository, InMemoryTargetRepository
 
@@ -30,7 +30,7 @@ def build() -> App:
             event_repository=InMemoryEventRepository(),
             runner_state_repository=InMemoryRunnerStateRepository(),
             draft_repository=InMemoryDraftRepository(),
-            suggestion_repository=InMemorySuggestionRepository(),
+            proposal_repository=InMemoryProposalRepository(),
         )
     )
 
@@ -38,26 +38,26 @@ def build() -> App:
 def test_build_app_wires_everything() -> None:
     app = build()
     assert [type_name(t) for t in app.target_manager.types()] == ["aircraft"]
-    assert [o.name for o in app.operator_registry.operators()] == ["countHits", "closeReport"]
+    assert [o.name for o in app.hook_registry.hooks()] == ["countHits", "closeReport"]
     assert app.hil_manager.allowed_actions() == ["add_target", "remove_target", "upsert_template"]
     assert app.parent_event_manager.parents() == []
 
 
-def test_accepted_suggestion_goes_through_public_method() -> None:
+def test_accepted_proposal_goes_through_public_method() -> None:
     app = build()
     app.target_manager.upsert_target(Aircraft(id="t1", name="MU5101", registration="B-2447"))
     app.parent_event_manager.create("p1", "东海方向")
 
-    def propose(**args: Any) -> Suggestion:
-        s = Suggestion(
+    def propose(**args: Any) -> Proposal:
+        s = Proposal(
             source="alias_finder",
             reason="x",
-            proposal=Proposal(action="add_target", target="p1", args=args),
+            action="add_target", target="p1", args=args,
         )
         app.hil_manager.receive(s)
         return s
 
-    # 目标不存在 → 公开方法的校验照常生效，建议保持待审
+    # 目标不存在 → 公开方法的校验照常生效，提议保持待审
     bad = propose(target_id="ghost")
     with pytest.raises(TargetNotFoundError):
         app.hil_manager.accept(bad.id)

@@ -8,14 +8,15 @@ from core.condition_engine import HIT
 from core.event.errors import EventClosedError
 from core.event.records import EventRecord
 from core.event.runtime import EventRuntime
-from core.event.template import EventTemplate, Hook
-from core.operators import (
+from core.event.template import EventTemplate
+from core.hooks import (
     ClosedOccasion,
     CreatedOccasion,
     EventHandle,
+    HookContext,
+    Mount,
     ObservationOccasion,
     Occasion,
-    OperatorContext,
     RuleHitOccasion,
     StatusUpdatedOccasion,
 )
@@ -31,7 +32,7 @@ class Event:
     """子事件：模板的一次运行（一个周期）。由 EventRunner 创建、喂数据、存档。
 
     状态变更的唯一入口是 update_status；它和关闭请求只经 EventHandle（ctx.event）由声明了
-    scopes={"event"} 的算子调用。
+    scopes={"event"} 的钩子调用。
     """
 
     def __init__(
@@ -61,7 +62,7 @@ class Event:
         self._closed_at = closed_at
         self._close_reason = close_reason
         self._in_status_hooks = False
-        self._close_requested: str | None = None   # 算子请求关闭的原因，本条观测处理完才关闭
+        self._close_requested: str | None = None   # 钩子请求关闭的原因，本条观测处理完才关闭
 
     @classmethod
     def open(
@@ -76,7 +77,7 @@ class Event:
         event = cls(
             uuid4().hex, parent_id, template, cycle, runtime, target_names, opened_at=_now()
         )
-        event._run_hooks(template.hooks_at("created"), CreatedOccasion())
+        event._run_hooks(template.mounts_at("created"), CreatedOccasion())
         return event
 
     @classmethod
@@ -147,7 +148,7 @@ class Event:
 
     def process(self, envelope: ObservationEnvelope) -> None:
         """处理一条观测：pre 钩子 → 逐条规则跑条件树、合并条件状态、命中则跑规则钩子 → post 钩子
-        → 有算子请求关闭（ctx.event.close）就关闭。
+        → 有钩子请求关闭（ctx.event.close）就关闭。
 
         只改内存，不写库（由 runner 存档）。已关闭抛 EventClosedError。
         """
@@ -155,7 +156,7 @@ class Event:
             raise EventClosedError(self._id)
 
         self._run_hooks(
-            self._template.hooks_at("pre"),
+            self._template.mounts_at("pre"),
             ObservationOccasion(mount_point="pre", envelope=envelope),
         )
 
@@ -165,10 +166,10 @@ class Event:
             if result.state is not None:
                 self._condition_state[rule.name] = result.state
             if result.outcome == HIT:
-                self._run_hooks(rule.hooks, RuleHitOccasion(envelope=envelope, result=result))
+                self._run_hooks(rule.mounts, RuleHitOccasion(envelope=envelope, result=result))
 
         self._run_hooks(
-            self._template.hooks_at("post"),
+            self._template.mounts_at("post"),
             ObservationOccasion(mount_point="post", envelope=envelope),
         )
 
@@ -188,7 +189,7 @@ class Event:
         self._in_status_hooks = True
         try:
             self._run_hooks(
-                self._template.hooks_at("status_updated"),
+                self._template.mounts_at("status_updated"),
                 StatusUpdatedOccasion(patch=dict(patch)),
             )
         finally:
@@ -197,7 +198,7 @@ class Event:
     def request_close(self, reason: str) -> None:
         """Ask to close once the current observation has been processed.
 
-        Called by operators through ctx.event.close. Closing right away would stop the
+        Called by hooks through ctx.event.close. Closing right away would stop the
         remaining rules and post hooks mid-observation; process closes at its end.
         The first request's reason wins.
         """
@@ -208,40 +209,41 @@ class Event:
         """跑 closed 钩子后关闭。重复关闭忽略。不写库（由 runner 存档）。"""
         if self.is_closed:
             return
-        self._run_hooks(self._template.hooks_at("closed"), ClosedOccasion())
+        self._run_hooks(self._template.mounts_at("closed"), ClosedOccasion())
         self._closed_at = _now()
         self._close_reason = reason
 
     # ------------------------------------------------------------ 内部
 
-    def _run_hooks(self, hooks: tuple[Hook, ...], occasion: Occasion) -> None:
-        """Run hooks in mount order, each isolated: one that raises is logged, the rest run.
+    def _run_hooks(self, mounts: tuple[Mount, ...], occasion: Occasion) -> None:
+        """Run the mounted hooks in mount order, each isolated: one that raises is logged,
+        the rest run.
 
-        Each operator gets a context built from its declaration: ctx.event only with
+        Each hook gets a context built from its declaration: ctx.event only with
         scopes={"event"}, ctx.propose only with proposes=True.
-        TODO: run operators whose only scope is "external" asynchronously (design doc §3).
+        TODO: run hooks whose only scope is "external" asynchronously (design doc §3).
         """
-        for hook in hooks:
-            operator = hook.operator
-            ctx = OperatorContext(
-                params=hook.params,
+        for mount in mounts:
+            hook = mount.hook
+            ctx = HookContext(
+                params=mount.params,
                 state=self._status,
                 target_names=self._target_names(),
                 parent_id=self._parent_id,
                 event_id=self._id,
                 event=(
                     EventHandle(self.update_status, self.request_close)
-                    if "event" in operator.scopes
+                    if "event" in hook.scopes
                     else None
                 ),
-                propose=self._runtime.suggestion_sink.receive if operator.proposes else None,
+                propose=self._runtime.proposal_sink.receive if hook.proposes else None,
             )
             try:
-                operator.run(occasion, ctx)
+                hook.run(occasion, ctx)
             except Exception:
                 logger.exception(
-                    "operator %s failed at %s on event %s",
-                    operator.name,
+                    "hook %s failed at %s on event %s",
+                    hook.name,
                     occasion.mount_point,
                     self._id,
                 )

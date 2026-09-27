@@ -4,23 +4,11 @@
 与运行时对象（如 EventTemplate.open_tree、EventTemplate.rules）一眼能区分。
 """
 
-from typing import Any
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.condition_engine import ConditionDef
-from core.operators import MountPoint
+from core.hooks import MountDef
 from core.target import ObservableTarget
-
-
-class OperatorMountDef(BaseModel):
-    """在某个挂载点挂一个算子。"""
-
-    model_config = ConfigDict(frozen=True)
-
-    operator: str               # OperatorRegistry 里的算子名
-    mount_point: MountPoint
-    params: dict[str, Any] = Field(default_factory=dict[str, Any])
 
 
 class ObservableDef(BaseModel):
@@ -38,13 +26,13 @@ class ObservableDef(BaseModel):
 
 
 class RuleDef(BaseModel):
-    """规则：子事件运行期间，条件命中时跑哪些算子。"""
+    """规则：子事件运行期间，条件命中时跑哪些钩子。"""
 
     model_config = ConfigDict(frozen=True)
 
     name: str                   # 模板内唯一，条件状态按它分组
     condition_def: ConditionDef
-    hook_defs: list[OperatorMountDef] = Field(default_factory=list[OperatorMountDef])  # 只能挂 rule_hit
+    mount_defs: list[MountDef] = Field(default_factory=list[MountDef])  # 只能挂 rule_hit
 
 
 class TemplateDef(BaseModel):
@@ -62,8 +50,8 @@ class TemplateDef(BaseModel):
     # 开启条件：无活跃子事件时命中才开新子事件（runner 在运行期间也持续评估以保持状态最新）
     open_condition_def: ConditionDef
     rule_defs: list[RuleDef] = Field(min_length=1)
-    # 子事件级钩子：created / closed / pre / status_updated / post（rule_hit 挂在规则上）
-    hook_defs: list[OperatorMountDef] = Field(default_factory=list[OperatorMountDef])
+    # 子事件级挂载：created / closed / pre / status_updated / post（rule_hit 挂在规则上）
+    mount_defs: list[MountDef] = Field(default_factory=list[MountDef])
 
     @property
     def target_ids(self) -> frozenset[str]:

@@ -1,15 +1,13 @@
-from pydantic import ValidationError
-
 from core.condition_engine import (
     ConditionCompileError,
     ConditionCompiler,
     ConditionDef,
     ConditionTree,
 )
-from core.event.definitions import OperatorMountDef, TemplateDef
+from core.event.definitions import TemplateDef
 from core.event.errors import TemplateCompileError
-from core.event.template import CompiledObservable, CompiledRule, EventTemplate, Hook
-from core.operators import OperatorRegistry, UnknownOperatorError
+from core.event.template import CompiledObservable, CompiledRule, EventTemplate
+from core.hooks import Mount, MountCompileError, MountCompiler, MountDef
 from core.target import Observation, TargetError, TargetManager
 
 
@@ -19,11 +17,11 @@ class TemplateCompiler:
     def __init__(
         self,
         condition_compiler: ConditionCompiler,
-        operator_registry: OperatorRegistry,
+        mount_compiler: MountCompiler,
         target_manager: TargetManager,
     ) -> None:
         self._condition_compiler = condition_compiler
-        self._operator_registry = operator_registry
+        self._mount_compiler = mount_compiler
         self._target_manager = target_manager
 
     def compile(self, template_def: TemplateDef) -> EventTemplate:
@@ -53,33 +51,33 @@ class TemplateCompiler:
         rules: list[CompiledRule] = []
         for rule in template_def.rule_defs:
             tree = compile_tree(f"rule {rule.name!r}", rule.condition_def)
-            hooks: list[Hook] = []
-            for i, mount_def in enumerate(rule.hook_defs):
-                where = f"rule {rule.name!r} hook {i}"
+            mounts: list[Mount] = []
+            for i, mount_def in enumerate(rule.mount_defs):
+                where = f"rule {rule.name!r} mount {i}"
                 if mount_def.mount_point != "rule_hit":
-                    errors.append(f"{where}: rule hooks must mount at 'rule_hit'")
+                    errors.append(f"{where}: rule mounts must be at 'rule_hit'")
                     continue
-                hook = self._compile_hook(mount_def, where, errors)
-                if hook is not None:
-                    hooks.append(hook)
+                mount = self._compile_mount(mount_def, where, errors)
+                if mount is not None:
+                    mounts.append(mount)
             if tree is not None:
-                rules.append(CompiledRule(rule.name, tree, tuple(hooks)))
+                rules.append(CompiledRule(rule.name, tree, tuple(mounts)))
 
-        template_hooks: list[Hook] = []
-        for i, mount_def in enumerate(template_def.hook_defs):
-            where = f"hook {i}"
+        template_mounts: list[Mount] = []
+        for i, mount_def in enumerate(template_def.mount_defs):
+            where = f"mount {i}"
             if mount_def.mount_point == "rule_hit":
-                errors.append(f"{where}: 'rule_hit' hooks belong on a rule")
+                errors.append(f"{where}: 'rule_hit' mounts belong on a rule")
                 continue
-            hook = self._compile_hook(mount_def, where, errors)
-            if hook is not None:
-                template_hooks.append(hook)
+            mount = self._compile_mount(mount_def, where, errors)
+            if mount is not None:
+                template_mounts.append(mount)
 
         if errors or open_tree is None:
             raise TemplateCompileError(errors)
         compiled_observables = self._compile_observables(template_def)
         return EventTemplate(
-            template_def, compiled_observables, open_tree, tuple(rules), tuple(template_hooks)
+            template_def, compiled_observables, open_tree, tuple(rules), tuple(template_mounts)
         )
 
     def _check_observables(
@@ -115,33 +113,18 @@ class TemplateCompiler:
             for o in template_def.observable_defs
         )
 
-    def _compile_hook(
-        self, mount_def: OperatorMountDef, where: str, errors: list[str]
-    ) -> Hook | None:
-        """Check an operator mount and compile it into a hook.
-
-        Checks that the operator exists, that it can be mounted at this mount point and
-        that the parameters are valid against its params_model.
+    def _compile_mount(self, mount_def: MountDef, where: str, errors: list[str]) -> Mount | None:
+        """Compile a mount with the MountCompiler, collecting its errors instead of raising.
 
         Args:
-            mount_def: The operator mount as written in the template.
-            where: Location prefix for error messages (e.g. "rule 'enter' hook 0").
+            where: Location prefix for error messages (e.g. "rule 'enter' mount 0").
             errors: Collects every error found. Appended to; nothing is raised.
 
         Returns:
-            The hook, or None if any check failed.
+            The mount, or None if it did not compile.
         """
         try:
-            operator = self._operator_registry.get(mount_def.operator)
-        except UnknownOperatorError:
-            errors.append(f"{where}: unknown operator {mount_def.operator!r}")
+            return self._mount_compiler.compile(mount_def)
+        except MountCompileError as e:
+            errors.extend(f"{where}: {msg}" for msg in e.errors)
             return None
-        if mount_def.mount_point not in operator.mount_points:
-            errors.append(f"{where}: {operator.name} cannot mount at {mount_def.mount_point!r}")
-            return None
-        try:
-            params = operator.params_model.model_validate(mount_def.params)
-        except ValidationError as e:
-            errors.append(f"{where}: invalid params for {operator.name}: {e}")
-            return None
-        return Hook(operator, params, mount_def.mount_point)

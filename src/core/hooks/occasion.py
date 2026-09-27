@@ -1,7 +1,7 @@
-"""Occasions: why an operator is being run — at which mount point, and what happened there.
+"""Occasions: why a hook is being run — at which mount point, and what happened there.
 
-One type per mount point, so an operator can match on it and get fields that are always
-set (no Optional). Pydantic so an occasion can later travel with an async output operator
+One type per mount point, so a hook can match on it and get fields that are always
+set (no Optional). Pydantic so an occasion can later travel with an async output hook
 through a queue.
 """
 
@@ -41,7 +41,7 @@ class RuleHitOccasion(BaseModel):
 
 
 class StatusUpdatedOccasion(BaseModel):
-    """The event's status was updated by a progress operator."""
+    """The event's status was updated by a hook with the event scope."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -65,4 +65,4 @@ Occasion = Annotated[
     | ClosedOccasion,
     Field(discriminator="mount_point"),
 ]
-"""Why an operator is being run; tell the kinds apart with match / isinstance."""
+"""Why a hook is being run; tell the kinds apart with match / isinstance."""

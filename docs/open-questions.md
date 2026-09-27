@@ -7,7 +7,7 @@
 ### 1. 子事件模型的遗留项
 
 第 1 条主体已决并实现（见「已决」），剩余：
-- 关闭条件是否在模板里显式声明（现由声明了 `scopes={"event"}` 的算子经 `ctx.event.close(reason)` 请求关闭；年度事件「何时算结束」是关键问题）。
+- 关闭条件是否在模板里显式声明（现由声明了 `scopes={"event"}` 的钩子经 `ctx.event.close(reason)` 请求关闭；年度事件「何时算结束」是关键问题）。
 
 ### 2. `ObservableTargetRepository` 是否保留
 
@@ -18,7 +18,7 @@
 ### 3. UpstreamAdapter 与 Target 子类的对应关系只靠约定
 
 **已解决**：观察点与目标类型解耦后，UpstreamAdapter 不再引用目标类型（见「已决 · 观察点」）；查询也不再靠字段名
-约定（见「已决 · 查询键」）。`UpstreamAdapter` / `Operator` 已改为基类，注册时检查类属性声明；UpstreamAdapter 直接构造
+约定（见「已决 · 查询键」）。`UpstreamAdapter` / `Hook` 已改为基类，注册时检查类属性声明；UpstreamAdapter 直接构造
 观测实例，collector 检查其类型。剩余可做的是 UpstreamAdapter 契约测试基类（跑一次 fetch，检查 source_id 不重复、
 since 之前的不返回），等往外分插件任务时再搭。
 
@@ -73,7 +73,7 @@ since 之前的不返回），等往外分插件任务时再搭。
 待定点——
 - 没有触发数据：`cycle` 由谁给（分析师指定 / 取当前年份），开启时的第一条观测从哪来（等下一条观测到来再处理）；
 - 已有活跃子事件时拒绝还是忽略；
-- 是否也开放给 hil（提建议的算子提议「开启本周期」，经分析师确认），即加入白名单动作；
+- 是否也开放给 hil（能提议的钩子提议「开启本周期」，经分析师确认），即加入白名单动作；
 - 记录谁、为什么手动开启，便于审计。
 
 ### 9. 可观测目标的可用上游是快照，会过时
@@ -143,40 +143,48 @@ class RadarAdapter(UpstreamAdapter): ...
 
 - 模板 ID 全局还是按父事件区分（现为全局：`TemplateRepository` 只按 template_id 存取）。
 - `EvalResult.outcome`、`Draft.status` 的中文字面值是否对外改为英文枚举。
-- 父事件级算子：已去掉 `Level`（原「父事件级」挂载没有任何触发点）；真需要时按那时的需求重新设计挂载点和触发。
+- 父事件级钩子：已去掉 `Level`（原「父事件级」挂载没有任何触发点）；真需要时按那时的需求重新设计挂载点和触发。
 - 校准钩子的挂载点（设计文档待办）。
-- 异步执行算子：只声明了 `external` 作用域的算子不读也不改监控状态，可以入队异步执行（`Event._run_hooks` 里的 TODO）；队列选型待定（Celery+Redis vs arq）。
+- 异步执行钩子：只声明了 `external` 作用域的钩子不读也不改监控状态，可以入队异步执行（`Event._run_hooks` 里的 TODO）；队列选型待定（Celery+Redis vs arq）。
 - `SubEventSlot.on_data()` 中实例 `process()` 中途异常：内存里的实例状态已部分改动但未存库，内存与库不一致。
 - report 模块是否开 pyright strict。
 - 设计文档第八、九节与代码同步。
 
 ## 已决
 
-- **算子按「作用域 × 是否提建议」声明**（原第 12 条，取代四个类别）：
-  - 两个正交的维度：直接作用于哪些**作用域**，能否**提建议**（经 hil 审核后生效，影响哪块由提议的动作决定）。
+- **统一命名：钩子（hook）、挂载（mount）、提议（proposal）**：
+  - 算子（operator）一律改叫钩子：`core/hooks`、`plugins/hooks`、`Hook` / `@hook` / `HookContext` / `HookRegistry`。
+  - 挂载的定义和编译产物挪进 hooks（原来在 event）：`MountDef`（原 `OperatorMountDef`，字段 `hook` 原 `operator`）→
+    `MountCompiler` → `Mount`（原 event 里的 `Hook`）；模板字段 `hook_defs` 改为 `mount_defs`。
+    `MountCompiler` 只对照钩子自己的声明检查；`rule_hit` 只能挂在规则上这类模板结构规则仍由模板编译器管，
+    与条件引擎的分工一致（`ConditionCompiler` 在 condition_engine，模板编译器调用它）。
+  - 建议（suggestion）一律改叫提议：`Proposal` 拍平（原 `Suggestion` 套 `Proposal`，现在 `action` / `target` / `args`
+    直接在 `Proposal` 上），`ProposalSink`、`ProposalRepository`、`ProposalNotFoundError`。
+- **钩子按「作用域 × 是否提议」声明**（原第 12 条，取代四个类别）：
+  - 两个正交的维度：直接作用于哪些**作用域**，能否**提议**（经 hil 审核后生效，影响哪块由提议的动作决定）。
   - 作用域：`external`（系统外部：报告、通知，直接生效；若有审核是外部模块自己的事）/ `event`（子事件：状态、关闭）/
     `parent`（父事件：目标命名空间、模板）/ `target`（目标记录）。直接作用只开放 `external` 和 `event`，
-    `parent` / `target` 只能经提建议——`@operator` 声明时就拒绝。condition 不是作用域（无状态，条件状态由求值推进，
+    `parent` / `target` 只能经提议——`@hook` 声明时就拒绝。condition 不是作用域（无状态，条件状态由求值推进，
     外部不该碰）；collector 的游标、观测也不开放。
-  - 声明：`@operator(mount_points=..., scopes=..., proposes=...)`，`name` 默认类名首字母小写，参数模型取泛型参数
-    `Operator[CountHitsParams]`。上下文 `OperatorContext` 按声明组装：`ctx.event`（`update_status`、`close`）要
+  - 声明：`@hook(mount_points=..., scopes=..., proposes=...)`，`name` 默认类名首字母小写，参数模型取泛型参数
+    `Hook[CountHitsParams]`。上下文 `HookContext` 按声明组装：`ctx.event`（`update_status`、`close`）要
     `scopes={"event"}`，`ctx.propose` 要 `proposes=True`，用了没声明的能力抛 `UndeclaredCapabilityError`；只读信息
     （参数、状态副本、目标名、父事件 / 子事件 ID）始终都有。对外输出通道构造时注入，不进上下文。
     去掉 `Category`（推进 = `scopes={"event"}`，发现 / 校正 = `proposes=True`，输出 = `scopes={"external"}`）和 `Level`。
   - 关闭：`ctx.event.close(reason)` 请求关闭，本条观测处理完（其余规则、post 钩子跑完）才关闭；取代 `status["closed"]` 魔法键。
-  - 挂载编译成 `Hook`（算子实例 + 有类型的参数 + 挂载点），挂载检查（算子存在、挂载点、参数）由模板编译器
-    `_compile_hook` 做，注册表只注册、查找；运行时不再按名字查算子，`EventRuntime` 不再持有算子注册表；
-    `CompiledRule.hooks` / `EventTemplate.hooks_at` 返回 `Hook`，运行时对象里不再装 Def。
-  - import-linter：插件不依赖 `core.event` / `api` / `persistence`——改子事件只能经上下文，父事件 / 目标只能提建议。
-  - 只声明 `external` 的算子不碰监控状态，可作为以后异步执行的依据。
+  - 挂载编译成 `Mount`（钩子实例 + 有类型的参数 + 挂载点），挂载检查（钩子存在、挂载点、参数）由 hooks 的
+    `MountCompiler` 做，注册表只注册、查找；运行时不再按名字查钩子，`EventRuntime` 不再持有钩子注册表；
+    `CompiledRule.mounts` / `EventTemplate.mounts_at` 返回 `Mount`，运行时对象里不再装 Def。
+  - import-linter：插件不依赖 `core.event` / `api` / `persistence`——改子事件只能经上下文，父事件 / 目标只能提议。
+  - 只声明 `external` 的钩子不碰监控状态，可作为以后异步执行的依据。
 
-- **算子的调用时机 `Occasion`**（原 `Trigger`）：它只是一条记录——算子这次在哪个挂载点、因为什么被调用，附带当时的数据；
+- **钩子的调用时机 `Occasion`**（原 `Trigger`）：它只是一条记录——钩子这次在哪个挂载点、因为什么被调用，附带当时的数据；
   按挂载点分类型组成可辨识联合（以 `mount_point` 区分），字段不再是「可能为 None」：`CreatedOccasion` /
   `ObservationOccasion`（pre、post：envelope）/ `RuleHitOccasion`（envelope + result）/ `StatusUpdatedOccasion`（patch）/
-  `ClosedOccasion`；`run(occasion, ctx)`，算子用 `match` / `isinstance` 分支。`MountPoint` 挪到 `operator.py`，
-  `trigger.py` 改为 `occasion.py`（`Category` / `Level` 后来去掉，见下条「算子按作用域 × 是否提建议声明」）。
-  与原设想不同：「只挂 `rule_hit` 的算子直接声明只收 `RuleHitOccasion`」没有做——子类收窄参数类型违反覆写规则
-  （pyright 报错），要做得让 `Operator` 再对时机类型泛型化，暂不值得。
+  `ClosedOccasion`；`run(occasion, ctx)`，钩子用 `match` / `isinstance` 分支。`MountPoint` 挪到 `hook.py`，
+  `trigger.py` 改为 `occasion.py`（`Category` / `Level` 后来去掉，见下条「钩子按作用域 × 是否提议声明」）。
+  与原设想不同：「只挂 `rule_hit` 的钩子直接声明只收 `RuleHitOccasion`」没有做——子类收窄参数类型违反覆写规则
+  （pyright 报错），要做得让 `Hook` 再对时机类型泛型化，暂不值得。
 
 - **条件引用范围：event 决定范围，条件编译器按范围检查**（审阅 `_compile_leaf` 时讨论，不把范围检查挪到模板编译器）：
   模板编译器根据可观测目标声明组装 `declared_observables`（范围 + 每个的观测类），条件编译器对每个叶子做一次查找，
@@ -186,7 +194,7 @@ class RadarAdapter(UpstreamAdapter): ...
 
 - **条件节点统一为 kind + op + 操作对象**：`OpDef` / `OpNode` → `BranchDef` / `BranchNode`（`kind: "branch"`）；叶子的
   `type` → `op`（引用 `Evaluator.op`，原 `Evaluator.type`，顺带去掉了遮蔽内置 `type` 的写法）；条件留痕的 `"type"` 键 → `"op"`。
-  叶子的参数叫 `criteria`（判定标准），`Evaluator.evaluate(observation, occurred_at, state, criteria)`（后又收窄：不再传观测外壳）；算子挂载的 `params` 不变。
+  叶子的参数叫 `criteria`（判定标准），`Evaluator.evaluate(observation, occurred_at, state, criteria)`（后又收窄：不再传观测外壳）；钩子挂载的 `params` 不变。
 
 - **条件状态：结果直接给新状态，不给补丁**：`EvalResult.state_patch` 改为 `state`，含义在两层一致——「求值对象的新状态，
   `None` 表示没变」：判断方式返回本叶子的完整新状态，`ConditionTree.evaluate` 返回整棵树的新状态。`apply_state_patch`
@@ -211,7 +219,7 @@ class RadarAdapter(UpstreamAdapter): ...
   文档时代模板没有可观测目标声明，条件引擎只能自己去问 target；有了可观测目标声明，调用方手里已有这份信息。
 
 - **静态定义与运行时对象的命名约定**：纯数据定义的类型以 `Def` 结尾（`TemplateDef`、`RuleDef`、
-  `ObservableDef`、`OperatorMountDef`）；装着 `Def` 的字段以 `_def` / `_defs` 结尾（`observable_defs`、
+  `ObservableDef`、`MountDef`）；装着 `Def` 的字段以 `_def` / `_defs` 结尾（`observable_defs`、
   `open_condition_def`、`rule_defs`、`hook_defs`、`condition_def`）；运行时对象不带后缀（如
   `EventTemplate.open_tree`、`EventTemplate.rules` 返回的 `CompiledRule`）。条件引擎契约
   `LeafDef` / `OpDef` 的 `children` 按设计文档第八节照抄，不改。（后来 `OpDef` 改名 `BranchDef`，见下条「条件节点统一」。）
@@ -222,12 +230,12 @@ class RadarAdapter(UpstreamAdapter): ...
 - **依赖按具体类型命名**：构造参数、依赖字段一律用类型名的 snake_case，不用复数名词或抽象称呼——
   `TargetManager` → `target_manager`、`TemplateRepository` → `template_repository`、
   `EvaluatorRegistry` → `evaluator_registry`、`UpstreamCatalog` → `upstream_catalog`。
-  接口类型按接口名（`SuggestionSink` → `suggestion_sink`，实际装的是 `HilManager`）。
+  接口类型按接口名（`ProposalSink` → `proposal_sink`，实际装的是 `HilManager`）。
   `bootstrap.Repositories` / `App` 的字段同样处理。
 - **event 模块命名**：`ParentEvent` 不变；`SubEventSlot` → `EventRunner`，`SubEventTemplate` →
   `EventTemplate`，`SubEventInstance` → `Event`（子事件）。随之：`InstanceRecord` / `InstanceRepository` /
   `InstanceClosedError` → `EventRecord` / `EventRepository` / `EventClosedError`；`SlotStateRepository` →
-  `RunnerStateRepository`；`EventManager` → `ParentEventManager`（它管的是父事件）；算子层级 `Level`
+  `RunnerStateRepository`；`EventManager` → `ParentEventManager`（它管的是父事件）；钩子层级 `Level`
   取值 `"instance"` → `"event"`，上下文 `instance_id` → `event_id`。下文历史条目里的 slot / 实例
   即 EventRunner / Event。
 - **叶子字段命名**：设计文档第八节的 `LeafDef.target` → `observable`（填的是可观测目标 ID，如 `t1:position`，
@@ -237,7 +245,7 @@ class RadarAdapter(UpstreamAdapter): ...
 
 - **子事件模型（原第 1 条，已实现）**：保留模板。
   - 父事件（静态）：静态目标命名空间（target_id 集合）+ 静态模板集合 + `digest()`；不订阅任何东西。
-  - 模板（静态、不可变、带版本）：可观测目标声明（目标 + 观察点 + 上游）、开启条件（必填）、规则、算子挂载。
+  - 模板（静态、不可变、带版本）：可观测目标声明（目标 + 观察点 + 上游）、开启条件（必填）、规则、钩子挂载。
     条件树引用的可观测目标必须在可观测目标声明里；观测的目标必须在父事件命名空间里；上游在装入时检查可用。
   - slot（运行时，每个模板一个）：按可观测目标声明订阅，自己就是订阅者；每条数据都评估开启条件并持久化其状态；
     无活跃实例且开启条件命中时开实例并把该条数据交给它；同一模板最多一个活跃实例。
@@ -248,8 +256,8 @@ class RadarAdapter(UpstreamAdapter): ...
 
 - **数据定义放哪**：每个定义回到所属模块，不设公共 contracts 包（曾经设过，后撤销）。
   `LeafDef` / `OpDef` / `ConditionDef` / `EvalResult` → condition_engine；`QuerySpec` / `DynamicData` → target；
-  `Trigger` / `Category` / `Level` / `MountPoint` → operators；`Suggestion` / `Proposal` → hil；`Draft` → report。
-  代价：operators 由设计文档的「零依赖」改为依赖 target / condition_engine / hil（均不反向依赖它，无环）。
+  `Trigger` / `Category` / `Level` / `MountPoint` → hooks；`Proposal` → hil；`Draft` → report。
+  代价：hooks 由设计文档的「零依赖」改为依赖 target / condition_engine / hil（均不反向依赖它，无环）。
 - **目标类型写法**：去掉 `TargetType`，每种目标类型继承 `Target` 基类；目标类型只由开发者通过代码定义。
 - **观察点（取代「关注点」与「动态数据 schema」）**：观察点与目标类型解耦，不同目标类型可共用。
   - `ObservedPoint` 子类（如 `Position`）就是观测 `fields` 的 schema，放在 `plugins/observed_points/`；
@@ -269,7 +277,7 @@ class RadarAdapter(UpstreamAdapter): ...
   - 挑查询方式是基类方法 `UpstreamAdapter.choose_query(目标能提供的查询键)`，只接收查询键、不接收目标本身；
     判断可用上游和实际采集都用它，保证一致；
   - 一种查询方式可以联立多个查询键（`frozenset({B, C})`），缺一个就不满足、退到下一种。
-- **插件接口用基类，不用协议**：`UpstreamAdapter`、`Operator` 与 `Evaluator` 一样是 ABC 基类，类属性的类型在基类里
+- **插件接口用基类，不用协议**：`UpstreamAdapter`、`Hook` 与 `Evaluator` 一样是 ABC 基类，类属性的类型在基类里
   声明，插件直接赋值（`category = "progress"`），不必逐个标注，也不会踩「协议是只读属性、pyright 不认 ClassVar」的坑；
   注册时检查类属性是否都声明了。`FetchedRecord` 直接装观测实例（原为字段 dict），字段写错在 UpstreamAdapter 里当场报错。
 - **声明用装饰器**：目标类型、观察点、查询键都用装饰器声明（`@target_type` / `@observed_point` / `@query_key`），

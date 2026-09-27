@@ -169,7 +169,7 @@ class ParentEvent:
     # ------------------------------------------------------------ 报告
 
     def digest(self) -> Draft:
-        """定时触发的汇总（原生方法，不是算子）：写进本父事件最近一份仍是“草稿”的报告，没有就新建。"""
+        """定时触发的汇总（原生方法，不是钩子）：写进本父事件最近一份仍是“草稿”的报告，没有就新建。"""
         reports = self._services.report_manager
         drafts = [d for d in reports.list_by_parent(self._id) if d.status == DRAFT]
         latest = max(drafts, key=lambda d: d.updated_at, default=None)

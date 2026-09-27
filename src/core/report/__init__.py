@@ -2,7 +2,7 @@
 
 负责：草稿 →（分析师接手）编辑中 →（发出）已发出；机器只能写“草稿”状态。
 对外：ReportManager（write 给机器、edit / send 给分析师）、Draft、DraftRepository。
-依赖：无。调用方是父事件的 digest() 和报告类算子。
+依赖：无。调用方是父事件的 digest() 和报告类钩子。
 """
 
 from core.report.draft import DRAFT, EDITING, SENT, Draft, DraftStatus

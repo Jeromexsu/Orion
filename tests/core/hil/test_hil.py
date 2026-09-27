@@ -7,24 +7,23 @@ from core.hil import (
     DuplicateActionError,
     HilManager,
     Proposal,
-    Suggestion,
-    SuggestionNotFoundError,
+    ProposalNotFoundError,
 )
-from tests.core.hil.fakes import InMemorySuggestionRepository
+from tests.core.hil.fakes import InMemoryProposalRepository
 
 
-def suggestion(action: str = "add_target", **args: Any) -> Suggestion:
-    return Suggestion(
+def proposal(action: str = "add_target", **args: Any) -> Proposal:
+    return Proposal(
         source="alias_finder",
         reason="同一注册号出现新呼号",
         evidence=["adsb#881"],
-        proposal=Proposal(action=action, target="p1", args=args),
+        action=action, target="p1", args=args,
     )
 
 
 class Env:
     def __init__(self) -> None:
-        self.repo = InMemorySuggestionRepository()
+        self.repo = InMemoryProposalRepository()
         self.hil = HilManager(self.repo)
         self.calls: list[tuple[str | None, dict[str, Any]]] = []
         self.hil.allow("add_target", self.add_target)
@@ -49,12 +48,12 @@ def test_whitelist(env: Env) -> None:
 
 def test_receive_rejects_unknown_actions(env: Env) -> None:
     with pytest.raises(ActionNotAllowedError):
-        env.hil.receive(suggestion("drop_database"))
+        env.hil.receive(proposal("drop_database"))
     assert env.hil.pending() == []
 
 
 def test_accept_calls_action_with_analyst_overrides(env: Env) -> None:
-    s = suggestion(target_id="t2", observed_point="position")
+    s = proposal(target_id="t2", observed_point="position")
     env.hil.receive(s)
     assert env.hil.pending() == [s]
 
@@ -62,12 +61,12 @@ def test_accept_calls_action_with_analyst_overrides(env: Env) -> None:
     assert env.calls == [("p1", {"target_id": "t3", "observed_point": "position"})]
     assert env.repo.resolved == {s.id: True}
     assert env.hil.pending() == []
-    with pytest.raises(SuggestionNotFoundError):
+    with pytest.raises(ProposalNotFoundError):
         env.hil.accept(s.id)
 
 
-def test_failed_action_keeps_suggestion_pending(env: Env) -> None:
-    s = suggestion(target_id="t2", observed_point="invalid")
+def test_failed_action_keeps_proposal_pending(env: Env) -> None:
+    s = proposal(target_id="t2", observed_point="invalid")
     env.hil.receive(s)
     with pytest.raises(ValueError):
         env.hil.accept(s.id)
@@ -75,9 +74,9 @@ def test_failed_action_keeps_suggestion_pending(env: Env) -> None:
 
 
 def test_reject_is_recorded(env: Env) -> None:
-    s = suggestion()
+    s = proposal()
     env.hil.receive(s)
     env.hil.reject(s.id)
     assert env.repo.resolved == {s.id: False}
-    with pytest.raises(SuggestionNotFoundError):
+    with pytest.raises(ProposalNotFoundError):
         env.hil.reject(s.id)

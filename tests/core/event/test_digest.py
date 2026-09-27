@@ -33,12 +33,12 @@ def test_digest_all_isolates_failures(env: Env) -> None:
     assert len(env.drafts.items) == 2
 
 
-def test_close_report_operator_writes_draft(env: Env) -> None:
+def test_close_report_hook_writes_draft(env: Env) -> None:
     parent = env.parent_events.create("p1", "东海方向")
     parent.add_target("t1")
     parent.upsert_template(
         TemplateDef.model_validate(
-            template(threshold=1, hooks=[mount("closeReport", "closed", title="进入告警")])
+            template(threshold=1, mounts=[mount("closeReport", "closed", title="进入告警")])
         )
     )
     parent.runner("enter-zone").on_observation(env.envelope(20, 20))

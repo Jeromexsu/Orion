@@ -1,4 +1,4 @@
-"""端到端：collector 采集 → 可观测目标 publish → runner（开启条件）→ 实例（规则 → 推进算子）→ 收敛。"""
+"""端到端：collector 采集 → 可观测目标 publish → runner（开启条件）→ 实例（规则 → 推进钩子）→ 收敛。"""
 
 from datetime import UTC, datetime
 

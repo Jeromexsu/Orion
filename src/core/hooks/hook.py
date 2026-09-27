@@ -1,4 +1,4 @@
-"""The operator extension point: the Operator base class and @operator."""
+"""The hook extension point: the Hook base class and @hook."""
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable
@@ -6,15 +6,15 @@ from typing import Any, ClassVar, Generic, Literal, TypeVar, get_args, get_origi
 
 from pydantic import BaseModel
 
-from core.operators.context import OperatorContext
-from core.operators.occasion import Occasion
+from core.hooks.context import HookContext
+from core.hooks.occasion import Occasion
 
 # 挂载点是核心结构事实，固定这几个：
-#   生命周期 created / closed · 数据进入 pre（不算条件，启发算子专用）
+#   生命周期 created / closed · 数据进入 pre（不算条件，启发钩子专用）
 #   条件命中 rule_hit · 状态变更后 status_updated · 后置 post
 MountPoint = Literal["created", "closed", "pre", "rule_hit", "status_updated", "post"]
 
-# 作用域：算子影响哪一块。external 是系统外部（报告、通知）；event / parent / target 是监控运行状态
+# 作用域：钩子影响哪一块。external 是系统外部（报告、通知）；event / parent / target 是监控运行状态
 Scope = Literal["external", "event", "parent", "target"]
 
 # 可以直接作用的作用域；parent / target 只能经审核（proposes=True）改动
@@ -24,29 +24,29 @@ P = TypeVar("P", bound=BaseModel)
 
 
 class NoParams(BaseModel):
-    """Parameters of an operator that takes none."""
+    """Parameters of a hook that takes none."""
 
 
-class Operator(ABC, Generic[P]):
-    """算子：挂在子事件生命周期上的动作。每种一个子类，放在 plugins/operators/ 下，用 @operator 声明：
+class Hook(ABC, Generic[P]):
+    """钩子：挂在子事件生命周期上的动作。每种一个子类，放在 plugins/hooks/ 下，用 @hook 声明：
 
-        @operator(mount_points={"rule_hit"}, scopes={"event"})
-        class CountHits(Operator[CountHitsParams]):
+        @hook(mount_points={"rule_hit"}, scopes={"event"})
+        class CountHits(Hook[CountHitsParams]):
             def run(self, occasion, ctx): ...
 
-    两个正交的维度：直接作用于哪些作用域（scopes，只能是 external / event），能不能提建议
-    （proposes，经审核后生效，影响哪个作用域由提议的动作决定）。什么都不声明的算子不影响系统。
+    两个正交的维度：直接作用于哪些作用域（scopes，只能是 external / event），能不能提议
+    （proposes，经审核后生效，影响哪个作用域由提议的动作决定）。什么都不声明的钩子不影响系统。
     name 默认类名首字母小写（CountHits → "countHits"）；参数模型取泛型参数（CountHitsParams）。
     """
 
-    name: ClassVar[str]                             # 由 @operator 设置；模板里按名字引用
-    mount_points: ClassVar[frozenset[MountPoint]]   # 由 @operator 设置；可以挂在哪些挂载点
-    scopes: ClassVar[frozenset[Scope]]              # 由 @operator 设置；直接作用于哪些作用域
-    proposes: ClassVar[bool]                        # 由 @operator 设置；能否提建议（经审核）
-    params_model: ClassVar[type[BaseModel]]         # 由 @operator 设置；挂载参数的形状
+    name: ClassVar[str]                             # 由 @hook 设置；模板里按名字引用
+    mount_points: ClassVar[frozenset[MountPoint]]   # 由 @hook 设置；可以挂在哪些挂载点
+    scopes: ClassVar[frozenset[Scope]]              # 由 @hook 设置；直接作用于哪些作用域
+    proposes: ClassVar[bool]                        # 由 @hook 设置；能否提议（经审核）
+    params_model: ClassVar[type[BaseModel]]         # 由 @hook 设置；挂载参数的形状
 
     @abstractmethod
-    def run(self, occasion: Occasion, ctx: OperatorContext[P]) -> None:
+    def run(self, occasion: Occasion, ctx: HookContext[P]) -> None:
         """Run once.
 
         Args:
@@ -58,10 +58,10 @@ class Operator(ABC, Generic[P]):
         ...
 
 
-O = TypeVar("O", bound=Operator[Any])
+O = TypeVar("O", bound=Hook[Any])
 
 
-def operator(
+def hook(
     *,
     mount_points: Iterable[MountPoint],
     scopes: Iterable[Scope] = (),
@@ -69,7 +69,7 @@ def operator(
     name: str | None = None,
     params: type[BaseModel] | None = None,
 ) -> Callable[[type[O]], type[O]]:
-    """Declare an operator.
+    """Declare a hook.
 
     Args:
         mount_points: Where it can be mounted (at least one).
@@ -80,7 +80,7 @@ def operator(
         name: Name templates refer to it by. Defaults to the class name with its first
             letter lowered (CountHits -> "countHits").
         params: The mount parameter model. Defaults to the generic argument of the base
-            (Operator[CountHitsParams] -> CountHitsParams).
+            (Hook[CountHitsParams] -> CountHitsParams).
 
     Raises:
         TypeError: If the declaration is incomplete or asks for a scope that can only
@@ -100,7 +100,7 @@ def operator(
             )
         model = params if params is not None else _params_argument(cls)
         if model is None:
-            raise TypeError(f"{cls.__name__}: subclass Operator[SomeParams] or pass params=...")
+            raise TypeError(f"{cls.__name__}: subclass Hook[SomeParams] or pass params=...")
         cls.name = name if name is not None else cls.__name__[:1].lower() + cls.__name__[1:]
         cls.mount_points = points
         cls.scopes = declared
@@ -113,7 +113,7 @@ def operator(
 
 def _params_argument(cls: type[Any]) -> type[BaseModel] | None:
     for base in getattr(cls, "__orig_bases__", ()):
-        if get_origin(base) is Operator:
+        if get_origin(base) is Hook:
             (argument,) = get_args(base)
             if isinstance(argument, type) and issubclass(argument, BaseModel):
                 return argument

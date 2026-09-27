@@ -1,6 +1,6 @@
 from core.event.compiler import TemplateCompiler
 from core.event.repository import EventRepository, RunnerStateRepository, TemplateRepository
-from core.operators import SuggestionSink
+from core.hooks import ProposalSink
 from core.report import ReportManager
 from core.target import TargetManager
 
@@ -15,11 +15,11 @@ class EventRuntime:
         self,
         event_repository: EventRepository,
         runner_state_repository: RunnerStateRepository,
-        suggestion_sink: SuggestionSink,
+        proposal_sink: ProposalSink,
     ) -> None:
         self.event_repository = event_repository  # runner：存取子事件记录
         self.runner_state_repository = runner_state_repository  # runner：开启条件状态
-        self.suggestion_sink = suggestion_sink  # 子事件：算子提的建议
+        self.proposal_sink = proposal_sink  # 子事件：钩子提的提议
 
 
 class ParentEventServices:

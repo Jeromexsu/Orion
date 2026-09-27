@@ -13,7 +13,7 @@ def _now() -> datetime:
 class ReportManager:
     """报告草稿的生命周期：草稿 →（分析师接手）编辑中 →（发出）已发出。
 
-    write() 是机器入口：只能被报告类算子或 ParentEvent.digest() 调用，只写“草稿”状态。
+    write() 是机器入口：只能被报告类钩子或 ParentEvent.digest() 调用，只写“草稿”状态。
     edit() / send() 是分析师入口，由 API 层调用。
     """
 

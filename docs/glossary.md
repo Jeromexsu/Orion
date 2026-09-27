@@ -26,19 +26,19 @@
 | 术语 | 代码 | 含义 |
 |---|---|---|
 | 父事件 | `ParentEvent` | 静态：目标命名空间（target_id 集合）+ 模板集合 + `digest()`；自己不订阅 |
-| 模板 | `EventTemplate`（定义为 `TemplateDef`） | 静态、不可变、带版本：可观测目标声明、开启条件、规则、算子挂载 |
+| 模板 | `EventTemplate`（定义为 `TemplateDef`） | 静态、不可变、带版本：可观测目标声明、开启条件、规则、钩子挂载 |
 | 可观测目标声明 | `ObservableDef` | 模板要观测的 (target_id, observed_point) 及订阅哪些上游 |
 | runner | `EventRunner` | 运行中的模板：按可观测目标声明订阅，评估开启条件，管理子事件生命周期（开启、换版本、存档） |
 | 子事件 | `Event` | 模板的一次运行（一个周期）；同一模板同时最多一个 |
 | 周期 | `cycle` | 子事件的周期标识：触发开启的那条数据发生的年份。子事件是以年为周期重复发生的事情 |
 | 开启条件 | `open_condition_def` / `EventTemplate.open_tree` | 无活跃子事件时命中才开新子事件 |
-| 规则 | `RuleDef` / `CompiledRule` | 子事件运行期间逐条评估的条件，命中时触发挂在它上面的算子 |
-| 算子 | `Operator`（用 `@operator` 声明） | 挂在子事件生命周期上的动作；按「作用域 × 是否提建议」声明能做什么 |
-| 作用域 | `Scope`：`external` / `event` / `parent` / `target` | 算子影响哪一块。直接作用只开放 `external`（系统外部）和 `event`（子事件）；`parent`（父事件）/ `target`（目标）只能提建议 |
-| 提建议 | `proposes=True` → `ctx.propose(...)` | 交给 hil，分析师确认后才执行；影响哪个作用域由提议的动作决定 |
-| 挂载 / 钩子 | `OperatorMountDef`（定义）/ `Hook`（编译后） | 在某个挂载点挂一个算子，带参数；编译成持有算子实例和有类型参数的 `Hook` |
-| 调用时机 | `Occasion`（`CreatedOccasion` / `ObservationOccasion` / `RuleHitOccasion` / `StatusUpdatedOccasion` / `ClosedOccasion`） | 算子为什么被调用：在哪个挂载点、当时发生了什么 |
-| 算子上下文 | `OperatorContext` | 算子运行时拿到的：参数、只读信息，以及声明过的能力（`ctx.event`、`ctx.propose`） |
+| 规则 | `RuleDef` / `CompiledRule` | 子事件运行期间逐条评估的条件，命中时触发挂在它上面的钩子 |
+| 钩子 | `Hook`（用 `@hook` 声明） | 挂在子事件生命周期上的动作；按「作用域 × 是否提议」声明能做什么 |
+| 作用域 | `Scope`：`external` / `event` / `parent` / `target` | 钩子影响哪一块。直接作用只开放 `external`（系统外部）和 `event`（子事件）；`parent`（父事件）/ `target`（目标）只能提议 |
+| 提议 | `proposes=True` → `ctx.propose(...)` | 交给 hil，分析师确认后才执行；影响哪个作用域由提议的动作决定 |
+| 挂载 | `MountDef`（定义）/ `Mount`（编译后，`MountCompiler`） | 在某个挂载点挂一个钩子，带参数；编译成持有钩子实例和有类型参数的 `Mount` |
+| 调用时机 | `Occasion`（`CreatedOccasion` / `ObservationOccasion` / `RuleHitOccasion` / `StatusUpdatedOccasion` / `ClosedOccasion`） | 钩子为什么被调用：在哪个挂载点、当时发生了什么 |
+| 钩子上下文 | `HookContext` | 钩子运行时拿到的：参数、只读信息，以及声明过的能力（`ctx.event`、`ctx.propose`） |
 
 ## 条件（condition_engine）
 

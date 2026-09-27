@@ -24,13 +24,13 @@ from core.event import (
     TemplateDef,
     TemplateRepository,
 )
-from core.hil import HilManager, SuggestionRepository
-from core.operators import OperatorRegistry
+from core.hil import HilManager, ProposalRepository
+from core.hooks import HookRegistry, MountCompiler
 from core.report import DraftRepository, ReportManager
 from core.target import ObservableTargetRepository, TargetManager, TargetRepository
 from plugins.condition_engine.on_enter import OnEnter
-from plugins.operators.close_report import CloseReport
-from plugins.operators.count_hits import CountHits
+from plugins.hooks.close_report import CloseReport
+from plugins.hooks.count_hits import CountHits
 from plugins.target.aircraft import Aircraft
 from plugins.upstream_adapters.opensky import OpenSkyAdapter
 
@@ -51,7 +51,7 @@ class Repositories:
         event_repository: EventRepository,
         runner_state_repository: RunnerStateRepository,
         draft_repository: DraftRepository,
-        suggestion_repository: SuggestionRepository,
+        proposal_repository: ProposalRepository,
     ) -> None:
         self.target_repository = target_repository
         self.observable_target_repository = observable_target_repository
@@ -62,7 +62,7 @@ class Repositories:
         self.event_repository = event_repository
         self.runner_state_repository = runner_state_repository
         self.draft_repository = draft_repository
-        self.suggestion_repository = suggestion_repository
+        self.proposal_repository = proposal_repository
 
 
 class App:
@@ -74,7 +74,7 @@ class App:
         upstream_adapter_registry: UpstreamAdapterRegistry,
         collector: Collector,
         condition_compiler: ConditionCompiler,
-        operator_registry: OperatorRegistry,
+        hook_registry: HookRegistry,
         parent_event_manager: ParentEventManager,
         report_manager: ReportManager,
         hil_manager: HilManager,
@@ -83,7 +83,7 @@ class App:
         self.upstream_adapter_registry = upstream_adapter_registry
         self.collector = collector
         self.condition_compiler = condition_compiler
-        self.operator_registry = operator_registry
+        self.hook_registry = hook_registry
         self.parent_event_manager = parent_event_manager
         self.report_manager = report_manager
         self.hil_manager = hil_manager
@@ -111,11 +111,11 @@ def build_app(repos: Repositories) -> App:
     condition_compiler = ConditionCompiler(evaluator_registry)
 
     report_manager = ReportManager(repos.draft_repository)
-    hil_manager = HilManager(repos.suggestion_repository)
+    hil_manager = HilManager(repos.proposal_repository)
 
-    operator_registry = OperatorRegistry()
-    operator_registry.register(CountHits())
-    operator_registry.register(CloseReport(report_manager))
+    hook_registry = HookRegistry()
+    hook_registry.register(CountHits())
+    hook_registry.register(CloseReport(report_manager))
 
     parent_event_manager = ParentEventManager(
         repos.parent_event_repository,
@@ -123,14 +123,14 @@ def build_app(repos: Repositories) -> App:
             target_manager=target_manager,
             template_repository=repos.template_repository,
             template_compiler=TemplateCompiler(
-                condition_compiler, operator_registry, target_manager
+                condition_compiler, MountCompiler(hook_registry), target_manager
             ),
             report_manager=report_manager,
         ),
         EventRuntime(
             event_repository=repos.event_repository,
             runner_state_repository=repos.runner_state_repository,
-            suggestion_sink=hil_manager,
+            proposal_sink=hil_manager,
         ),
     )
     _allow_actions(hil_manager, parent_event_manager)
@@ -145,7 +145,7 @@ def build_app(repos: Repositories) -> App:
         upstream_adapter_registry=upstream_adapter_registry,
         collector=collector,
         condition_compiler=condition_compiler,
-        operator_registry=operator_registry,
+        hook_registry=hook_registry,
         parent_event_manager=parent_event_manager,
         report_manager=report_manager,
         hil_manager=hil_manager,
@@ -153,7 +153,7 @@ def build_app(repos: Repositories) -> App:
 
 
 def _allow_actions(hil_manager: HilManager, parent_event_manager: ParentEventManager) -> None:
-    """hil 白名单：建议能触发的核心公开方法。proposal.target 是父事件 ID。"""
+    """hil 白名单：提议能触发的核心公开方法。proposal.target 是父事件 ID。"""
 
     def add_target(parent_id: str | None, args: dict[str, Any]) -> object:
         return parent_event_manager.get(_required(parent_id)).add_target(args["target_id"])

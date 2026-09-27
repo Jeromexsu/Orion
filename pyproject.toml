@@ -35,7 +35,7 @@ strict = [
     "src/core/collector",
     "src/core/event",
     "src/core/condition_engine",
-    "src/core/operators",
+    "src/core/hooks",
     "src/core/hil",
 ]
 
@@ -64,8 +64,8 @@ modules = ["api", "persistence"]
 # ---- core 模块之间的依赖（接口定义在依赖方，数据定义在所属模块）
 #   最底层：target、hil、report —— 不依赖其他 core 模块
 #   collector、condition_engine → target
-#   operators → target、condition_engine、hil（Occasion 引用 ObservationEnvelope / EvalResult，上下文引用 Suggestion）
-#   event     → target、condition_engine、operators、report（不依赖 collector / hil）
+#   hooks → target、condition_engine、hil（Occasion 引用 ObservationEnvelope / EvalResult，上下文引用 Proposal）
+#   event     → target、condition_engine、hooks、report（不依赖 collector / hil）
 
 [[tool.importlinter.contracts]]
 name = "target 零依赖"
@@ -73,7 +73,7 @@ type = "forbidden"
 source_modules = ["core.target"]
 forbidden_modules = [
     "core.collector", "core.event", "core.condition_engine",
-    "core.operators", "core.hil", "core.report",
+    "core.hooks", "core.hil", "core.report",
 ]
 
 [[tool.importlinter.contracts]]
@@ -82,7 +82,7 @@ type = "forbidden"
 source_modules = ["core.condition_engine"]
 forbidden_modules = [
     "core.collector", "core.event",
-    "core.operators", "core.hil", "core.report",
+    "core.hooks", "core.hil", "core.report",
 ]
 
 [[tool.importlinter.contracts]]
@@ -91,7 +91,7 @@ type = "forbidden"
 source_modules = ["core.hil"]
 forbidden_modules = [
     "core.target", "core.collector", "core.event",
-    "core.condition_engine", "core.operators", "core.report",
+    "core.condition_engine", "core.hooks", "core.report",
 ]
 
 [[tool.importlinter.contracts]]
@@ -100,7 +100,7 @@ type = "forbidden"
 source_modules = ["core.report"]
 forbidden_modules = [
     "core.target", "core.collector", "core.event",
-    "core.condition_engine", "core.operators", "core.hil",
+    "core.condition_engine", "core.hooks", "core.hil",
 ]
 
 [[tool.importlinter.contracts]]
@@ -109,25 +109,25 @@ type = "forbidden"
 source_modules = ["core.collector"]
 forbidden_modules = [
     "core.event", "core.condition_engine",
-    "core.operators", "core.hil", "core.report",
+    "core.hooks", "core.hil", "core.report",
 ]
 
 [[tool.importlinter.contracts]]
-name = "operators 只依赖 target / condition_engine / hil"
+name = "hooks 只依赖 target / condition_engine / hil"
 type = "forbidden"
-source_modules = ["core.operators"]
+source_modules = ["core.hooks"]
 forbidden_modules = ["core.collector", "core.event", "core.report"]
 
 [[tool.importlinter.contracts]]
-name = "event 不直接依赖 collector / hil（数据由可观测目标 publish 给 runner，建议经 SuggestionSink 流出）"
+name = "event 不直接依赖 collector / hil（数据由可观测目标 publish 给 runner，提议经 ProposalSink 流出）"
 type = "forbidden"
 source_modules = ["core.event"]
 forbidden_modules = ["core.collector", "core.hil"]
-# 经 operators 间接到 hil（Suggestion 定义在 hil）是允许的；只禁止 event 直接 import
+# 经 hooks 间接到 hil（Proposal 定义在 hil）是允许的；只禁止 event 直接 import
 allow_indirect_imports = "True"
 
 # ---- 插件只经扩展点和注入的依赖做事，不直接碰监控运行状态的管理者
-#   算子改子事件只能经上下文（ctx.event）；父事件 / 目标只能提建议（ctx.propose）。
+#   钩子改子事件只能经上下文（ctx.event）；父事件 / 目标只能提议（ctx.propose）。
 #   对外输出（如 core.report）由 bootstrap 构造时注入，允许依赖。
 
 [[tool.importlinter.contracts]]
