@@ -8,7 +8,7 @@ from core.target.observed_point import Observation, ObservedPoint
 from core.target.target import Target
 
 
-class Referencer(Protocol):
+class Subscriber(Protocol):
     """订阅 ObservableTarget 的对象（即运行中的子事件模板 EventRunner），由 Dispatcher 回调。
 
     实现类必须按身份哈希（普通类默认如此）。
@@ -47,7 +47,7 @@ class ObservableTarget:
         self._target = target
         self._observed_point = observed_point
         self._upstreams = tuple(upstreams)
-        self._subscriptions: dict[Referencer, frozenset[str]] = {}
+        self._subscriptions: dict[Subscriber, frozenset[str]] = {}
 
     # ------------------------------------------------------------ 只读
 
@@ -75,7 +75,7 @@ class ObservableTarget:
 
     # ------------------------------------------------------------ 订阅
 
-    def acquire(self, referencer: Referencer, upstreams: Iterable[str]) -> None:
+    def acquire(self, subscriber: Subscriber, upstreams: Iterable[str]) -> None:
         """订阅指定上游。同一订阅者再次 acquire 会用新的上游集合替换旧的。
 
         上游为空或不在可用上游里抛 UnsupportedUpstreamError。只改内存，不写库。
@@ -88,21 +88,21 @@ class ObservableTarget:
             raise UnsupportedUpstreamError(
                 f"{self.id}: {sorted(unknown)} not in available upstreams {list(self._upstreams)}"
             )
-        self._subscriptions[referencer] = wanted
+        self._subscriptions[subscriber] = wanted
 
-    def release(self, referencer: Referencer) -> None:
+    def release(self, subscriber: Subscriber) -> None:
         """取消订阅。未订阅过的对象忽略。"""
-        self._subscriptions.pop(referencer, None)
+        self._subscriptions.pop(subscriber, None)
 
-    def subscription(self, referencer: Referencer) -> frozenset[str]:
+    def subscription(self, subscriber: Subscriber) -> frozenset[str]:
         """某个订阅者订阅的上游；未订阅返回空集。"""
-        return self._subscriptions.get(referencer, frozenset())
+        return self._subscriptions.get(subscriber, frozenset())
 
-    def referencers(self) -> frozenset[Referencer]:
+    def subscribers(self) -> frozenset[Subscriber]:
         """全部订阅者的快照。"""
         return frozenset(self._subscriptions)
 
-    def referencers_for(self, upstream: str) -> frozenset[Referencer]:
+    def subscribers_for(self, upstream: str) -> frozenset[Subscriber]:
         """订阅了该上游的订阅者快照；回调期间有人 release 也不影响遍历。"""
         return frozenset(r for r, ups in self._subscriptions.items() if upstream in ups)
 

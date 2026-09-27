@@ -11,10 +11,10 @@ class Dispatcher:
     def dispatch(self, observable: ObservableTarget, envelope: ObservationEnvelope) -> int:
         """逐个调用 on_observation，每个订阅者单独隔离异常。返回失败的订阅者数。"""
         failures = 0
-        for referencer in observable.referencers_for(envelope.upstream):
+        for subscriber in observable.subscribers_for(envelope.upstream):
             try:
-                referencer.on_observation(envelope)
+                subscriber.on_observation(envelope)
             except Exception:
                 failures += 1
-                logger.exception("referencer %r failed on %s", referencer, envelope.source_id)
+                logger.exception("subscriber %r failed on %s", subscriber, envelope.source_id)
         return failures

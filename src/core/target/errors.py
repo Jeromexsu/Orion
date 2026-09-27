@@ -35,7 +35,7 @@ class UnsupportedUpstreamError(TargetError):
 
 
 class TargetInUseError(TargetError):
-    """目标仍被某个 ObservableTarget 的订阅者引用，不能删除。"""
+    """目标的某个 ObservableTarget 仍有订阅者，不能删除。"""
 
 
 class TargetTypeChangeError(TargetError):

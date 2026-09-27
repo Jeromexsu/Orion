@@ -133,7 +133,7 @@ class TargetManager:
         keys = [observable_key(target_id, p.name) for p in type(target).observed_points]
         in_use = [k for k in keys if (live := self._live.get(k)) is not None and live.is_active]
         if in_use:
-            raise TargetInUseError(f"{target_id} still referenced via {in_use}")
+            raise TargetInUseError(f"{target_id} still subscribed via {in_use}")
         for key in keys:
             self._live.pop(key, None)
             self._observable_target_repository.remove(key)
@@ -167,7 +167,7 @@ class TargetManager:
         """取（必要时创建）唯一的 ObservableTarget。observed_point 是观察点名。
 
         首次创建时放进内存单例表并写库；检查与 inspect_observable 相同，不通过时抛同样的异常。
-        上游列表由这里问 UpstreamCatalog 得到；调用方随后自行 acquire(referencer, upstreams)。
+        上游列表由这里问 UpstreamCatalog 得到；调用方随后自行 acquire(subscriber, upstreams)。
         """
         key = observable_key(target_id, observed_point)
         live = self._live.get(key)
@@ -185,7 +185,7 @@ class TargetManager:
         return self._live.get(observable_id)
 
     def active_observables(self) -> list[ObservableTarget]:
-        """referencers() 非空的 ObservableTarget，collector 只采集这些。"""
+        """subscribers() 非空的 ObservableTarget，collector 只采集这些。"""
         return [o for o in self._live.values() if o.is_active]
 
     # ------------------------------------------------------------ 内部

@@ -23,18 +23,18 @@ def test_acquire_is_idempotent_and_release_tolerant(manager: TargetManager, plan
     sub = Subscriber()
     obs.acquire(sub, ["adsb"])
     obs.acquire(sub, ["adsb"])
-    assert obs.referencers() == frozenset({sub})
+    assert obs.subscribers() == frozenset({sub})
     obs.release(sub)
     obs.release(sub)
     assert not obs.is_active
 
 
-def test_referencers_is_a_snapshot(manager: TargetManager, plane: Target) -> None:
+def test_subscribers_is_a_snapshot(manager: TargetManager, plane: Target) -> None:
     obs = manager.get_observable(plane.id, "position")
     a, b = Subscriber(), Subscriber()
     obs.acquire(a, ["adsb"])
     obs.acquire(b, ["adsb"])
-    snapshot = obs.referencers()
+    snapshot = obs.subscribers()
     obs.release(a)
     assert snapshot == frozenset({a, b})
 
@@ -102,9 +102,9 @@ def test_routing_by_upstream(plane: Target) -> None:
     obs.acquire(a, ["adsb"])
     obs.acquire(b, ["adsb", "radar"])
 
-    assert obs.referencers_for("adsb") == {a, b}
-    assert obs.referencers_for("radar") == {b}
-    assert obs.referencers_for("satellite") == frozenset()
+    assert obs.subscribers_for("adsb") == {a, b}
+    assert obs.subscribers_for("radar") == {b}
+    assert obs.subscribers_for("satellite") == frozenset()
     assert obs.active_upstreams() == ("adsb", "radar")
 
     obs.acquire(b, ["satellite"])  # 再次 acquire 替换订阅

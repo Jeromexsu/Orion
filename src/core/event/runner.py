@@ -118,7 +118,7 @@ class EventRunner:
             pending_version=self._pending.version if self._pending else None,
         )
 
-    # ------------------------------------------------------------ Referencer
+    # ------------------------------------------------------------ Subscriber
 
     def on_observation(self, envelope: ObservationEnvelope) -> None:
         """Dispatcher 回调。评估开启条件并保存其状态；无活跃子事件且命中时开新子事件；

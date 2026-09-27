@@ -98,7 +98,7 @@ def test_slot_subscribes_per_observation(env: Env) -> None:
     parent = make_parent(env, upstreams=["radar"])
     runner = parent.runner("enter-zone")
     (obs,) = env.targets.active_observables()
-    assert obs.referencers() == {runner}
+    assert obs.subscribers() == {runner}
     assert obs.subscription(runner) == {"radar"}
     assert runner.target_names() == {"t1:position": "MU5101"}
 

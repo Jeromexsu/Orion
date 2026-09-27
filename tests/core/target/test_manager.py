@@ -201,7 +201,7 @@ def test_get_observable_without_upstream() -> None:
         m.get_observable("t1", "position")
 
 
-def test_active_observables_follow_referencers(manager: TargetManager, plane: Target) -> None:
+def test_active_observables_follow_subscribers(manager: TargetManager, plane: Target) -> None:
     obs = manager.get_observable(plane.id, "position")
     assert manager.active_observables() == []
 
