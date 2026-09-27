@@ -156,6 +156,14 @@ class RadarAdapter(UpstreamAdapter): ...
 可能的做法：编译成运行时对象 `Hook`（算子实例 + 有类型的参数 + 挂载点）；`Event._run_hooks` 直接用 `hook.operator`，
 算子的 `run` 拿到有类型的参数。
 
+同一批要一起定的：
+- **`Trigger` 按挂载点分类型**：现在除 `mount_point` 外的 `envelope` / `result` / `patch` 都是「可能为 None」，
+  哪个有值取决于挂载点，算子得自己记住并断言（如 `assert trigger.envelope is not None`）。可改为可辨识联合：
+  `CreatedTrigger` / `ObservationTrigger`（pre、post：envelope）/ `RuleHitTrigger`（envelope + result）/
+  `StatusUpdatedTrigger`（patch）/ `ClosedTrigger`，以 `mount_point` 区分；算子 `match` 后字段类型确定，
+  只挂 `rule_hit` 的算子可直接声明只收 `RuleHitTrigger`。
+- 算子是否也改为装饰器声明（`@operator(...)`）；上下文里的 `params` 怎么传。
+
 ### 8. 其他（随审阅推进逐条确认）
 
 - 模板 ID 全局还是按父事件区分（现为全局：`TemplateRepository` 只按 template_id 存取）。
