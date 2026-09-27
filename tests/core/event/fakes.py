@@ -57,7 +57,11 @@ class InMemoryEventRepository:
     def save(self, record: EventRecord) -> None:
         self.items[record.id] = record
 
-    def history(self, parent_id: str, template_id: str) -> list[EventRecord]:
+    def count_closed(self, parent_id: str, template_id: str) -> int:
+        return sum(1 for r in self.records(parent_id, template_id) if r.closed_at is not None)
+
+    def records(self, parent_id: str, template_id: str) -> list[EventRecord]:
+        """测试用：某模板下的全部记录，按开启时间排序。"""
         return sorted(
             (r for r in self.items.values() if r.parent_id == parent_id and r.template_id == template_id),
             key=lambda r: r.opened_at,

@@ -93,8 +93,8 @@ class EventRepository(Protocol):
         """按 id 新建或覆盖。"""
         ...
 
-    def history(self, parent_id: str, template_id: str) -> list[EventRecord]:
-        """全部子事件记录，按开启时间排序。"""
+    def count_closed(self, parent_id: str, template_id: str) -> int:
+        """这个模板在这个父事件下已关闭的子事件数。"""
         ...
 
 

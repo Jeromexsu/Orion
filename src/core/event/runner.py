@@ -6,7 +6,7 @@ from typing import Any
 from core.condition_engine import HIT
 from core.event.errors import TemplateVersionError
 from core.event.event import Event
-from core.event.repository import EventRecord, TemplateRef
+from core.event.repository import TemplateRef
 from core.event.runtime import EventRuntime
 from core.event.template import EventTemplate
 from core.observable import ObservableTarget
@@ -115,9 +115,9 @@ class EventRunner:
             for oid, obs in self._subscribed_observables.items()
         }
 
-    def history(self) -> list[EventRecord]:
-        """这个模板在本父事件下的全部子事件记录（含活跃的），按开启时间排序。"""
-        return self._runtime.event_repository.history(self._parent_id, self._template.id)
+    def closed_cycles(self) -> int:
+        """这个模板在本父事件下已结束的周期数（已关闭的子事件数）。"""
+        return self._runtime.event_repository.count_closed(self._parent_id, self._template.id)
 
     def to_ref(self) -> TemplateRef:
         """父事件记录里的模板引用：当前版本 + 挂起版本。"""
@@ -241,5 +241,5 @@ class EventRunner:
                 )
             )
             return None
-        return Event.restore(record, self._template, self._runtime, self.target_names)
+        return Event.from_record(record, self._template, self._runtime, self.target_names)
 

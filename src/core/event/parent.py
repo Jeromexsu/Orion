@@ -45,7 +45,7 @@ class ParentEvent:
         self._runners: dict[str, EventRunner] = {}
 
     @classmethod
-    def restore(
+    def from_record(
         cls,
         record: ParentEventRecord,
         services: ParentEventServices,
@@ -184,7 +184,7 @@ class ParentEvent:
         lines += [f"- {self._target_name(t)}" for t in sorted(self._targets)] or ["- 无"]
         lines += ["", "## 子事件"]
         for runner in self._runners.values():
-            closed = sum(1 for r in runner.history() if r.closed_at is not None)
+            closed = runner.closed_cycles()
             active = runner.active
             state = (
                 f"{active.cycle} 周期进行中 {dict(active.hook_state)}" if active else "未开启"

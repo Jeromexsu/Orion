@@ -79,7 +79,7 @@ class Event:
         return event
 
     @classmethod
-    def restore(
+    def from_record(
         cls,
         record: EventRecord,
         template: EventTemplate,

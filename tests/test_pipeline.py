@@ -40,7 +40,7 @@ def test_collect_drives_sub_event_to_close() -> None:
     ]
     assert len(collector.collect()) == 4
 
-    (record,) = env.events.history("p1", "enter-zone")
+    (record,) = env.events.records("p1", "enter-zone")
     assert record.close_reason == "converged"
     assert record.hook_state == {"countHits": {"hits": 2}}
     assert record.cycle == 2026

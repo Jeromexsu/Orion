@@ -145,7 +145,7 @@ def test_lifecycle_and_open_state_during_run(env: Env) -> None:
     runner.on_observation(env.envelope(*OUTSIDE))
     runner.on_observation(env.envelope(*INSIDE))  # 离开后再进入 → 下一个周期
     assert runner.active is not None and runner.active is not first
-    assert len(runner.history()) == 2
+    assert runner.closed_cycles() == 1
 
 
 def test_unsubscribed_data_ignored(env: Env) -> None:
@@ -300,7 +300,7 @@ def test_close_request_waits_for_the_rest_of_the_observation(env: Env) -> None:
     runner.on_observation(env.envelope(20, 20))
     runner.on_observation(env.envelope(5, 5))  # 进入：命中阈值 1 → 请求关闭
     assert env.log.calls == [("recorder", "post"), ("recorder", "closed")]
-    (record,) = env.events.history("p1", "enter-zone")
+    (record,) = env.events.records("p1", "enter-zone")
     assert record.close_reason == "converged"
 
 

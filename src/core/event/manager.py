@@ -66,7 +66,7 @@ class ParentEventManager:
             if record.id in self._parents:
                 continue
             try:
-                self._parents[record.id] = ParentEvent.restore(
+                self._parents[record.id] = ParentEvent.from_record(
                     record, self._services, self._runtime, self._save
                 )
             except Exception:
