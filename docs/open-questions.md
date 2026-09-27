@@ -94,12 +94,12 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
   - 条件树与判断方式接收外壳，判断方式按字段名读 `envelope.observation`，`requires` 字段须有值否则不适用；
   - 条件引擎依赖 target（`ObservationEnvelope`），无环；「动态数据」一词不再使用。
 - **条件引擎不再查询 target**：去掉设计文档的 `TargetResolver`。`ConditionCompiler.compile(definition, fields)`
-  由调用方传入「可观测目标 ID → 观测字段名」；`EventTemplate.compile()` 按观测声明向 `TargetManager`
+  由调用方传入「可观测目标 ID → 观测字段名」；`EventTemplate.compile()` 按可观测目标声明向 `TargetManager`
   解析（目标、观察点存在，上游可用）并提取字段，所以条件只能引用已声明的观测、判断方式需要的字段必须存在。
-  文档时代模板没有观测声明，条件引擎只能自己去问 target；有了观测声明，调用方手里已有这份信息。
+  文档时代模板没有可观测目标声明，条件引擎只能自己去问 target；有了可观测目标声明，调用方手里已有这份信息。
 
 - **静态定义与运行时对象的命名约定**：纯数据定义的类型以 `Def` 结尾（`TemplateDef`、`RuleDef`、
-  `ObservationDef`、`OperatorMountDef`）；装着 `Def` 的字段以 `_def` / `_defs` 结尾（`observation_defs`、
+  `ObservableDef`、`OperatorMountDef`）；装着 `Def` 的字段以 `_def` / `_defs` 结尾（`observable_defs`、
   `open_condition_def`、`rule_defs`、`hook_defs`、`condition_def`）；运行时对象不带后缀（如
   `EventTemplate.open_tree`、`EventTemplate.rules` 返回的 `CompiledRule`）。条件引擎契约
   `LeafDef` / `OpDef` 的 `children` 按设计文档第八节照抄，不改。
@@ -115,9 +115,9 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
 
 - **子事件模型（原第 1 条，已实现）**：保留模板。
   - 父事件（静态）：静态目标命名空间（target_id 集合）+ 静态模板集合 + `digest()`；不订阅任何东西。
-  - 模板（静态、不可变、带版本）：观测声明（目标 + 观察点 + 上游）、开启条件（必填）、规则、算子挂载。
-    条件树引用的可观测目标必须在观测声明里；观测的目标必须在父事件命名空间里；上游在装入时检查可用。
-  - slot（运行时，每个模板一个）：按观测声明订阅，自己就是订阅者；每条数据都评估开启条件并持久化其状态；
+  - 模板（静态、不可变、带版本）：可观测目标声明（目标 + 观察点 + 上游）、开启条件（必填）、规则、算子挂载。
+    条件树引用的可观测目标必须在可观测目标声明里；观测的目标必须在父事件命名空间里；上游在装入时检查可用。
+  - slot（运行时，每个模板一个）：按可观测目标声明订阅，自己就是订阅者；每条数据都评估开启条件并持久化其状态；
     无活跃实例且开启条件命中时开实例并把该条数据交给它；同一模板最多一个活跃实例。
   - 换版本（方案 a）：新版本只对下一个周期生效——有活跃实例时挂起（`pending_version`），实例关闭后切换、
     重新订阅、开启条件状态清空；无活跃实例时立即切换。
@@ -137,7 +137,7 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
     采用第一种满足的查询方式，取值放进 `QuerySpec.query`。同一上游因此能对不同目标类型用不同字段查询
     （如飞机按 icao24、船按 mmsi）。查询逻辑确实依赖目标类型时，Adapter 可在 fetch 里读 `QuerySpec.type` 兜底；
   - 约定：同名属性字段在所有目标类型里含义必须一致；若将来出现冲突，再引入有类型的能力接口；
-  - `ObservableTarget(target, observed_point, upstreams)`；`QuerySpec.observed_point`、`ObservationDef.observed_point`
+  - `ObservableTarget(target, observed_point, upstreams)`；`QuerySpec.observed_point`、`ObservableDef.observed_point`
     存观察点名；`TargetManager` 从已注册目标类型收集观察点，重名报错。
 - **上游归属**：可观测目标的上游列表由 `TargetManager` 问 `UpstreamCatalog` 得到，不由外部传入；
   订阅者 acquire 时指定要哪些上游，可观测目标内部按上游路由。

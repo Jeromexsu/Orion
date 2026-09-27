@@ -22,8 +22,8 @@ class OperatorMountDef(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict[str, Any])
 
 
-class ObservationDef(BaseModel):
-    """观测声明：模板要在哪个观察点观测哪个目标，订阅哪些上游。"""
+class ObservableDef(BaseModel):
+    """可观测目标声明：模板要在哪个观察点观测哪个目标，订阅哪些上游。"""
 
     model_config = ConfigDict(frozen=True)
 
@@ -55,7 +55,7 @@ class TemplateDef(BaseModel):
     id: str
     version: int = Field(ge=1)
     name: str
-    observation_defs: list[ObservationDef] = Field(min_length=1)
+    observable_defs: list[ObservableDef] = Field(min_length=1)
     # 开启条件：无活跃子事件时命中才开新子事件（runner 在运行期间也持续评估以保持状态最新）
     open_condition_def: ConditionDef
     rule_defs: list[RuleDef] = Field(min_length=1)
@@ -64,5 +64,5 @@ class TemplateDef(BaseModel):
 
     @property
     def target_ids(self) -> frozenset[str]:
-        """观测声明里的静态目标 ID。"""
-        return frozenset(o.target_id for o in self.observation_defs)
+        """可观测目标声明里的静态目标 ID。"""
+        return frozenset(o.target_id for o in self.observable_defs)

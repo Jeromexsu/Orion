@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class EventRunner:
     """运行中的模板：管理这个模板的子事件生命周期。
 
-    - 订阅：按模板的观测声明 acquire 可观测目标，自己就是订阅者（Dispatcher 直接回调）；
+    - 订阅：按模板的可观测目标声明 acquire 可观测目标，自己就是订阅者（Dispatcher 直接回调）；
     - 开启：每条数据都评估开启条件并更新其状态；无活跃子事件且命中时开新子事件，并把该条数据交给它；
     - 运行：有活跃子事件时数据交给子事件处理（同一模板最多一个活跃子事件）；
     - 换版本：新版本只对下一个周期生效——有活跃子事件时挂起，子事件关闭后切换并重新订阅；
@@ -52,7 +52,7 @@ class EventRunner:
         runtime: EventRuntime,
         on_change: Callable[[], None],
     ) -> "EventRunner":
-        """新装入模板：订阅并开始评估开启条件。模板须已编译通过（观测声明已校验）。"""
+        """新装入模板：订阅并开始评估开启条件。模板须已编译通过（可观测目标声明已校验）。"""
         runner = cls(parent_id, template, runtime, on_change)
         runner._subscribe()
         return runner
@@ -189,7 +189,7 @@ class EventRunner:
             self._switch(self._pending)
 
     def _switch(self, template: EventTemplate) -> None:
-        """切换到新版本：开启条件树可能不同，状态清空；按新观测声明重新订阅。"""
+        """切换到新版本：开启条件树可能不同，状态清空；按新可观测目标声明重新订阅。"""
         self._template = template
         self._pending = None
         self._open_state = {}
@@ -198,9 +198,9 @@ class EventRunner:
         self._on_change()
 
     def _subscribe(self) -> None:
-        """按当前模板的观测声明订阅；不再需要的可观测目标 release。"""
+        """按当前模板的可观测目标声明订阅；不再需要的可观测目标 release。"""
         subscribed: dict[str, ObservableTarget] = {}
-        for o in self._template.observation_defs:
+        for o in self._template.observable_defs:
             observable = self._runtime.targets.get_observable(o.target_id, o.observed_point)
             observable.acquire(self, o.upstreams)
             subscribed[observable.id] = observable

@@ -1,5 +1,5 @@
 from core.condition_engine import ConditionTree
-from core.event.definitions import ObservationDef, OperatorMountDef, TemplateDef
+from core.event.definitions import ObservableDef, OperatorMountDef, TemplateDef
 from core.operators import MountPoint
 
 
@@ -40,8 +40,8 @@ class EventTemplate:
         return self._template_def.version
 
     @property
-    def observation_defs(self) -> tuple[ObservationDef, ...]:
-        return tuple(self._template_def.observation_defs)
+    def observable_defs(self) -> tuple[ObservableDef, ...]:
+        return tuple(self._template_def.observable_defs)
 
     @property
     def open_tree(self) -> ConditionTree:
@@ -53,7 +53,7 @@ class EventTemplate:
 
     @property
     def target_ids(self) -> frozenset[str]:
-        """观测声明里的静态目标 ID。"""
+        """可观测目标声明里的静态目标 ID。"""
         return self._template_def.target_ids
 
     def hooks_at(self, mount_point: MountPoint) -> tuple[OperatorMountDef, ...]:

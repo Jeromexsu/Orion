@@ -27,11 +27,11 @@ class TemplateCompiler:
     def compile(self, template_def: TemplateDef) -> EventTemplate:
         """编译并校验整个模板，所有错误一次收集进 TemplateCompileError。
 
-        观测声明按 TargetManager 解析：目标与观察点存在、上游可用；观察点返回的观测有哪些字段，
+        可观测目标声明按 TargetManager 解析：目标与观察点存在、上游可用；观察点返回的观测有哪些字段，
         交给条件引擎，因此条件只能引用已声明的观测，且判断方式需要的字段必须存在。
         """
         errors: list[str] = []
-        fields_by_observable = self._resolve_observations(template_def, errors)
+        fields_by_observable = self._resolve_observables(template_def, errors)
 
         def compile_tree(where: str, condition_def: ConditionDef) -> ConditionTree | None:
             try:
@@ -76,13 +76,13 @@ class TemplateCompiler:
             raise TemplateCompileError(errors)
         return EventTemplate(template_def, open_tree, tuple(rules), tuple(template_hooks))
 
-    def _resolve_observations(
+    def _resolve_observables(
         self, template_def: TemplateDef, errors: list[str]
     ) -> dict[str, set[str]]:
-        """解析观测声明，返回「可观测目标 ID → 它的观测有哪些字段」。"""
+        """解析可观测目标声明，返回「可观测目标 ID → 它的观测有哪些字段」。"""
         fields_by_observable: dict[str, set[str]] = {}
-        for o in template_def.observation_defs:
-            where = f"observation_def {o.observable_id!r}"
+        for o in template_def.observable_defs:
+            where = f"observable_def {o.observable_id!r}"
             if o.observable_id in fields_by_observable:
                 errors.append(f"{where}: duplicate")
                 continue

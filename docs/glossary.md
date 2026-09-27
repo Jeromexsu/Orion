@@ -22,9 +22,9 @@
 | 术语 | 代码 | 含义 |
 |---|---|---|
 | 父事件 | `ParentEvent` | 静态：目标命名空间（target_id 集合）+ 模板集合 + `digest()`；自己不订阅 |
-| 模板 | `EventTemplate`（定义为 `TemplateDef`） | 静态、不可变、带版本：观测声明、开启条件、规则、算子挂载 |
-| 观测声明 | `ObservationDef` | 模板要观测的 (target_id, observed_point) 及订阅哪些上游 |
-| runner | `EventRunner` | 运行中的模板：按观测声明订阅，评估开启条件，管理子事件生命周期（开启、换版本、存档） |
+| 模板 | `EventTemplate`（定义为 `TemplateDef`） | 静态、不可变、带版本：可观测目标声明、开启条件、规则、算子挂载 |
+| 可观测目标声明 | `ObservableDef` | 模板要观测的 (target_id, observed_point) 及订阅哪些上游 |
+| runner | `EventRunner` | 运行中的模板：按可观测目标声明订阅，评估开启条件，管理子事件生命周期（开启、换版本、存档） |
 | 子事件 | `Event` | 模板的一次运行（一个周期）；同一模板同时最多一个 |
 | 周期 | `cycle` | 子事件的周期标识：触发开启的那条数据发生的年份。子事件是以年为周期重复发生的事情 |
 | 开启条件 | `open_condition_def` / `EventTemplate.open_tree` | 无活跃子事件时命中才开新子事件 |

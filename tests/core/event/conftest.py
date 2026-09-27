@@ -210,7 +210,7 @@ def template(
         "id": "enter-zone",
         "version": version,
         "name": "进入区域",
-        "observation_defs": [
+        "observable_defs": [
             {"target_id": target, "observed_point": "position", "upstreams": upstreams or ["adsb"]}
         ],
         "open_condition_def": enter(observable),

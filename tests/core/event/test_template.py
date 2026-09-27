@@ -13,7 +13,7 @@ def compile_(env: Env, raw: dict[str, Any]) -> EventTemplate:
 def test_compile(env: Env) -> None:
     t = compile_(env, template(threshold=3))
     assert t.target_ids == {"t1"}
-    assert [o.observable_id for o in t.observation_defs] == ["t1:position"]
+    assert [o.observable_id for o in t.observable_defs] == ["t1:position"]
     assert t.open_tree.targets() == {"t1:position"}
     assert t.rules[0].hook_defs[0].params == {"threshold": 3}
 
@@ -27,8 +27,8 @@ def test_open_condition_is_required(env: Env) -> None:
 
 def test_compile_collects_errors(env: Env) -> None:
     raw = template(hooks=[mount("count_hits", "rule_hit"), mount("nope", "post")])
-    raw["observation_defs"].append(dict(raw["observation_defs"][0]))
-    raw["open_condition_def"] = enter("t2:position")  # 未在观测声明里
+    raw["observable_defs"].append(dict(raw["observable_defs"][0]))
+    raw["open_condition_def"] = enter("t2:position")  # 未在可观测目标声明里
     raw["rule_defs"].append(
         {
             "name": "enter",
@@ -39,7 +39,7 @@ def test_compile_collects_errors(env: Env) -> None:
     with pytest.raises(TemplateCompileError) as info:
         compile_(env, raw)
     errors = info.value.errors
-    assert any("observation_def 't1:position': duplicate" in e for e in errors)
+    assert any("observable_def 't1:position': duplicate" in e for e in errors)
     # 条件只能引用已声明的观测：t2 未声明，对条件引擎来说就是未知目标
     assert any(e.startswith("open_condition_def: root: unknown target 't2:position'") for e in errors)
     assert any("duplicate rule names ['enter']" in e for e in errors)
@@ -54,13 +54,13 @@ def test_invalid_operator_params(env: Env) -> None:
         compile_(env, template(threshold=0))
 
 
-def test_observation_defs_are_resolved(env: Env) -> None:
+def test_observable_defs_are_resolved(env: Env) -> None:
     raw = template(upstreams=["adsb", "satellite"])
-    raw["observation_defs"].append({"target_id": "ghost", "observed_point": "position", "upstreams": ["adsb"]})
-    raw["observation_defs"].append({"target_id": "t2", "observed_point": "fuel", "upstreams": ["adsb"]})
+    raw["observable_defs"].append({"target_id": "ghost", "observed_point": "position", "upstreams": ["adsb"]})
+    raw["observable_defs"].append({"target_id": "t2", "observed_point": "fuel", "upstreams": ["adsb"]})
     with pytest.raises(TemplateCompileError) as info:
         compile_(env, raw)
     errors = info.value.errors
-    assert any("observation_def 't1:position': upstreams ['satellite'] not in available" in e for e in errors)
-    assert any(e.startswith("observation_def 'ghost:position': ") for e in errors)
-    assert any(e.startswith("observation_def 't2:fuel': ") for e in errors)
+    assert any("observable_def 't1:position': upstreams ['satellite'] not in available" in e for e in errors)
+    assert any(e.startswith("observable_def 'ghost:position': ") for e in errors)
+    assert any(e.startswith("observable_def 't2:fuel': ") for e in errors)
