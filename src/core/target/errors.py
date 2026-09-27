@@ -22,9 +22,5 @@ class UnknownObservedPointError(TargetError):
     """没有任何已注册目标类型声明过这个观察点。"""
 
 
-class TargetInUseError(TargetError):
-    """目标还被引用着（如可观测目标仍有订阅者），不能删除。"""
-
-
 class TargetTypeChangeError(TargetError):
     """已存在的目标不能换类型——它在某些观察点上的可观测目标可能失效。"""

@@ -109,7 +109,6 @@ def build_app(repos: Repositories) -> App:
         repos.observable_target_repository,
         upstream_adapter_registry,
     )
-    target_manager.add_referrer(observable_target_manager)   # 有订阅者的目标不能删
 
     collector = Collector(
         target_manager,

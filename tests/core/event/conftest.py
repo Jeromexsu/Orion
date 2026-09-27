@@ -124,7 +124,6 @@ class Env:
             self.observable_repo,
             StaticUpstreamCatalog({("aircraft", "position"): ["adsb", "radar"]}),
         )
-        targets.add_referrer(observables)
         return targets, observables
 
     def make_services(

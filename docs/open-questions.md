@@ -151,6 +151,9 @@ class RadarAdapter(UpstreamAdapter): ...
   （查询键只按类引用，所以也没有注册表）。已知缺口：上游适配器引用的观察点若没有任何目标类型声明，注册时不报错
   （死适配器，暂认为无害）；同名观察点冲突只在目标类型之间检查。可选做法：单独注册观察点、注册适配器时检查引用；
   或维持收集、只补适配器检查。暂不处理。
+- **目标的删除改为归档**：监控系统里，历史子事件、报告、观测都按 ID 引用目标，真删会留下悬空 ID（报告里连名字都
+  显示不出）。打算：目标标记为已归档（ID 仍有效、查询时过滤），不再能被新模板引用；已有订阅怎么处理（停采、关闭子事件）
+  作为归档的后续动作，用领域事件或应用服务协调，而不是让 `TargetManager` 去问谁在引用它。等 API 层做目标管理时实现。
 - report 模块是否开 pyright strict。
 - 设计文档第八、九节与代码同步。
 
@@ -161,9 +164,9 @@ class RadarAdapter(UpstreamAdapter): ...
   - target（→ observation）：目标类型、目标实例、查询键、`TargetTypeRegistry`、`TargetManager`。
   - observable（→ target、observation）：`ObservableTarget`、单例表 `ObservableTargetManager`、`UpstreamCatalog`、
     `ObservableTargetRepository`。可观测目标是对目标的引用（只存 ID）+ 观察点 + 订阅，不是目标的增强版。
-  - 删目标时「有没有人在用」是引用完整性问题：target 定义 `TargetReferrer`（`references` / `release`），引用方实现，
-    bootstrap 用 `TargetManager.add_referrer` 接上（不走构造参数：引用方自己要用 `TargetManager`）。目前唯一的引用方是
-    `ObservableTargetManager`（有订阅者不能删，删时丢掉该目标的可观测目标）。父事件的命名空间也引用目标，以后可以同样接上。
+  - 删目标时「有没有人在用」一度做成 `TargetReferrer`（删前逐个问引用方），后来去掉：被引用方不该负责跨聚合的规则，
+    而且现在没有任何地方会删目标。`remove_target` 只删记录；引用方按 ID 取不到就跳过（collector 记日志）。
+    真正的做法见待决「目标的删除改为归档」。
   - 效果：condition_engine 只依赖 observation（第 5 条的「依赖 target」不复存在）；hooks 只依赖 observation；
     collector 依赖 observable 找活跃可观测目标、依赖 target 取当前目标的查询键。
 - **可观测目标不缓存目标**（原待决第 9 条「可用上游是快照，会过时」）：

@@ -6,7 +6,6 @@ from core.target import (
     DuplicateObservedPointError,
     DuplicateTargetTypeError,
     Target,
-    TargetInUseError,
     TargetManager,
     TargetNotFoundError,
     TargetTypeChangeError,
@@ -122,37 +121,13 @@ def test_find_by_alias(manager: TargetManager, plane: Target) -> None:
     assert manager.find_by_alias("nope") is None
 
 
-# ---------------------------------------------------------------- 引用方
+# ---------------------------------------------------------------- 删除
 
 
-class FakeReferrer:
-    def __init__(self, *refs: str) -> None:
-        self.refs = list(refs)
-        self.released: list[str] = []
-
-    def references(self, target_id: str) -> list[str]:
-        return self.refs
-
-    def release(self, target_id: str) -> None:
-        self.released.append(target_id)
-
-
-def test_remove_target_asks_every_referrer_first(
+def test_remove_target(
     manager: TargetManager, plane: Target, targets: InMemoryTargetRepository
 ) -> None:
-    idle, busy = FakeReferrer(), FakeReferrer("t1:position")
-    manager.add_referrer(idle)
-    manager.add_referrer(busy)
-    with pytest.raises(TargetInUseError, match="t1:position"):
-        manager.remove_target(plane.id)
-    assert plane.id in targets.items and idle.released == []   # 有人在用：什么都不动
-
-    busy.refs.clear()
     manager.remove_target(plane.id)
     assert plane.id not in targets.items
-    assert idle.released == busy.released == [plane.id]
-
-
-def test_remove_missing_target(manager: TargetManager) -> None:
     with pytest.raises(TargetNotFoundError):
-        manager.remove_target("missing")
+        manager.remove_target(plane.id)

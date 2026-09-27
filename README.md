@@ -195,7 +195,7 @@ class Aircraft(Target):
 
 | 使用方 | 窗口 | 用来做什么 |
 |---|---|---|
-| bootstrap | `TargetTypeRegistry.register`；`TargetManager.add_referrer` | 启动时注册目标类型（顺带收集观察点、检查查询键关联），注册表注入 `TargetManager` / `ObservableTargetManager`；把 `ObservableTargetManager` 接成目标的引用方（有订阅者的目标不能删） |
+| bootstrap | `TargetTypeRegistry.register` | 启动时注册目标类型（顺带收集观察点、检查查询键关联），注册表注入 `TargetManager` / `ObservableTargetManager` |
 | API 层（待建） | `TargetManager.parse` / `upsert_target` / `get_target` / `find_by_alias` / `remove_target` | 目标的增删改查；`parse` 把 JSON 按 `type` 还原成对应的目标类型 |
 | event · 父事件 | `TargetManager.get_target` | 确认目标存在、取展示名 |
 | event · 模板编译器 | `ObservableTargetManager.inspect_observable` / `get_observable` | 先只检查（不创建），全部通过后取得 / 创建可观测目标 |
@@ -204,8 +204,8 @@ class Aircraft(Target):
 
 要别人提供的：
 
-- target：`TargetRepository`（持久化层实现）；引用目标的一方实现 `TargetReferrer`（删目标前被问「还在用吗」，
-  目前是 `ObservableTargetManager`）。target 不知道谁在引用它。
+- target：`TargetRepository`（持久化层实现）。target 不知道谁在引用它：别的模块只按 ID 引用、用到时现读，
+  取不到就当目标已不存在（collector 记日志跳过）。删除目标改为归档见 open-questions。
 - observable：`UpstreamCatalog`（collector 的 `UpstreamAdapterRegistry` 实现）、`ObservableTargetRepository`（持久化层实现）。
 
 扩展点有三个，都用装饰器声明（写法见上文）：
@@ -514,7 +514,7 @@ core 里反复出现的几条原则，都有通用的名字：
 | **同一身份在内存里只有一个对象** | `ObservableTargetManager` 保证每个（目标, 观察点）只有一个 `ObservableTarget` | 标识映射（Identity Map，Fowler《企业应用架构模式》） |
 | **按上游路由的发布 / 订阅** | runner 按上游订阅可观测目标，collector 采集后由可观测目标 `publish` | 观察者模式；消息系统的 topic / subscription |
 | **接口定义在使用方** | `UpstreamCatalog`、`ProposalSink`、`ReportWriter`、各 `*Repository` 由用它的模块定义，提供方结构化实现，bootstrap 装配 | 依赖倒置（DIP）；端口与适配器（六边形架构） |
-| **被引用就不能删** | 父事件引用的目标不能从命名空间删（`TargetStillReferencedError`）；删目标时逐个问引用方（`TargetReferrer`，如 `ObservableTargetManager`：还有订阅者就不能删） | 引用完整性（referential integrity），由引用方守；跨聚合的约束由应用服务或事件协调 |
+| **按 ID 引用就要容忍对方不在** | 被引用方不去问「谁在引用我」；引用方取不到就跳过（collector 取不到目标时记日志跳过）。父事件内部的规则仍立即保证（模板还用着的目标不能从命名空间删，`TargetStillReferencedError`） | DDD：聚合内的规则立即保证，跨聚合的规则最终一致；删除常改为归档（软删除） |
 | **持久化只存纯数据，运行时对象每次重建** | 见上文「静态定义与运行时对象」 | 定义与实例分离；存储模型 ≠ 领域对象 |
 | **插件按名字查找** | 见上文「插件与注册表」 | 插件注册表（plugin registry） |
 

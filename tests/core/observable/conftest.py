@@ -20,6 +20,4 @@ def observable_manager(
     observables: InMemoryObservableTargetRepository,
 ) -> ObservableTargetManager:
     upstreams = StaticUpstreamCatalog({("aircraft", "position"): ["adsb"]})
-    observable_manager = ObservableTargetManager(target_types, manager, observables, upstreams)
-    manager.add_referrer(observable_manager)
-    return observable_manager
+    return ObservableTargetManager(target_types, manager, observables, upstreams)

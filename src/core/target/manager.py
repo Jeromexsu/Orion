@@ -2,12 +2,10 @@ from collections.abc import Mapping
 from typing import Any
 
 from core.target.errors import (
-    TargetInUseError,
     TargetNotFoundError,
     TargetTypeChangeError,
     UnknownTargetTypeError,
 )
-from core.target.referrer import TargetReferrer
 from core.target.registry import TargetTypeRegistry
 from core.target.repository import TargetRepository
 from core.target.target import Target, TargetRecord
@@ -16,8 +14,8 @@ from core.target.target import Target, TargetRecord
 class TargetManager:
     """target 模块的入口：管目标实例（目标记录）的生命周期。
 
-    目标类型由 TargetTypeRegistry 管（构造时注入），这里只查。引用目标的模块（如可观测目标）
-    经 TargetReferrer 接入，删除前逐个问过。
+    目标类型由 TargetTypeRegistry 管（构造时注入），这里只查。别的模块只按 ID 引用目标、用到时现读，
+    所以改目标不用通知谁。
     """
 
     def __init__(
@@ -25,7 +23,6 @@ class TargetManager:
     ) -> None:
         self._target_type_registry = target_type_registry
         self._target_repository = target_repository
-        self._referrers: list[TargetReferrer] = []
 
     # ------------------------------------------------------------ 目标
 
@@ -65,31 +62,17 @@ class TargetManager:
         return self._restore(record) if record is not None else None
 
     def remove_target(self, target_id: str) -> None:
-        """Remove a target (stored), once no referrer still uses it.
+        """Remove a target (stored).
 
-        Asks every referrer first; if any still uses the target, raises and removes
-        nothing. Otherwise lets each referrer release what it keeps for the target,
-        then removes the record.
+        Does not check whether anything still refers to it: whoever refers to targets by
+        ID tolerates one that is gone (e.g. the collector logs and skips). Archiving
+        instead of removing is an open question (docs/open-questions.md).
 
         Raises:
             TargetNotFoundError: If it does not exist.
-            TargetInUseError: If a referrer still uses it.
         """
         self.get_target(target_id)
-        in_use = [ref for referrer in self._referrers for ref in referrer.references(target_id)]
-        if in_use:
-            raise TargetInUseError(f"{target_id} is still used by {in_use}")
-        for referrer in self._referrers:
-            referrer.release(target_id)
         self._target_repository.remove(target_id)
-
-    def add_referrer(self, referrer: TargetReferrer) -> None:
-        """Ask this referrer before removing any target. bootstrap calls it once per referrer.
-
-        Not a constructor argument because referrers usually need this TargetManager
-        themselves.
-        """
-        self._referrers.append(referrer)
 
     # ------------------------------------------------------------ 内部
 

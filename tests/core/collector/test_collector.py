@@ -190,6 +190,15 @@ def test_upstream_failure_is_isolated(env: Env) -> None:
     assert env.cursors.get("t1:position", "adsb") is None
 
 
+def test_removed_target_is_skipped(env: Env) -> None:
+    """按 ID 引用要容忍对方已不存在：目标被删了，采集这一轮记日志跳过，不影响别的。"""
+    env.observable().subscribe(Subscriber(), ["adsb"])
+    env.adsb.records = [rec("a#1", 1)]
+    env.manager.remove_target("t1")
+    assert env.collector.collect() == []
+    assert env.adsb.calls == []
+
+
 def test_subscriber_failure_is_isolated(env: Env) -> None:
     class Broken:
         def on_observation(self, envelope: ObservationEnvelope) -> None:

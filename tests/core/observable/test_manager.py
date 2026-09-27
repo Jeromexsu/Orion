@@ -7,7 +7,6 @@ from core.observable import (
 )
 from core.target import (
     Target,
-    TargetInUseError,
     TargetManager,
     TargetNotFoundError,
     TargetTypeRegistry,
@@ -34,7 +33,6 @@ def make(
     observables = ObservableTargetManager(
         target_types, targets, InMemoryObservableTargetRepository(), StaticUpstreamCatalog(table)
     )
-    targets.add_referrer(observables)
     return targets, observables
 
 
@@ -117,28 +115,3 @@ def test_observable_reads_the_current_target(
     obs = observable_manager.get_observable(plane.id, "position")
     manager.upsert_target(plane.model_copy(update={"registration": "B-9999"}))
     assert manager.get_target(obs.target_id).query_values() == {Registration: "B-9999"}
-
-
-# ---------------------------------------------------------------- 作为 TargetReferrer
-
-
-def test_subscribed_target_cannot_be_removed(
-    manager: TargetManager, observable_manager: ObservableTargetManager, plane: Target
-) -> None:
-    obs = observable_manager.get_observable(plane.id, "position")
-    obs.subscribe(Subscriber(), ["adsb"])
-    with pytest.raises(TargetInUseError, match="t1:position"):
-        manager.remove_target(plane.id)
-
-
-def test_removing_a_target_releases_its_observables(
-    manager: TargetManager,
-    observable_manager: ObservableTargetManager,
-    plane: Target,
-    observables: InMemoryObservableTargetRepository,
-) -> None:
-    obs = observable_manager.get_observable(plane.id, "position")
-    manager.remove_target(plane.id)
-    assert obs.id not in observables.items
-    with pytest.raises(TargetNotFoundError):     # 目标没了，也不会再留着旧的可观测目标
-        observable_manager.get_observable(plane.id, "position")

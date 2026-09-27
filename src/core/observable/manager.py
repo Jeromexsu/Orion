@@ -10,7 +10,6 @@ class ObservableTargetManager:
     """observable 模块的入口：保证每个 (目标, 观察点) 只有一个 ObservableTarget（单例表）。
 
     可观测目标只存目标 ID；目标从 TargetManager 现读，可用上游按当前的目标问 UpstreamCatalog 现算。
-    结构化地实现 target 的 TargetReferrer：有订阅者时目标不能删，删目标时一并丢掉它的可观测目标。
     """
 
     def __init__(
@@ -73,15 +72,3 @@ class ObservableTargetManager:
     def active_observables(self) -> list[ObservableTarget]:
         """subscribers() 非空的 ObservableTarget，collector 只采集这些。"""
         return [o for o in self._live.values() if o.is_active]
-
-    # ------------------------------------------------------------ TargetReferrer
-
-    def references(self, target_id: str) -> list[str]:
-        """Observable targets of the target that still have subscribers."""
-        return [o.id for o in self._live.values() if o.target_id == target_id and o.is_active]
-
-    def release(self, target_id: str) -> None:
-        """Drop the target's observable targets (memory and stored). Nothing subscribes."""
-        for key in [k for k, o in self._live.items() if o.target_id == target_id]:
-            del self._live[key]
-            self._observable_target_repository.remove(key)

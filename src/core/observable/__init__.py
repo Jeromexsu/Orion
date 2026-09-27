@@ -5,7 +5,6 @@
 对外：ObservableTargetManager 是入口；ObservableTarget、Subscriber；UpstreamCatalog（上游目录，由 collector 实现）；
       ObservableTargetRepository。
 依赖：target（目标、目标类型注册表）、observation（观察点、观测外壳）。
-      结构化地实现 target 的 TargetReferrer，由 bootstrap 接到 TargetManager 上。
 """
 
 from core.observable.errors import (
