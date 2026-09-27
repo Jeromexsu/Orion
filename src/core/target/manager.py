@@ -12,7 +12,7 @@ from core.target.errors import (
     UnknownTargetTypeError,
     UnsupportedObservedPointError,
 )
-from core.target.observable import ObservableTarget, observable_key
+from core.target.observable import ObservableTarget
 from core.target.observed_point import ObservedPoint, observed_point_name
 from core.target.repository import ObservableTargetRepository, TargetRepository
 from core.target.target import Target, TargetRecord, type_name
@@ -109,7 +109,7 @@ class TargetManager:
 
         self._target_repository.upsert(target.to_record())
         for point in type(target).observed_points:
-            live = self._live.get(observable_key(target.id, point.name))
+            live = self._live.get(ObservableTarget.make_id(target.id, point.name))
             if live is not None:
                 live.rebind_target(target)
         return target
@@ -132,7 +132,7 @@ class TargetManager:
         不存在抛 TargetNotFoundError；任一可观测目标仍有订阅者抛 TargetInUseError，此时什么都不删。
         """
         target = self.get_target(target_id)
-        keys = [observable_key(target_id, p.name) for p in type(target).observed_points]
+        keys = [ObservableTarget.make_id(target_id, p.name) for p in type(target).observed_points]
         in_use = [k for k in keys if (live := self._live.get(k)) is not None and live.is_active]
         if in_use:
             raise TargetInUseError(f"{target_id} still subscribed via {in_use}")
@@ -150,7 +150,7 @@ class TargetManager:
 
         给只需要校验的调用方（如模板编译）用，避免为最终被拒绝的模板创建可观测目标。
         """
-        live = self._live.get(observable_key(target_id, observed_point))
+        live = self._live.get(ObservableTarget.make_id(target_id, observed_point))
         if live is not None:
             return live.observed_point, live.upstreams
 
@@ -171,7 +171,7 @@ class TargetManager:
         首次创建时放进内存单例表并写库；检查与 inspect_observable 相同，不通过时抛同样的异常。
         上游列表由这里问 UpstreamCatalog 得到；调用方随后自行 subscribe(subscriber, upstreams)。
         """
-        key = observable_key(target_id, observed_point)
+        key = ObservableTarget.make_id(target_id, observed_point)
         live = self._live.get(key)
         if live is not None:
             return live

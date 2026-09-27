@@ -21,11 +21,6 @@ class Subscriber(Protocol):
         ...
 
 
-def observable_key(target_id: str, observed_point_name: str) -> str:
-    """可观测目标 ID：`目标ID:观察点名`，如 `t1:position`。"""
-    return f"{target_id}:{observed_point_name}"
-
-
 class ObservableTarget:
     """具体目标实例 + 一个观察点，全局唯一（只由 TargetManager 创建）。
 
@@ -51,11 +46,23 @@ class ObservableTarget:
         self._upstreams = tuple(upstreams)
         self._subscriptions: dict[Subscriber, frozenset[str]] = {}
 
+    @staticmethod
+    def make_id(target_id: str, observed_point_name: str) -> str:
+        """Build the ID of the observable target for a target at an observed point.
+
+        Static because callers often need the ID before the observable target
+        exists, e.g. to look it up in TargetManager's singleton table.
+
+        Returns:
+            `<target_id>:<observed_point_name>`, e.g. `t1:position`.
+        """
+        return f"{target_id}:{observed_point_name}"
+
     # ------------------------------------------------------------ 只读
 
     @property
     def id(self) -> str:
-        return observable_key(self._target.id, self._observed_point.name)
+        return ObservableTarget.make_id(self._target.id, self._observed_point.name)
 
     @property
     def target(self) -> Target:

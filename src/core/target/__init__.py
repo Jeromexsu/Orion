@@ -24,7 +24,7 @@ from core.target.errors import (
     UnsupportedUpstreamError,
 )
 from core.target.manager import TargetManager
-from core.target.observable import ObservableTarget, Subscriber, observable_key
+from core.target.observable import ObservableTarget, Subscriber
 from core.target.observed_point import (
     Observation,
     ObservedPoint,
@@ -66,7 +66,6 @@ __all__ = [
     "UnsupportedObservedPointError",
     "UnsupportedUpstreamError",
     "UpstreamCatalog",
-    "observable_key",
     "observed_point",
     "observed_point_name",
     "provides",

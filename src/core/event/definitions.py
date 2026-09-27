@@ -10,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from core.condition_engine import ConditionDef
 from core.operators import MountPoint
+from core.target import ObservableTarget
 
 
 class OperatorMountDef(BaseModel):
@@ -33,7 +34,7 @@ class ObservableDef(BaseModel):
 
     @property
     def observable_id(self) -> str:
-        return f"{self.target_id}:{self.observed_point}"
+        return ObservableTarget.make_id(self.target_id, self.observed_point)
 
 
 class RuleDef(BaseModel):
