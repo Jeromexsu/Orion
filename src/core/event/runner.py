@@ -128,32 +128,31 @@ class EventRunner:
         if envelope.observable_id not in self._observables:
             return
 
-        # check if this observation trigger the open condition
+        # evaluate the open condition on every observation and keep its state up to date
         opened = self._template.open_tree.evaluate(envelope, self._open_state)
         if opened.state_patch:
             self._open_state = apply_state_patch(self._open_state, opened.state_patch)
             self._runtime.runner_state_repository.save(self._parent_id, self._template.id, self._open_state)
 
-        processor = self._active
-
-        # there is no active event processor
-        if processor is None:
-            # open condition not tiggered, return
+        # there is no active event
+        if self._active is None:
+            # open condition not triggered, return
             if opened.outcome != HIT:
                 return
-            # open condition triggerd and there is no active event processor, create a new one
-            processor = Event.open(
+            # open condition triggered, open a new event for this cycle
+            self._active = Event.open(
                 self._parent_id,
                 self._template,
                 self._runtime,
                 self.target_names,
                 cycle=envelope.occurred_at.year,
             )
-            self._active = processor
-        # hand over to active processer
-        processor.process(envelope)
-        self._runtime.event_repository.save(processor.to_record())
-        if processor.is_closed:
+
+        # hand over to the active event, then save it
+        event = self._active
+        event.process(envelope)
+        self._runtime.event_repository.save(event.to_record())
+        if event.is_closed:
             self._end_cycle()
 
     # ------------------------------------------------------------ 版本 / 生命周期

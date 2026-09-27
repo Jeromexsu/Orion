@@ -39,12 +39,12 @@ def make_parent(env: Env, **kwargs: Any) -> ParentEvent:
 
 def test_create_and_get(env: Env) -> None:
     parent = env.parent_events.create("p1", "x")
-    assert env.parent_events.get_pevent_by_id("p1") is parent
+    assert env.parent_events.get("p1") is parent
     assert env.parents.items["p1"].name == "x"
     with pytest.raises(DuplicateParentEventError):
         env.parent_events.create("p1", "y")
     with pytest.raises(ParentEventNotFoundError):
-        env.parent_events.get_pevent_by_id("nope")
+        env.parent_events.get("nope")
 
 
 def test_namespace_holds_static_targets_only(env: Env) -> None:
@@ -256,7 +256,7 @@ def test_restore(env: Env) -> None:
     events = env.make_parent_events(targets)
     assert events.restore() == []
 
-    restored = events.get_pevent_by_id("p1").runner("enter-zone")
+    restored = events.get("p1").runner("enter-zone")
     (obs,) = targets.active_observables()
     assert obs.subscription(restored) == {"adsb"}
     assert restored.template.version == 1

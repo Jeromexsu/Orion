@@ -40,7 +40,7 @@ def test_build_app_wires_everything() -> None:
     assert [type_name(t) for t in app.target_manager.types()] == ["aircraft"]
     assert [o.name for o in app.operator_registry.operators()] == ["count_hits", "close_report"]
     assert app.hil_manager.allowed_actions() == ["add_target", "remove_target", "upsert_template"]
-    assert app.parent_event_manager.get_pevents() == []
+    assert app.parent_event_manager.parents() == []
 
 
 def test_accepted_suggestion_goes_through_public_method() -> None:
@@ -65,4 +65,4 @@ def test_accepted_suggestion_goes_through_public_method() -> None:
 
     good = propose(target_id="t1")
     app.hil_manager.accept(good.id)
-    assert app.parent_event_manager.get_pevent_by_id("p1").target_ids() == {"t1"}
+    assert app.parent_event_manager.get("p1").target_ids() == {"t1"}
