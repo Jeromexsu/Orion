@@ -29,15 +29,15 @@ from tests.core.condition_engine.conftest import (
 
 
 def enter(observable: str = "t1:position", **criteria: Any) -> dict[str, Any]:
-    return {"kind": "leaf", "observable": observable, "type": "onEnter", "criteria": {"area": SQUARE, **criteria}}
+    return {"kind": "leaf", "observable": observable, "op": "onEnter", "criteria": {"area": SQUARE, **criteria}}
 
 
 def gt(value: float, observable: str = "t1:position") -> dict[str, Any]:
-    return {"kind": "leaf", "observable": observable, "type": "gt", "criteria": {"field": "alt", "value": value}}
+    return {"kind": "leaf", "observable": observable, "op": "gt", "criteria": {"field": "alt", "value": value}}
 
 
 def op(name: str, *children: dict[str, Any]) -> dict[str, Any]:
-    return {"kind": "op", "op": name, "children": list(children)}
+    return {"kind": "branch", "op": name, "children": list(children)}
 
 
 # ---------------------------------------------------------------- 编译
@@ -52,24 +52,24 @@ def test_registry_rejects_duplicates() -> None:
 
 def test_structure_errors_are_pydantic() -> None:
     with pytest.raises(ValidationError):
-        parse({"kind": "op", "op": "and", "children": []})
+        parse({"kind": "branch", "op": "and", "children": []})
     with pytest.raises(ValidationError):
-        parse({"kind": "leaf", "type": "gt"})
+        parse({"kind": "leaf", "op": "gt"})
 
 
 def test_semantic_errors_are_collected_with_paths(compiler: ConditionCompiler) -> None:
     definition = op(
         "all",
-        {"kind": "leaf", "observable": "t1:position", "type": "nope"},
+        {"kind": "leaf", "observable": "t1:position", "op": "nope"},
         enter(observable="ghost"),
         gt(1, observable="t2:position"),  # t2 没有 alt
-        {"kind": "leaf", "observable": "t1:position", "type": "gt", "criteria": {}},
+        {"kind": "leaf", "observable": "t1:position", "op": "gt", "criteria": {}},
         op("not", gt(1), gt(2)),
     )
     with pytest.raises(ConditionCompileError) as info:
         compile_(compiler, definition)
     errors = info.value.errors
-    assert any(e.startswith("root/0: unknown condition type") for e in errors)
+    assert any(e.startswith("root/0: unknown evaluator op") for e in errors)
     assert any(e.startswith("root/1: unknown observable") for e in errors)
     assert any(e.startswith("root/2: observable 't2:position' lacks fields ['alt']") for e in errors)
     assert any(e.startswith("root/3: invalid criteria") for e in errors)
@@ -163,7 +163,7 @@ class RecentCriteria(BaseModel):
 class RecentCount(Evaluator[RecentCriteria]):
     """示例：滑动窗口。最近 hours 小时内的观测达到 count 条即命中——状态记的是 N 轮，不只上一轮。"""
 
-    type = "recentCount"
+    op = "recentCount"
     requires = frozenset({"lat"})
     criteria_model = RecentCriteria
 
@@ -181,7 +181,7 @@ class RecentCount(Evaluator[RecentCriteria]):
 class Spy(Evaluator[GtCriteria]):
     """记录收到的观测外壳。"""
 
-    type = "spy"
+    op = "spy"
     requires = frozenset({"alt"})
     criteria_model = GtCriteria
 
@@ -202,7 +202,7 @@ def test_evaluator_gets_a_copy_with_time() -> None:
     compiler = ConditionCompiler(registry)
     original = make_envelope("t1:position", at=3, lat=1, lon=1, alt=100)
 
-    result = compile_(compiler, {"kind": "leaf", "observable": "t1:position", "type": "spy",
+    result = compile_(compiler, {"kind": "leaf", "observable": "t1:position", "op": "spy",
                                "criteria": {"field": "alt", "value": 0}}).evaluate(original, {})
     (seen,) = spy.seen
     assert seen.occurred_at == T0 + timedelta(hours=3)
@@ -215,7 +215,7 @@ def test_state_can_hold_a_sliding_window() -> None:
     registry = EvaluatorRegistry()
     registry.register(RecentCount())
     compiler = ConditionCompiler(registry)
-    tree = compile_(compiler, {"kind": "leaf", "observable": "t1:position", "type": "recentCount",
+    tree = compile_(compiler, {"kind": "leaf", "observable": "t1:position", "op": "recentCount",
                              "criteria": {"hours": 24, "count": 3}})
 
     state: dict[str, dict[str, Any]] = {}

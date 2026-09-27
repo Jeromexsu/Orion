@@ -77,7 +77,7 @@ class LeafNode(ConditionNode):
 
         entry: dict[str, Any] = {
             "path": self.path,
-            "type": self.evaluator.type,
+            "op": self.evaluator.op,
             "observable": self.observable,
             "outcome": result.outcome,
             "occurred_at": envelope.occurred_at.isoformat(),
@@ -94,7 +94,7 @@ class LeafNode(ConditionNode):
         return result.model_copy(update={"trace": [entry, *result.trace], "state": None}), changes
 
 
-class OpNode(ConditionNode):
+class BranchNode(ConditionNode):
     """组合节点。永远不短路：每次都评估所有子节点，保证有状态的叶子不漏更新。
 
     三值逻辑，“不适用”视为中性：

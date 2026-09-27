@@ -28,7 +28,7 @@ class FixedCriteria(BaseModel):
 
 
 class Fixed(Evaluator[FixedCriteria]):
-    type = "fixed"
+    op = "fixed"
     requires = frozenset[str]()
     criteria_model = FixedCriteria
 
@@ -44,7 +44,7 @@ compiler = ConditionCompiler(registry)
 
 
 def leaf(o: Outcome) -> dict[str, Any]:
-    return {"kind": "leaf", "observable": "t", "type": "fixed", "criteria": {"outcome": o}}
+    return {"kind": "leaf", "observable": "t", "op": "fixed", "criteria": {"outcome": o}}
 
 
 def run(definition: dict[str, Any]) -> Outcome:
@@ -53,21 +53,21 @@ def run(definition: dict[str, Any]) -> Outcome:
 
 @given(outcomes)
 def test_double_negation(o: Outcome) -> None:
-    inner = {"kind": "op", "op": "not", "children": [leaf(o)]}
-    assert run({"kind": "op", "op": "not", "children": [inner]}) == o
+    inner = {"kind": "branch", "op": "not", "children": [leaf(o)]}
+    assert run({"kind": "branch", "op": "not", "children": [inner]}) == o
 
 
 @given(st.lists(outcomes, min_size=1, max_size=6))
 def test_de_morgan(xs: list[Outcome]) -> None:
-    negated = [{"kind": "op", "op": "not", "children": [leaf(x)]} for x in xs]
-    lhs = run({"kind": "op", "op": "not", "children": [{"kind": "op", "op": "all", "children": [leaf(x) for x in xs]}]})
-    rhs = run({"kind": "op", "op": "any", "children": negated})
+    negated = [{"kind": "branch", "op": "not", "children": [leaf(x)]} for x in xs]
+    lhs = run({"kind": "branch", "op": "not", "children": [{"kind": "branch", "op": "all", "children": [leaf(x) for x in xs]}]})
+    rhs = run({"kind": "branch", "op": "any", "children": negated})
     assert lhs == rhs
 
 
 @given(st.lists(outcomes, min_size=1, max_size=6))
 def test_not_applicable_is_neutral(xs: list[Outcome]) -> None:
     for op in ("all", "any"):
-        base = run({"kind": "op", "op": op, "children": [leaf(x) for x in xs]})
-        padded = run({"kind": "op", "op": op, "children": [leaf(x) for x in xs] + [leaf(NOT_APPLICABLE)]})
+        base = run({"kind": "branch", "op": op, "children": [leaf(x) for x in xs]})
+        padded = run({"kind": "branch", "op": op, "children": [leaf(x) for x in xs] + [leaf(NOT_APPLICABLE)]})
         assert base == padded

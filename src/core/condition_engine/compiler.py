@@ -2,13 +2,13 @@ from collections.abc import Mapping, Set
 
 from pydantic import ValidationError
 
-from core.condition_engine.definitions import ConditionDef, LeafDef, OpDef
+from core.condition_engine.definitions import BranchDef, ConditionDef, LeafDef
 
 FieldsByObservable = Mapping[str, Set[str]]
 """可观测目标 ID（如 "t1:position"）→ 它的观测有哪些字段（如 {"lat", "lon", "altitude_m"}）。"""
 from core.condition_engine.errors import ConditionCompileError
 from core.condition_engine.registry import EvaluatorRegistry
-from core.condition_engine.tree import ConditionNode, ConditionTree, LeafNode, OpNode
+from core.condition_engine.tree import BranchNode, ConditionNode, ConditionTree, LeafNode
 
 
 class ConditionCompiler:
@@ -41,12 +41,12 @@ class ConditionCompiler:
     def _compile(
         self, node: ConditionDef, path: str, fields_by_observable: FieldsByObservable, errors: list[str]
     ) -> ConditionNode | None:
-        if isinstance(node, OpDef):
+        if isinstance(node, BranchDef):
             return self._compile_op(node, path, fields_by_observable, errors)
         return self._compile_leaf(node, path, fields_by_observable, errors)
 
     def _compile_op(
-        self, node: OpDef, path: str, fields_by_observable: FieldsByObservable, errors: list[str]
+        self, node: BranchDef, path: str, fields_by_observable: FieldsByObservable, errors: list[str]
     ) -> ConditionNode | None:
         if node.op == "not" and len(node.children) != 1:
             errors.append(f"{path}: 'not' takes exactly one child, got {len(node.children)}")
@@ -60,15 +60,15 @@ class ConditionCompiler:
         compiled = [c for c in children if c is not None]
         if len(compiled) != len(children):
             return None
-        return OpNode(path, node.op, compiled)
+        return BranchNode(path, node.op, compiled)
 
     def _compile_leaf(
         self, node: LeafDef, path: str, fields_by_observable: FieldsByObservable, errors: list[str]
     ) -> ConditionNode | None:
-        if not self._evaluator_registry.has(node.type):
-            errors.append(f"{path}: unknown condition type {node.type!r}")
+        if not self._evaluator_registry.has(node.op):
+            errors.append(f"{path}: unknown evaluator op {node.op!r}")
             return None
-        evaluator = self._evaluator_registry.get(node.type)
+        evaluator = self._evaluator_registry.get(node.op)
 
         ok = True
         available = fields_by_observable.get(node.observable)
@@ -86,7 +86,7 @@ class ConditionCompiler:
         try:
             criteria = evaluator.criteria_model.model_validate(node.criteria)
         except ValidationError as e:
-            errors.append(f"{path}: invalid criteria for {node.type!r}: {e}")
+            errors.append(f"{path}: invalid criteria for {node.op!r}: {e}")
             return None
 
         return LeafNode(path, node.observable, evaluator, criteria) if ok else None

@@ -8,7 +8,7 @@
 """
 
 from core.condition_engine.compiler import ConditionCompiler, FieldsByObservable
-from core.condition_engine.definitions import ConditionDef, LeafDef, OpDef
+from core.condition_engine.definitions import BranchDef, ConditionDef, LeafDef
 from core.condition_engine.errors import (
     ConditionCompileError,
     ConditionEngineError,
@@ -41,7 +41,7 @@ __all__ = [
     "LeafDef",
     "MISS",
     "NOT_APPLICABLE",
-    "OpDef",
+    "BranchDef",
     "Outcome",
     "TreeState",
     "UnknownEvaluatorError",

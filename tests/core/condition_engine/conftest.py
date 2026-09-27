@@ -64,7 +64,7 @@ class GtCriteria(BaseModel):
 class Gt(Evaluator[GtCriteria]):
     """无状态测试用判断：fields[field] > value。"""
 
-    type = "gt"
+    op = "gt"
     requires = frozenset({"alt"})
     criteria_model = GtCriteria
 

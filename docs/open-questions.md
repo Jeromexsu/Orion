@@ -105,6 +105,10 @@ since 之前的不返回），等往外分插件任务时再搭。
 
 ## 已决
 
+- **条件节点统一为 kind + op + 操作对象**：`OpDef` / `OpNode` → `BranchDef` / `BranchNode`（`kind: "branch"`）；叶子的
+  `type` → `op`（引用 `Evaluator.op`，原 `Evaluator.type`，顺带去掉了遮蔽内置 `type` 的写法）；条件留痕的 `"type"` 键 → `"op"`。
+  叶子的参数叫 `criteria`（判定标准），`Evaluator.evaluate(envelope, state, criteria)`；算子挂载的 `params` 不变。
+
 - **条件状态：结果直接给新状态，不给补丁**：`EvalResult.state_patch` 改为 `state`，含义在两层一致——「求值对象的新状态，
   `None` 表示没变」：判断方式返回本叶子的完整新状态，`ConditionTree.evaluate` 返回整棵树的新状态。`apply_state_patch`
   不再对外；调用方（runner、`Event`）不再合并，直接换上，变了才持久化。状态仍放在树外、由调用方保管——树被一个模板版本
@@ -131,7 +135,7 @@ since 之前的不返回），等往外分插件任务时再搭。
   `ObservableDef`、`OperatorMountDef`）；装着 `Def` 的字段以 `_def` / `_defs` 结尾（`observable_defs`、
   `open_condition_def`、`rule_defs`、`hook_defs`、`condition_def`）；运行时对象不带后缀（如
   `EventTemplate.open_tree`、`EventTemplate.rules` 返回的 `CompiledRule`）。条件引擎契约
-  `LeafDef` / `OpDef` 的 `children` 按设计文档第八节照抄，不改。
+  `LeafDef` / `OpDef` 的 `children` 按设计文档第八节照抄，不改。（后来 `OpDef` 改名 `BranchDef`，见下条「条件节点统一」。）
 
 - **持久化归管理者**：谁管理一组对象谁负责存它们——`ParentEventManager` 存父事件记录（仓库从
   `ParentEventServices` 移到 manager 的构造参数），`EventRunner` 存子事件记录；`ParentEvent` 和 runner

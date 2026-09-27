@@ -1,6 +1,5 @@
 """The evaluator extension point: the Evaluator base class and what it returns (EvalResult)."""
 
-import builtins
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Set
 from typing import Any, Generic, Literal, TypeVar
@@ -47,9 +46,9 @@ class Evaluator(ABC, Generic[C]):
     - 返回“不适用”时不得带 state（带了也会被忽略）。
     """
 
-    type: str                   # 模板里引用的名字，如 "onEnter"
+    op: str                     # 模板里叶子的 op 引用它，如 "onEnter"
     requires: Set[str]          # 需要观测里有值的字段（按字段名，不绑定具体观测类型）
-    criteria_model: builtins.type[C]  # 判定标准的形状；类体里的 type 属性遮蔽了内置 type
+    criteria_model: type[C]     # 判定标准的形状
 
     @abstractmethod
     def evaluate(

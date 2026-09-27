@@ -38,7 +38,7 @@ class OnEnterCriteria(BaseModel):
 class OnEnter(Evaluator[OnEnterCriteria]):
     """上一次在区域外、这一次在区域内 → 命中。状态里记住上一次是否在区域内。"""
 
-    type = "onEnter"
+    op = "onEnter"
     requires = frozenset({"lat", "lon"})
     criteria_model = OnEnterCriteria
 

@@ -255,12 +255,12 @@ graph LR
     {"target_id": "t2", "observed_point": "position", "upstreams": ["adsb", "radar"]}
   ],
   "open_condition_def": {
-    "kind": "op",
+    "kind": "branch",
     "op": "any",
     "children": [
-      {"kind": "leaf", "observable": "t1:position", "type": "onEnter",
+      {"kind": "leaf", "observable": "t1:position", "op": "onEnter",
        "criteria": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]]}},
-      {"kind": "leaf", "observable": "t2:position", "type": "onEnter",
+      {"kind": "leaf", "observable": "t2:position", "op": "onEnter",
        "criteria": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]]}}
     ]
   },
@@ -268,12 +268,12 @@ graph LR
     {
       "name": "enter",
       "condition_def": {
-        "kind": "op",
+        "kind": "branch",
         "op": "any",
         "children": [
-          {"kind": "leaf", "observable": "t1:position", "type": "onEnter",
+          {"kind": "leaf", "observable": "t1:position", "op": "onEnter",
            "criteria": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]], "initial_as_enter": true}},
-          {"kind": "leaf", "observable": "t2:position", "type": "onEnter",
+          {"kind": "leaf", "observable": "t2:position", "op": "onEnter",
            "criteria": {"area": [[0, 0], [0, 10], [10, 10], [10, 0]], "initial_as_enter": true}}
         ]
       },
@@ -296,8 +296,10 @@ graph LR
 | `open_condition_def` | 开启条件（必填）：无活跃子事件时命中才开启新周期 |
 | `rule_defs` | 规则：子事件运行期间每条观测都评估；`name` 在模板内唯一；`hook_defs` 只能挂 `rule_hit` |
 | `hook_defs` | 子事件级算子：挂在 `created` / `closed` / `pre` / `status_updated` / `post` |
-| 条件树（`kind: op`） | `op` 为 `all` / `any` / `not`，`children` 是子条件，可任意嵌套 |
-| 条件叶子（`kind: leaf`） | `observable` 引用 `observable_defs` 里声明的可观测目标；`type` 是判断方式（如 `onEnter`）；`criteria` 是判定标准，由该判断方式解释 |
+| 条件分支（`kind: branch`） | `op` 为 `all` / `any` / `not`，`children` 是子条件，可任意嵌套 |
+| 条件叶子（`kind: leaf`） | `op` 是判断方式（如 `onEnter`）；`observable` 引用 `observable_defs` 里声明的可观测目标；`criteria` 是判定标准，由该判断方式解释 |
+
+两种节点形状一致：`kind` 说明是哪种节点，`op` 说明做什么运算，其余是操作对象（叶子是 `observable` + `criteria`，分支是 `children`）。
 
 规则和可观测目标不是一一对应：每棵条件树在叶子里通过 `observable` 引用可观测目标，一条规则可以引用多个，
 同一个可观测目标也可以被多条规则引用。观测到来时交给所有条件树评估，叶子遇到不属于自己的观测返回「不适用」。
@@ -307,7 +309,7 @@ graph LR
 
 ```mermaid
 graph LR
-  CD["ConditionDef<br/>LeafDef / OpDef（纯数据）"] -->|"ConditionCompiler.compile(def, fields_by_observable)"| CT["ConditionTree<br/>OpNode / LeafNode"]
+  CD["ConditionDef<br/>LeafDef / BranchDef（纯数据）"] -->|"ConditionCompiler.compile(def, fields_by_observable)"| CT["ConditionTree<br/>BranchNode / LeafNode"]
   CT -->|"evaluate(envelope, state)"| ER["EvalResult<br/>命中 / 未命中 / 不适用 + 新状态"]
   LN["LeafNode"] -->|调用| EV["Evaluator<br/>唯一扩展点"]
 ```
@@ -329,7 +331,7 @@ graph LR
 | event · 模板编译器 | `ConditionCompiler.compile(condition_def, fields_by_observable)` | 编译时：定义 → 条件树；错误收集后一次抛出，每条带节点路径（如 `root/1/0`） |
 | event · runner / 子事件 | `ConditionTree.evaluate(envelope, state)` | 运行时：纯函数求值；结果的 `state` 是整棵树的新状态（`None` = 没变），调用方保管 |
 | bootstrap | `EvaluatorRegistry.register` | 启动时注册判断方式 |
-| 跨模块传递的纯数据 | `ConditionDef`（`LeafDef` / `OpDef`）、`EvalResult`（`HIT` / `MISS` / `NOT_APPLICABLE`） | — |
+| 跨模块传递的纯数据 | `ConditionDef`（`LeafDef` / `BranchDef`）、`EvalResult`（`HIT` / `MISS` / `NOT_APPLICABLE`） | — |
 
 依赖：target（只用 `ObservationEnvelope`，见 open-questions 第 5 条）。
 
@@ -337,7 +339,7 @@ graph LR
 
 | 声明 / 实现 | 含义 |
 |---|---|
-| `type` | 模板里引用的名字，如 `"onEnter"` |
+| `op` | 模板里叶子的 `op` 引用它，如 `"onEnter"` |
 | `requires` | 需要观测里有值的字段名；缺失或为空时叶子直接返回「不适用」，不调用判断方式 |
 | `criteria_model` | 判定标准的形状（Pydantic 模型），编译时校验 |
 | `evaluate(envelope, state, criteria)` | 判断；不改传入的 `state`（只读），把本叶子的**完整**新状态放进结果的 `state`（不是变化量；没变就不填）；返回「不适用」时不得带 `state` |
