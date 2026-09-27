@@ -20,6 +20,7 @@ from core.target import (
     type_name,
 )
 from plugins.observed_points.position import Position
+from plugins.query_keys.registration import Registration
 from plugins.target.aircraft import Aircraft
 from tests.core.target.conftest import Subscriber
 from tests.core.target.fakes import (
@@ -216,7 +217,8 @@ def test_active_observables_follow_subscribers(manager: TargetManager, plane: Ta
 def test_upsert_target_rebinds_live_observable(manager: TargetManager, plane: Target) -> None:
     obs = manager.get_observable(plane.id, "position")
     manager.upsert_target(plane.model_copy(update={"registration": "B-9999"}))
-    assert obs.query_spec({"registration"}).query == {"registration": "B-9999"}
+    assert obs.query_spec().attributes["registration"] == "B-9999"
+    assert obs.target.query_values() == {Registration: "B-9999"}
 
 
 def test_remove_target_in_use_rejected(manager: TargetManager, plane: Target) -> None:

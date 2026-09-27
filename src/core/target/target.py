@@ -1,10 +1,12 @@
 """目标基类与持久化记录。"""
 
-from typing import Any, ClassVar
+import builtins
+from typing import Any, ClassVar, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from core.target.observed_point import ObservedPoint
+from core.target.query_key import QueryKey, query_key_name, validate_query_value
 
 _BASE_FIELDS = frozenset({"id", "type", "name", "aliases"})
 
@@ -16,9 +18,10 @@ class Target(BaseModel, frozen=True):
     - 用 Literal 收窄 type 并给默认值，作为类型名：type: Literal["aircraft"] = "aircraft"
     - 用普通字段声明属性字段（如注册号），构造时由 Pydantic 自动校验
     - 用 observed_points 声明这类目标可以在哪些观察点被观测（观察点与目标类型无关，可共用）
+    - 在能提供查询键的字段上用 Annotated 标注查询键：icao24: Annotated[str | None, Icao24] = None；
+      上游按查询键（而不是字段名）判断能否查这个目标，取值在构造时按查询键校验
 
     目标类型只由开发者通过代码定义和修改，不开放给用户在运行时配置。
-    同名属性字段在所有目标类型里含义必须一致：上游按字段名判断目标能否提供查询所需的值。
     """
 
     observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = ()
@@ -27,6 +30,45 @@ class Target(BaseModel, frozen=True):
     id: str
     name: str                   # 展示名，报告里用
     aliases: list[str] = Field(default_factory=list[str])
+
+    @classmethod
+    def query_key_fields(cls) -> dict[builtins.type[QueryKey], str]:
+        """这类目标用哪个字段提供哪个查询键，从字段的 Annotated 标注里读出。
+
+        一个查询键只能由一个字段提供，否则抛 TypeError。
+        """
+        fields: dict[builtins.type[QueryKey], str] = {}
+        for field_name, info in cls.model_fields.items():
+            for meta in info.metadata:
+                if isinstance(meta, type) and issubclass(meta, QueryKey):
+                    query_key_name(meta)
+                    if meta in fields:
+                        raise TypeError(
+                            f"{cls.__name__}: {meta.__name__} provided by both "
+                            f"{fields[meta]!r} and {field_name!r}"
+                        )
+                    fields[meta] = field_name
+        return fields
+
+    def query_values(self) -> dict[builtins.type[QueryKey], Any]:
+        """这个目标能提供的查询键及其取值；字段为空的不算。"""
+        return {
+            key: value
+            for key, field_name in self.query_key_fields().items()
+            if (value := getattr(self, field_name)) is not None
+        }
+
+    @model_validator(mode="after")
+    def _validate_query_values(self) -> Self:
+        for key, field_name in self.query_key_fields().items():
+            value = getattr(self, field_name)
+            if value is None:
+                continue
+            try:
+                validate_query_value(key, value)
+            except ValidationError as e:
+                raise ValueError(f"{field_name}: not a valid {key.name}: {e}") from e
+        return self
 
     def attributes(self) -> dict[str, Any]:
         """子类声明的属性字段（不含基类字段），给 QuerySpec 和持久化用。"""

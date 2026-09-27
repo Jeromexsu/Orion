@@ -9,16 +9,17 @@ from core.target.observed_point import Observation
 
 
 class QuerySpec(BaseModel):
-    """ObservableTarget 交给 Adapter 的查询说明。"""
+    """可观测目标对自己的描述：是什么目标、关注哪个观察点、有哪些信息。与上游无关。
+
+    这次用哪种查询方式、从哪个时间点开始拉，是 collector 按上游决定的，不在这里。
+    """
 
     model_config = ConfigDict(frozen=True)
 
     type: str                   # 目标类型（Adapter 的查询逻辑确实依赖类型时可读它，匹配规则不看它）
     observed_point: str         # 观察点名，如 "position"
-    query: dict[str, Any]       # 这次采用的查询方式及其取值，如 {"mmsi": "412000000"}
     attributes: dict[str, Any]  # 目标全部属性
     aliases: list[str] = Field(default_factory=list[str])
-    since: datetime | None = None
 
 
 class ObservationEnvelope(BaseModel):

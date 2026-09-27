@@ -1,4 +1,4 @@
-from core.collector.adapter import Adapter
+from core.collector.adapter import Adapter, Query
 from core.collector.errors import DuplicateAdapterError, UnknownAdapterError
 from core.target import ObservedPoint, Target
 
@@ -32,14 +32,17 @@ class AdapterRegistry:
         return [
             a.name
             for a in self._adapters.values()
-            if a.observed_point is observed_point and match_query_fields(a, target) is not None
+            if a.observed_point is observed_point and match_query(a, target) is not None
         ]
 
 
-def match_query_fields(adapter: Adapter, target: Target) -> frozenset[str] | None:
-    """按优先级找出目标满足的第一种查询方式（按字段名匹配，字段须有值）；都不满足返回 None。"""
-    values = target.model_dump()
-    for fields in adapter.query_field_sets:
-        if all(values.get(f) is not None for f in fields):
-            return fields
+def match_query(adapter: Adapter, target: Target) -> Query | None:
+    """按优先级找出目标能提供的第一种查询方式，返回这次的查询（查询键 → 取值）；都不满足返回 None。
+
+    按查询键类匹配，不看字段名；取值在目标构造时已按查询键校验过。
+    """
+    values = target.query_values()
+    for keys in adapter.query_key_sets:
+        if keys <= values.keys():
+            return {k: values[k] for k in keys}
     return None

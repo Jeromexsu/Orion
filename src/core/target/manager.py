@@ -44,9 +44,11 @@ class TargetManager:
     def register_type(self, target_class: type[Target]) -> None:
         """注册一种目标类型，并收集它声明的观察点。
 
-        类型名重复抛 DuplicateTargetTypeError；同名观察点对应不同类抛 DuplicateObservedPointError。
+        类型名重复抛 DuplicateTargetTypeError；同名观察点对应不同类抛 DuplicateObservedPointError；
+        查询键标注不合法抛 TypeError。
         """
         name = type_name(target_class)
+        target_class.query_key_fields()   # 检查查询键标注，不合法抛 TypeError
         if name in self._types:
             raise DuplicateTargetTypeError(name)
         points: dict[str, type[ObservedPoint]] = {}

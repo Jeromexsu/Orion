@@ -40,14 +40,11 @@ def test_subscribers_is_a_snapshot(manager: TargetManager, plane: Target) -> Non
 
 
 def test_query_spec(manager: TargetManager, plane: Target) -> None:
-    since = datetime(2026, 9, 1, tzinfo=UTC)
-    spec = manager.get_observable(plane.id, "position").query_spec({"registration"}, since)
+    spec = manager.get_observable(plane.id, "position").query_spec()
     assert spec.type == "aircraft"
     assert spec.observed_point == "position"
-    assert spec.query == {"registration": "B-2447"}
     assert spec.attributes["registration"] == "B-2447"
     assert spec.aliases == ["MU5101"]
-    assert spec.since == since
 
 
 def test_parse_observation(manager: TargetManager, plane: Target) -> None:

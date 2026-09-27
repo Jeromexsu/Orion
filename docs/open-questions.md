@@ -17,8 +17,9 @@
 
 ### 3. Adapter 与 Target 子类的对应关系只靠约定
 
-**已解决**：观察点与目标类型解耦后，Adapter 不再引用目标类型（见「已决 · 观察点」）。剩余可做的是
-Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 不重复），等往外分插件任务时再搭。
+**已解决**：观察点与目标类型解耦后，Adapter 不再引用目标类型（见「已决 · 观察点」）；查询也不再靠字段名
+约定（见「已决 · 查询键」）。剩余可做的是 Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 不重复），
+等往外分插件任务时再搭。
 
 ### 4. 跨目标条件：单个叶子只能看一个目标的数据
 
@@ -148,12 +149,16 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
 - **观察点（取代「关注点」与「动态数据 schema」）**：观察点与目标类型解耦，不同目标类型可共用。
   - `ObservedPoint` 子类（如 `Position`）就是观测 `fields` 的 schema，放在 `plugins/observed_points/`；
   - 目标类型用 `observed_points` 声明可以在哪些观察点被观测（取代原 `focuses`）；
-  - Adapter 声明 `observed_point`（服务哪个观察点）和 `query_field_sets`（支持的查询方式：多组字段，按优先级），
-    不再引用目标类型；可用上游 = 服务该观察点、且目标满足其任意一种查询方式（该组字段都有值）的 Adapter；
-    采用第一种满足的查询方式，取值放进 `QuerySpec.query`。同一上游因此能对不同目标类型用不同字段查询
-    （如飞机按 icao24、船按 mmsi）。查询逻辑确实依赖目标类型时，Adapter 可在 fetch 里读 `QuerySpec.type` 兜底；
-  - 约定：同名属性字段在所有目标类型里含义必须一致；若将来出现冲突，再引入有类型的能力接口；
+  - Adapter 声明 `observed_point`（服务哪个观察点）和支持的查询方式（见下条「查询键」），不再引用目标类型；
+    查询逻辑确实依赖目标类型时，Adapter 可在 fetch 里读 `QuerySpec.type` 兜底；
   - `ObservableTarget(target, observed_point, upstreams)`；`QuerySpec.observed_point`、`ObservableDef.observed_point`
     存观察点名；`TargetManager` 从已注册目标类型收集观察点，重名报错。
+- **查询键（取代「同名属性字段含义一致」的约定）**：查询的输入也要有人负责，与观察点对称。
+  - `QueryKey` 子类（如 `Icao24`）= 名字 + 取值的类型与格式，放在 `plugins/query_keys/`；
+  - 目标类型在提供它的字段上标注：`icao24: Annotated[str | None, Icao24] = None`；构造目标时按查询键校验取值；
+  - Adapter 声明 `query_key_sets`（支持的查询方式：多组查询键，按优先级）；按查询键类匹配，不看字段名；
+    采用目标能提供的第一种，组装成 `query`（查询键 → 取值）；
+  - `QuerySpec` 只剩可观测目标对自己的描述（类型、观察点、属性、别名）；这次用的查询方式和游标由 collector
+    按上游决定，`Adapter.fetch(spec, query, since)` 分开传。
 - **上游归属**：可观测目标的上游列表由 `TargetManager` 问 `UpstreamCatalog` 得到，不由外部传入；
   订阅者 subscribe 时指定要哪些上游，可观测目标内部按上游路由。

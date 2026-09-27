@@ -1,5 +1,4 @@
-from collections.abc import Collection, Iterable, Mapping, Sequence
-from datetime import datetime
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any, Protocol
 
 from core.target.data import ObservationEnvelope, QuerySpec
@@ -113,18 +112,13 @@ class ObservableTarget:
 
     # ------------------------------------------------------------ 采集辅助
 
-    def query_spec(
-        self, query_fields: Collection[str], since: datetime | None = None
-    ) -> QuerySpec:
-        """query_fields：这次采用的查询方式（由 collector 按上游匹配出来），取目标上这些字段的值。"""
-        values = self._target.model_dump()
+    def query_spec(self) -> QuerySpec:
+        """对自己的描述：目标类型、观察点、属性、别名。"""
         return QuerySpec(
             type=self._target.type,
             observed_point=self._observed_point.name,
-            query={f: values[f] for f in sorted(query_fields)},
             attributes=self._target.attributes(),
             aliases=self._target.aliases,
-            since=since,
         )
 
     def parse_observation(self, fields: Mapping[str, Any]) -> Observation:

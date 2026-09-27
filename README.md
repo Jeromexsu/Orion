@@ -69,7 +69,7 @@ sequenceDiagram
   participant E as Event
 
   C->>O: active_upstreams()（只拉有人订阅的上游）
-  C->>A: fetch(QuerySpec)（按匹配到的查询方式）
+  C->>A: fetch(spec, query, since)（目标描述 + 按查询键匹配到的查询 + 该上游的游标）
   A-->>C: FetchedRecord（原始字段）
   C->>O: parse_observation(字段) → Observation
   Note over C: 包成 ObservationEnvelope，去重、落库、推进游标
@@ -82,14 +82,15 @@ sequenceDiagram
   R->>E: process(envelope)（规则 → 算子 → 是否收敛）
 ```
 
-### target：目标、观察点、上游
+### target：目标、观察点、查询键、上游
 
 | 类 | 是什么 | 由谁定义 |
 |---|---|---|
-| `Target` 子类（如 `Aircraft`） | 一类静态目标；实例是一个具体目标（如注册号 B-2447 的飞机）。声明可以在哪些观察点被观测（`observed_points`） | 开发者（`plugins/target/`） |
+| `Target` 子类（如 `Aircraft`） | 一类静态目标；实例是一个具体目标（如注册号 B-2447 的飞机）。声明可以在哪些观察点被观测（`observed_points`），并在字段上标注能提供哪些查询键（`Annotated[str, Registration]`） | 开发者（`plugins/target/`） |
 | `ObservedPoint` 子类（如 `Position`） | 观察点：名字 + 返回什么观测。与目标类型无关，可被多种目标共用 | 开发者（`plugins/observed_points/`） |
 | `Observation` 子类（如 `PositionObservation`） | 观测：观察点返回的数据，字段即形状 | 开发者（和观察点放在一起） |
-| `Adapter`（上游） | 数据提供方：服务哪个观察点、支持哪些查询方式（`query_field_sets`，目标满足其一即可） | 开发者（`plugins/collector/`） |
+| `QueryKey` 子类（如 `Icao24`） | 查询键：拿什么去查一个目标，名字 + 取值的类型与格式 | 开发者（`plugins/query_keys/`） |
+| `Adapter`（上游） | 数据提供方：服务哪个观察点、支持哪些查询方式（`query_key_sets`，每种是一组查询键，目标能提供其一即可） | 开发者（`plugins/collector/`） |
 | `ObservableTarget`（obs） | 目标实例 + 观察点 + 可用上游，全局唯一；订阅者按上游订阅，它按上游路由数据 | `TargetManager` 按需创建 |
 | `ObservationEnvelope` | 观测的外壳：来源信息（可观测目标、上游、发生时间、去重 ID）+ 观测实例 | collector 产出 |
 
@@ -103,8 +104,18 @@ graph LR
   OB -. 装在 .-> ENV
 ```
 
-可用上游 = 服务该观察点、且目标满足其某种查询方式（该组字段都有值）的 Adapter。
-上游不认识目标类型：同一个上游可以对飞机按 `icao24`、对船按 `mmsi` 查询。
+可用上游 = 服务该观察点、且目标能提供其某种查询方式要的全部查询键（字段有值）的 Adapter。
+上游不认识目标类型：同一个上游可以对飞机按 `Icao24`、对船按 `Mmsi` 查询。
+
+观察点和查询键是目标类型与上游之间的两份契约，双方都 import 同一个类，不靠字段名字符串对齐：
+
+| 契约 | 方向 | 目标类型声明 | Adapter 声明 |
+|---|---|---|---|
+| 观察点 `ObservedPoint` | 输出：上游返回什么 | `observed_points = (Position,)` | `observed_point = Position` |
+| 查询键 `QueryKey` | 输入：上游拿什么去查 | `icao24: Annotated[str \| None, Icao24]` | `query_key_sets = (frozenset({Icao24}),)` |
+
+`fetch` 的三个参数各有来源：`QuerySpec` 是可观测目标对自己的描述（与上游无关）；`query` 是 collector
+为这个上游挑出的查询方式及取值（`{Icao24: "780a3b"}`，构造目标时已按查询键校验）；`since` 是这个上游的游标。
 
 ### event：父事件、模板、子事件
 

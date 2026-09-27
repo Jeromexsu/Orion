@@ -1,9 +1,19 @@
 from collections.abc import Sequence
 from datetime import datetime
 
-from core.collector import FetchedRecord
-from core.target import ObservationEnvelope, ObservedPoint, QuerySpec
+from core.collector import FetchedRecord, Query
+from core.target import ObservationEnvelope, ObservedPoint, QueryKey, QuerySpec
 from plugins.observed_points.position import Position
+from plugins.query_keys.registration import Registration
+
+
+class FetchCall:
+    """记录一次 fetch 收到的参数。"""
+
+    def __init__(self, spec: QuerySpec, query: Query, since: datetime | None) -> None:
+        self.spec = spec
+        self.query = query
+        self.since = since
 
 
 class FakeAdapter:
@@ -11,21 +21,23 @@ class FakeAdapter:
         self,
         name: str,
         observed_point: type[ObservedPoint] = Position,
-        query_field_sets: tuple[frozenset[str], ...] = (frozenset({"registration"}),),
+        query_key_sets: tuple[frozenset[type[QueryKey]], ...] = (frozenset({Registration}),),
         records: list[FetchedRecord] | None = None,
     ) -> None:
         self.name = name
         self.observed_point = observed_point
-        self.query_field_sets = query_field_sets
+        self.query_key_sets = query_key_sets
         self.records = records or []
-        self.specs: list[QuerySpec] = []
+        self.calls: list[FetchCall] = []
         self.fail = False
 
-    def fetch(self, spec: QuerySpec) -> Sequence[FetchedRecord]:
-        self.specs.append(spec)
+    def fetch(
+        self, spec: QuerySpec, query: Query, since: datetime | None
+    ) -> Sequence[FetchedRecord]:
+        self.calls.append(FetchCall(spec, query, since))
         if self.fail:
             raise RuntimeError("upstream down")
-        return [r for r in self.records if spec.since is None or r.occurred_at > spec.since]
+        return [r for r in self.records if since is None or r.occurred_at > since]
 
 
 class InMemoryCursorRepository:

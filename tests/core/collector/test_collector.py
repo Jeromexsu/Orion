@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import ClassVar, Literal
+from typing import Annotated, Any, ClassVar, Literal
 
 import pytest
 
@@ -10,17 +10,20 @@ from core.collector import (
     DuplicateAdapterError,
     FetchedRecord,
     UnknownAdapterError,
-    match_query_fields,
+    match_query,
 )
 from core.target import (
     ObservableTarget,
     Observation,
     ObservationEnvelope,
     ObservedPoint,
+    QueryKey,
     Target,
     TargetManager,
 )
 from plugins.observed_points.position import Position, PositionObservation
+from plugins.query_keys.icao24 import Icao24
+from plugins.query_keys.registration import Registration
 from plugins.target.aircraft import Aircraft
 from tests.core.collector.fakes import (
     FakeAdapter,
@@ -38,6 +41,17 @@ class FuelObservation(Observation):
 class Fuel(ObservedPoint):
     name: ClassVar[str] = "fuel"
     observation: ClassVar[type[Observation]] = FuelObservation
+
+
+class Mmsi(QueryKey):
+    name: ClassVar[str] = "mmsi"
+    value_type: ClassVar[Any] = str
+
+
+class Ship(Target, frozen=True):
+    observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (Position,)
+    type: Literal["ship"] = "ship"
+    mmsi: Annotated[str, Mmsi]
 
 
 def at(minute: int) -> datetime:
@@ -84,8 +98,8 @@ def test_registry_is_upstream_catalog(env: Env) -> None:
         env.registry.get("nope")
 
 
-def test_upstreams_match_by_query_field_sets(env: Env) -> None:
-    env.registry.register(FakeAdapter("mode-s", query_field_sets=(frozenset({"icao24"}),)))
+def test_upstreams_match_by_query_keys(env: Env) -> None:
+    env.registry.register(FakeAdapter("mode-s", query_key_sets=(frozenset({Icao24}),)))
     no_icao = env.manager.get_target("t1")
     with_icao = Aircraft(id="t2", name="y", registration="B-1", icao24="780abc")
     # 查询要 icao24：没有这个值的目标用不了这个上游
@@ -94,37 +108,32 @@ def test_upstreams_match_by_query_field_sets(env: Env) -> None:
 
 
 def test_one_upstream_several_query_ways() -> None:
-    """同一个上游对不同目标用不同的查询方式：飞机按 icao24，船按 mmsi——上游不认识目标类型。"""
-
-    class Ship(Target, frozen=True):
-        observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (Position,)
-        type: Literal["ship"] = "ship"
-        mmsi: str
-
-    tracker = FakeAdapter(
-        "global-track", query_field_sets=(frozenset({"icao24"}), frozenset({"mmsi"}))
-    )
+    """同一个上游对不同目标用不同的查询方式：飞机按 ICAO 地址，船按 MMSI——上游不认识目标类型。"""
+    tracker = FakeAdapter("global-track", query_key_sets=(frozenset({Icao24}), frozenset({Mmsi})))
     plane = Aircraft(id="a1", name="x", registration="B-1", icao24="780abc")
     ship = Ship(id="s1", name="y", mmsi="412000000")
     bare_plane = Aircraft(id="a2", name="z", registration="B-2")
 
-    assert match_query_fields(tracker, plane) == {"icao24"}
-    assert match_query_fields(tracker, ship) == {"mmsi"}
-    assert match_query_fields(tracker, bare_plane) is None
+    assert match_query(tracker, plane) == {Icao24: "780abc"}
+    assert match_query(tracker, ship) == {Mmsi: "412000000"}
+    assert match_query(tracker, bare_plane) is None
 
 
-def test_query_spec_carries_matched_query(env: Env) -> None:
+def test_fetch_gets_spec_query_and_since_separately(env: Env) -> None:
     env.observable().subscribe(Subscriber(), ["adsb"])
     env.collector.collect()
-    (spec,) = env.adsb.specs
-    assert spec.query == {"registration": "B-2447"}
+    (call,) = env.adsb.calls
+    assert call.spec.type == "aircraft"
+    assert call.spec.observed_point == "position"
+    assert call.query == {Registration: "B-2447"}
+    assert call.since is None
 
 
 def test_inactive_observables_are_not_collected(env: Env) -> None:
     env.observable()
     env.adsb.records = [rec("a#1", 1, lat=1, lon=2)]
     assert env.collector.collect() == []
-    assert env.adsb.specs == []
+    assert env.adsb.calls == []
 
 
 def test_collect_validates_dedups_persists_and_dispatches(env: Env) -> None:
@@ -152,8 +161,8 @@ def test_cursor_feeds_next_query(env: Env) -> None:
     env.adsb.records.append(rec("a#2", 5, lat=1, lon=2))
     new = env.collector.collect()
 
-    assert env.adsb.specs[0].since is None
-    assert env.adsb.specs[1].since == at(1)
+    assert env.adsb.calls[0].since is None
+    assert env.adsb.calls[1].since == at(1)
     assert [d.source_id for d in new] == ["a#2"]
 
 
@@ -222,5 +231,5 @@ def test_only_subscribed_upstreams_are_fetched_and_routed(env: Env) -> None:
     # 没人订阅 radar 之后不再拉取它
     obs.unsubscribe(both)
     env.collector.collect()
-    assert len(radar.specs) == 1
-    assert len(env.adsb.specs) == 2
+    assert len(radar.calls) == 1
+    assert len(env.adsb.calls) == 2
