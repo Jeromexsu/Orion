@@ -377,7 +377,7 @@ class OnEnter(Evaluator[OnEnterCriteria]):
 ```python
 @hook(mount_points={"rule_hit"}, scopes={"event"})
 class CountHits(Hook[CountHitsParams]):          # name 默认 "countHits"，参数模型取泛型参数
-    def run(self, ctx, occasion, params):
+    def run(self, params, ctx, occasion):
         ctx.event.update_status({"hits": n})
         if n >= params.threshold:
             ctx.event.close("converged")             # 请求关闭：本条观测处理完才关闭
@@ -396,7 +396,7 @@ class CountHits(Hook[CountHitsParams]):          # name 默认 "countHits"，参
 |---|---|---|
 | bootstrap | `HookRegistry.register` | 启动时注册钩子；没用 `@hook` 声明的拒绝 |
 | event · 模板编译器 | `MountCompiler.compile` | 编译时把每个 `MountDef` 对照钩子的声明检查并编译成 `Mount`（钩子实例 + 有类型的参数 + 挂载点）；哪个位置能挂哪个挂载点（`rule_hit` 只在规则上）由模板编译器自己管 |
-| event · 子事件 | `Mount` → `Hook.run(ctx, occasion, params)`、`HookContext` / `EventHandle` | 运行时在挂载点跑钩子；每个钩子单独隔离异常 |
+| event · 子事件 | `Mount` → `Hook.run(params, ctx, occasion)`、`HookContext` / `EventHandle` | 运行时在挂载点跑钩子；每个钩子单独隔离异常 |
 | hil | 实现 `ProposalSink` | 接收 `ctx.propose` 提的提议 |
 
 扩展点只有一个：继承 `Hook[参数模型]` 并用 `@hook` 声明，放在 `plugins/hooks/`。

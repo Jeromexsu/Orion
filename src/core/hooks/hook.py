@@ -32,7 +32,7 @@ class Hook(ABC, Generic[P]):
 
         @hook(mount_points={"rule_hit"}, scopes={"event"})
         class CountHits(Hook[CountHitsParams]):
-            def run(self, ctx, occasion, params): ...
+            def run(self, params, ctx, occasion): ...
 
     两个正交的维度：直接作用于哪些作用域（scopes，只能是 external / event），能不能提议
     （proposes，经审核后生效，影响哪个作用域由提议的动作决定）。什么都不声明的钩子不影响系统。
@@ -46,14 +46,14 @@ class Hook(ABC, Generic[P]):
     params_model: ClassVar[type[BaseModel]]         # 由 @hook 设置；挂载参数的形状
 
     @abstractmethod
-    def run(self, ctx: HookContext, occasion: Occasion, params: P) -> None:
+    def run(self, params: P, ctx: HookContext, occasion: Occasion) -> None:
         """Run once. Exceptions are isolated and logged by the event.
 
         Args:
+            params: This mount's parameters, validated against params_model at compile time.
             ctx: Read-only information about the event, and the capabilities it declared.
             occasion: Why it is being run — the mount point and what happened there;
                 match on its type to get the fields that mount point always has.
-            params: This mount's parameters, validated against params_model at compile time.
         """
         ...
 

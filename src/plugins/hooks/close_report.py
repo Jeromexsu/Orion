@@ -22,7 +22,7 @@ class CloseReport(Hook[CloseReportParams]):
     def __init__(self, report_manager: ReportManager) -> None:
         self._report_manager = report_manager
 
-    def run(self, ctx: HookContext, occasion: Occasion, params: CloseReportParams) -> None:
+    def run(self, params: CloseReportParams, ctx: HookContext, occasion: Occasion) -> None:
         """Write a new draft (stored) for the event's parent event."""
         names = "、".join(ctx.target_names.values()) or "无"
         lines = [f"子事件 {ctx.event_id} 已关闭。", f"涉及目标：{names}", f"最终状态：{ctx.state}"]

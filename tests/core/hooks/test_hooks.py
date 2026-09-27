@@ -116,7 +116,7 @@ def test_parent_and_target_scopes_only_through_proposals() -> None:
 
             @hook(mount_points={"pre"}, scopes={scope})  # type: ignore[arg-type]
             class Direct(Hook[NoParams]):  # pyright: ignore[reportUnusedClass]
-                def run(self, ctx: HookContext, occasion: Occasion, params: NoParams) -> None:
+                def run(self, params: NoParams, ctx: HookContext, occasion: Occasion) -> None:
                     pass
 
 
@@ -125,7 +125,7 @@ def test_declaration_needs_mount_points() -> None:
 
         @hook(mount_points=[])
         class Nowhere(Hook[NoParams]):  # pyright: ignore[reportUnusedClass]
-            def run(self, ctx: HookContext, occasion: Occasion, params: NoParams) -> None:
+            def run(self, params: NoParams, ctx: HookContext, occasion: Occasion) -> None:
                 pass
 
 
@@ -144,7 +144,7 @@ def test_registry() -> None:
 
 def test_undeclared_hook_rejected_at_register() -> None:
     class Bare(Hook[NoParams]):
-        def run(self, ctx: HookContext, occasion: Occasion, params: NoParams) -> None:
+        def run(self, params: NoParams, ctx: HookContext, occasion: Occasion) -> None:
             pass
 
     with pytest.raises(TypeError, match="@hook"):
@@ -185,8 +185,8 @@ def test_count_hits_counts_and_asks_to_close() -> None:
     event = FakeEvent()
     params = CountHitsParams(threshold=2)
 
-    count_hits.run(context({"hits": 0}, event.handle()), RULE_HIT, params)
-    count_hits.run(context({"hits": 1}, event.handle()), RULE_HIT, params)
+    count_hits.run(params, context({"hits": 0}, event.handle()), RULE_HIT)
+    count_hits.run(params, context({"hits": 1}, event.handle()), RULE_HIT)
 
     assert event.patches == [{"hits": 1}, {"hits": 2}]
     assert event.close_reasons == ["converged"]

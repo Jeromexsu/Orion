@@ -297,7 +297,7 @@ def test_undeclared_capability_is_isolated(env: Env) -> None:
 
     @hook(mount_points={"pre"})
     class Sneaky(Hook[NoParams]):
-        def run(self, ctx: HookContext, occasion: Occasion, params: NoParams) -> None:
+        def run(self, params: NoParams, ctx: HookContext, occasion: Occasion) -> None:
             ctx.event.update_status({"sneaky": True})
 
     env.hook_registry.register(Sneaky())
