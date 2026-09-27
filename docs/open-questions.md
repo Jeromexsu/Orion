@@ -105,6 +105,11 @@ since 之前的不返回），等往外分插件任务时再搭。
 
 ## 已决
 
+- **条件状态：结果直接给新状态，不给补丁**：`EvalResult.state_patch` 改为 `state`，含义在两层一致——「求值对象的新状态，
+  `None` 表示没变」：判断方式返回本叶子的完整新状态，`ConditionTree.evaluate` 返回整棵树的新状态。`apply_state_patch`
+  不再对外；调用方（runner、`Event`）不再合并，直接换上，变了才持久化。状态仍放在树外、由调用方保管——树被一个模板版本
+  历年的所有子事件共用。
+
 - **模板编译创建可观测目标的时机**：`TemplateCompiler` 先只检查（`TargetManager.inspect_observable`，不创建），
   全部通过后才 `get_observable` 取得 / 创建，所以被拒绝的模板不留下可观测目标。编译成功的模板持有确定的
   可观测目标（`compiled_observables`）；挂起的新版本因此会在切换前就创建出暂时无人订阅的可观测目标——

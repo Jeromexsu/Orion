@@ -3,7 +3,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from core.condition_engine import HIT, apply_state_patch
+from core.condition_engine import HIT
 from core.event.errors import TemplateVersionError
 from core.event.event import Event
 from core.event.records import EventRecord, TemplateRef
@@ -130,8 +130,8 @@ class EventRunner:
 
         # evaluate the open condition on every observation and keep its state up to date
         opened = self._template.open_tree.evaluate(envelope, self._open_state)
-        if opened.state_patch:
-            self._open_state = apply_state_patch(self._open_state, opened.state_patch)
+        if opened.state is not None:
+            self._open_state = opened.state
             self._runtime.runner_state_repository.save(self._parent_id, self._template.id, self._open_state)
 
         # there is no active event

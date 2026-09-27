@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from core.condition_engine import HIT, apply_state_patch
+from core.condition_engine import HIT
 from core.event.definitions import OperatorMountDef
 from core.event.errors import EventClosedError
 from core.event.records import EventRecord
@@ -153,8 +153,8 @@ class Event:
         for rule in self._template.rules:
             state = self._condition_state.get(rule.name, {})
             result = rule.tree.evaluate(envelope, state)
-            if result.state_patch:
-                self._condition_state[rule.name] = apply_state_patch(state, result.state_patch)
+            if result.state is not None:
+                self._condition_state[rule.name] = result.state
             if result.outcome == HIT:
                 self._run_hooks(
                     rule.hook_defs, Trigger(mount_point="rule_hit", envelope=envelope, result=result)

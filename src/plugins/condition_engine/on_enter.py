@@ -55,5 +55,5 @@ class OnEnter(Evaluator[OnEnterParams]):
         return EvalResult(
             outcome=HIT if entered else MISS,
             extracted={"entered_at": {"lat": position[0], "lon": position[1]}} if entered else {},
-            state_patch={"inside": inside},
+            state={"inside": inside},
         )

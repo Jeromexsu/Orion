@@ -15,7 +15,6 @@ from core.condition_engine import (
     EvalResult,
     Evaluator,
     EvaluatorRegistry,
-    apply_state_patch,
 )
 from core.target import ObservationEnvelope
 from plugins.condition_engine.on_enter import OnEnter
@@ -92,23 +91,36 @@ def test_irrelevant_data_is_not_applicable(compiler: ConditionCompiler) -> None:
     assert tree.evaluate(make_envelope("t1:position", lat=1, lon=1), {}).outcome == NOT_APPLICABLE
 
 
-def test_stateful_leaf_through_state_patch(compiler: ConditionCompiler) -> None:
+def test_stateful_leaf_returns_new_tree_state(compiler: ConditionCompiler) -> None:
     tree = compile_(compiler, enter())
     state: dict[str, dict[str, Any]] = {}
 
     outside = tree.evaluate(make_envelope("t1:position", lat=20, lon=20), state)
     assert outside.outcome == MISS
-    assert outside.state_patch == {"root": {"inside": False}}
-    state = apply_state_patch(state, outside.state_patch)
+    assert outside.state == {"root": {"inside": False}}
+    assert state == {}  # 纯函数：不改入参
+    assert outside.state is not None
+    state = outside.state
 
     entered = tree.evaluate(make_envelope("t1:position", lat=5, lon=5), state)
     assert entered.outcome == HIT
     assert entered.extracted == {"entered_at": {"lat": 5.0, "lon": 5.0}}
     assert entered.trace[0]["fields"] == {"lat": 5, "lon": 5}
-    state = apply_state_patch(state, entered.state_patch)
+    assert entered.state == {"root": {"inside": True}}
+    assert entered.state is not None
+    state = entered.state
 
     staying = tree.evaluate(make_envelope("t1:position", lat=6, lon=6), state)
     assert staying.outcome == MISS
+    assert staying.state is None  # 还在区域内：状态没变
+
+
+def test_not_applicable_keeps_state(compiler: ConditionCompiler) -> None:
+    tree = compile_(compiler, enter())
+    state = {"root": {"inside": True}}
+    other = tree.evaluate(make_envelope("t2:position", lat=20, lon=20), state)
+    assert other.outcome == NOT_APPLICABLE
+    assert other.state is None
 
 
 def test_initial_as_enter(compiler: ConditionCompiler) -> None:
@@ -121,7 +133,7 @@ def test_combinators_never_short_circuit(compiler: ConditionCompiler) -> None:
     tree = compile_(compiler, op("any", gt(0), enter()))
     result = tree.evaluate(make_envelope("t1:position", lat=5, lon=5, alt=100), {})
     assert result.outcome == HIT
-    assert result.state_patch == {"root/1": {"inside": True}}
+    assert result.state == {"root/1": {"inside": True}}
     assert [t["path"] for t in result.trace] == ["root/0", "root/1"]
 
 
@@ -162,7 +174,7 @@ class RecentCount(Evaluator[RecentParams]):
         window = [*state.get("window", []), now.isoformat()]
         window = [t for t in window if datetime.fromisoformat(t) > now - timedelta(hours=params.hours)]
         return EvalResult(
-            outcome=HIT if len(window) >= params.count else MISS, state_patch={"window": window}
+            outcome=HIT if len(window) >= params.count else MISS, state={"window": window}
         )
 
 
@@ -210,7 +222,8 @@ def test_state_can_hold_a_sliding_window() -> None:
     outcomes: list[str] = []
     for at in (0, 10, 20, 50, 60, 65):  # 小时
         result = tree.evaluate(make_envelope("t1:position", at=at, lat=1, lon=1, alt=0), state)
-        state = apply_state_patch(state, result.state_patch)
+        if result.state is not None:
+            state = result.state
         outcomes.append(result.outcome)
     # 第 3 条时 24h 内有 3 条；50h 时窗口只剩它自己；65h 时 50/60/65 三条
     assert outcomes == [MISS, MISS, HIT, MISS, MISS, HIT]

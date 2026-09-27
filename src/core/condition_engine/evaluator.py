@@ -15,8 +15,9 @@ class Evaluator(ABC, Generic[P]):
     """一种判断方式（叶子条件）。每种一个实现，放在 plugins/condition_engine/ 下。
 
     规则：
-    - 不得修改传入的 state（只读视图）；新状态通过 state_patch 返回；envelope 是副本；
-    - 返回“不适用”时不得产出 state_patch。
+    - 不得修改传入的 state（只读视图）；新状态放进结果的 state 返回——本叶子的**完整**新状态，
+      不是变化量；不变就不填（None）；envelope 是副本；
+    - 返回“不适用”时不得带 state（带了也会被忽略）。
     """
 
     type: str                   # 模板里引用的名字，如 "onEnter"

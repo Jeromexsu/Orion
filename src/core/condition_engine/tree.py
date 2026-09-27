@@ -9,16 +9,11 @@ from core.condition_engine.evaluator import Evaluator
 from core.condition_engine.result import HIT, MISS, NOT_APPLICABLE, EvalResult, Outcome
 from core.target import ObservationEnvelope
 
-# 整棵树的状态：节点路径 → 该叶子的状态
 TreeState = Mapping[str, Mapping[str, Any]]
+"""整棵树的状态：叶子路径（如 "root/1"）→ 该叶子的状态。"""
 
-
-def apply_state_patch(state: TreeState, patch: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
-    """把 EvalResult.state_patch 合并进树状态，返回新 dict（不改入参）。"""
-    merged = {path: dict(leaf) for path, leaf in state.items()}
-    for path, leaf_patch in patch.items():
-        merged.setdefault(path, {}).update(leaf_patch)
-    return merged
+_Changes = dict[str, dict[str, Any]]
+"""树内部传递：本次状态变了的叶子路径 → 该叶子的新状态。"""
 
 
 class ConditionNode(ABC):
@@ -28,8 +23,19 @@ class ConditionNode(ABC):
         self.path = path
 
     @abstractmethod
-    def evaluate(self, envelope: ObservationEnvelope, state: TreeState) -> EvalResult:
-        """对一条观测求值。state 是整棵树的状态；新状态放在结果的 state_patch 里，不改 state。"""
+    def evaluate(
+        self, envelope: ObservationEnvelope, state: TreeState
+    ) -> tuple[EvalResult, _Changes]:
+        """Evaluate one observation against this node and its subtree.
+
+        Args:
+            envelope: The observation to evaluate.
+            state: State of the whole tree; not modified.
+
+        Returns:
+            The result (its state is always None at node level) and the new states
+            of the leaves in this subtree whose state changed.
+        """
         ...
 
 
@@ -47,16 +53,19 @@ class LeafNode(ConditionNode):
         self.evaluator = evaluator
         self.params = params
 
-    def evaluate(self, envelope: ObservationEnvelope, state: TreeState) -> EvalResult:
+    def evaluate(
+        self, envelope: ObservationEnvelope, state: TreeState
+    ) -> tuple[EvalResult, _Changes]:
         requires: Set[str] = self.evaluator.requires
         observation = envelope.observation
         if envelope.observable_id != self.observable or any(
             getattr(observation, f, None) is None for f in requires
         ):
             # 不是这个叶子的可观测目标，或需要的字段缺失 / 为空（如没有高度的观测）
-            return EvalResult(outcome=NOT_APPLICABLE)
+            return EvalResult(outcome=NOT_APPLICABLE), {}
 
-        leaf_state = MappingProxyType(dict(state.get(self.path, {})))
+        old_state = dict(state.get(self.path, {}))
+        leaf_state = MappingProxyType(dict(old_state))
         # 每个叶子拿一份副本：判断方式即使修改了也影响不到其他叶子和调用方
         result = self.evaluator.evaluate(self.params, envelope.model_copy(deep=True), leaf_state)
 
@@ -68,12 +77,15 @@ class LeafNode(ConditionNode):
             "occurred_at": envelope.occurred_at.isoformat(),
             "fields": {f: getattr(observation, f) for f in sorted(requires)},
         }
-        patch = (
-            {self.path: result.state_patch}
-            if result.outcome != NOT_APPLICABLE and result.state_patch
+        # 判断方式返回的是本叶子的新状态；“不适用”不得改状态，和旧状态相同也不算变
+        changes: _Changes = (
+            {self.path: dict(result.state)}
+            if result.outcome != NOT_APPLICABLE
+            and result.state is not None
+            and result.state != old_state
             else {}
         )
-        return result.model_copy(update={"trace": [entry, *result.trace], "state_patch": patch})
+        return result.model_copy(update={"trace": [entry, *result.trace], "state": None}), changes
 
 
 class OpNode(ConditionNode):
@@ -92,23 +104,23 @@ class OpNode(ConditionNode):
         self.op = op
         self.children = children
 
-    def evaluate(self, envelope: ObservationEnvelope, state: TreeState) -> EvalResult:
-        results = [child.evaluate(envelope, state) for child in self.children]
+    def evaluate(
+        self, envelope: ObservationEnvelope, state: TreeState
+    ) -> tuple[EvalResult, _Changes]:
+        evaluated = [child.evaluate(envelope, state) for child in self.children]
+        results = [r for r, _ in evaluated]
 
-        patch: dict[str, Any] = {}
+        changes: _Changes = {}
         trace: list[dict[str, Any]] = []
-        for r in results:
-            patch.update(r.state_patch)
+        for r, child_changes in evaluated:
+            changes.update(child_changes)
             trace.extend(r.trace)
 
         outcome, confidence, extracted = self._combine(results)
-        return EvalResult(
-            outcome=outcome,
-            confidence=confidence,
-            extracted=extracted,
-            trace=trace,
-            state_patch=patch,
+        result = EvalResult(
+            outcome=outcome, confidence=confidence, extracted=extracted, trace=trace
         )
+        return result, changes
 
     def _combine(self, results: list[EvalResult]) -> tuple[Outcome, float, dict[str, Any]]:
         applicable = [r for r in results if r.outcome != NOT_APPLICABLE]
@@ -146,5 +158,23 @@ class ConditionTree:
         self._root = root
 
     def evaluate(self, envelope: ObservationEnvelope, state: TreeState) -> EvalResult:
-        """纯函数：不改 state；新状态在结果的 state_patch 里，用 apply_state_patch 合并。"""
-        return self._root.evaluate(envelope, state)
+        """Evaluate one observation against the whole tree.
+
+        Pure: the given state is not modified. The caller owns the state (the tree is
+        shared by every event of a template version), keeps the returned new state and
+        persists it when it changed.
+
+        Args:
+            envelope: The observation to evaluate.
+            state: State of the whole tree as last returned (empty on first call).
+
+        Returns:
+            The result. Its state is the whole new tree state, or None if no leaf's
+            state changed.
+        """
+        result, changes = self._root.evaluate(envelope, state)
+        if not changes:
+            return result
+        new_state = {path: dict(leaf) for path, leaf in state.items()}
+        new_state.update(changes)
+        return result.model_copy(update={"state": new_state})

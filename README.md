@@ -308,14 +308,15 @@ graph LR
 ```mermaid
 graph LR
   CD["ConditionDef<br/>LeafDef / OpDef（纯数据）"] -->|"ConditionCompiler.compile(def, fields_by_observable)"| CT["ConditionTree<br/>OpNode / LeafNode"]
-  CT -->|"evaluate(envelope, state)"| ER["EvalResult<br/>命中 / 未命中 / 不适用 + state_patch"]
+  CT -->|"evaluate(envelope, state)"| ER["EvalResult<br/>命中 / 未命中 / 不适用 + 新状态"]
   LN["LeafNode"] -->|调用| EV["Evaluator<br/>唯一扩展点"]
 ```
 
 - 编译时由调用方（`TemplateCompiler`）传入「可观测目标 → 它的观测有哪些字段」，条件只能引用已声明的观测。
   引用范围在编译时就查完了，编译出的树不再对外暴露它引用了哪些可观测目标。
 - 求值是纯函数：状态由调用方保管（runner 保管开启条件的状态，`Event` 保管规则的状态），
-  用 `apply_state_patch` 合并结果里的 `state_patch`。
+  结果的 `state` 就是新状态（`None` 表示没变），调用方直接换上并在变了时持久化。
+  状态放在树外是必要的：同一棵树被一个模板版本历年的所有子事件共用，每个子事件的规则状态各不相同。
 
 #### condition_engine 的窗口与扩展点
 
@@ -326,7 +327,7 @@ graph LR
 | 使用方 | 窗口 | 时机 |
 |---|---|---|
 | event · 模板编译器 | `ConditionCompiler.compile(condition_def, fields_by_observable)` | 编译时：定义 → 条件树；错误收集后一次抛出，每条带节点路径（如 `root/1/0`） |
-| event · runner / 子事件 | `ConditionTree.evaluate(envelope, state)` + `apply_state_patch` | 运行时：纯函数求值；调用方保管状态并合并 `state_patch` |
+| event · runner / 子事件 | `ConditionTree.evaluate(envelope, state)` | 运行时：纯函数求值；结果的 `state` 是整棵树的新状态（`None` = 没变），调用方保管 |
 | bootstrap | `EvaluatorRegistry.register` | 启动时注册判断方式 |
 | 跨模块传递的纯数据 | `ConditionDef`（`LeafDef` / `OpDef`）、`EvalResult`（`HIT` / `MISS` / `NOT_APPLICABLE`） | — |
 
@@ -339,7 +340,7 @@ graph LR
 | `type` | 模板里引用的名字，如 `"onEnter"` |
 | `requires` | 需要观测里有值的字段名；缺失或为空时叶子直接返回「不适用」，不调用判断方式 |
 | `params_model` | 参数的形状（Pydantic 模型），编译时校验 |
-| `evaluate(params, envelope, state)` | 判断；不改 `state`（只读），新状态放进 `state_patch`；返回「不适用」时不得产出 `state_patch` |
+| `evaluate(params, envelope, state)` | 判断；不改传入的 `state`（只读），把本叶子的**完整**新状态放进结果的 `state`（不是变化量；没变就不填）；返回「不适用」时不得带 `state` |
 
 示例见 `plugins/condition_engine/on_enter.py`（进入区域，有状态）。
 

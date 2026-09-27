@@ -11,7 +11,13 @@ Outcome = Literal["命中", "未命中", "不适用"]
 
 
 class EvalResult(BaseModel):
-    """一次求值的结果：判断结论 + 附带信息 + 调用方需要保存的新状态。"""
+    """Result of one evaluation: the outcome, extra information and the new state.
+
+    Returned at two levels with the same meaning of state — "the new state of what
+    was evaluated; None if unchanged":
+    - by an Evaluator (one leaf): the leaf's full new state;
+    - by ConditionTree.evaluate: the whole tree's new state.
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -20,5 +26,5 @@ class EvalResult(BaseModel):
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)  # 规则类恒为 1.0
     extracted: dict[str, Any] = Field(default_factory=dict[str, Any])  # 命中的关键词、地点、时间窗口
     trace: list[dict[str, Any]] = Field(default_factory=list[dict[str, Any]])  # 审计/报告引用
-    # 只给发起调用的一方保存。树的结果里按节点路径分组：{"root/0": {...}}
-    state_patch: dict[str, Any] = Field(default_factory=dict[str, Any])
+    # 新状态；None = 没变。树的结果里按叶子路径分组：{"root/0": {...}}，由调用方保管
+    state: dict[str, Any] | None = None
