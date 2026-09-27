@@ -8,7 +8,7 @@ from core.target.errors import (
 )
 from core.target.registry import TargetTypeRegistry
 from core.target.repository import TargetRepository
-from core.target.target import Target, TargetRecord
+from core.target.target import Target
 
 
 class TargetManager:
@@ -54,12 +54,14 @@ class TargetManager:
         record = self._target_repository.get(target_id)
         if record is None:
             raise TargetNotFoundError(target_id)
-        return self._restore(record)
+        return self._target_type_registry.get(record.type).from_record(record)
 
     def find_by_alias(self, alias: str) -> Target | None:
         """按别名找目标；找不到返回 None。"""
         record = self._target_repository.find_by_alias(alias)
-        return self._restore(record) if record is not None else None
+        if record is None:
+            return None
+        return self._target_type_registry.get(record.type).from_record(record)
 
     def remove_target(self, target_id: str) -> None:
         """Remove a target (stored).
@@ -73,9 +75,3 @@ class TargetManager:
         """
         self.get_target(target_id)
         self._target_repository.remove(target_id)
-
-    # ------------------------------------------------------------ 内部
-
-    def _restore(self, record: TargetRecord) -> Target:
-        """持久化记录 → 对应的 Target 子类（按 type 找类，格式由 Target.from_record 负责）。"""
-        return self._target_type_registry.get(record.type).from_record(record)
