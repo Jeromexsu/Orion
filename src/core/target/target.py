@@ -1,9 +1,10 @@
 """目标基类与持久化记录。"""
 
-from collections.abc import Mapping
 from typing import Any, ClassVar
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from core.target.observed_point import ObservedPoint
 
 _BASE_FIELDS = frozenset({"id", "type", "name", "aliases"})
 
@@ -14,12 +15,13 @@ class Target(BaseModel, frozen=True):
     每种目标类型（如飞机）继承它，放在 plugins/target/ 下：
     - 用 Literal 收窄 type 并给默认值，作为类型名：type: Literal["aircraft"] = "aircraft"
     - 用普通字段声明属性字段（如注册号），构造时由 Pydantic 自动校验
-    - 用 focuses 声明关注点 → 该关注点下动态数据的 schema
+    - 用 observed_points 声明这类目标可以在哪些观察点被观测（观察点与目标类型无关，可共用）
 
     目标类型只由开发者通过代码定义和修改，不开放给用户在运行时配置。
+    同名属性字段在所有目标类型里含义必须一致：上游按字段名判断目标能否提供查询所需的值。
     """
 
-    focuses: ClassVar[Mapping[str, type[BaseModel]]] = {}
+    observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = ()
 
     type: str                   # 类型名，子类用 Literal 收窄
     id: str

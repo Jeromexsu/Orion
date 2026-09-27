@@ -17,21 +17,8 @@
 
 ### 3. Adapter 与 Target 子类的对应关系只靠约定
 
-**状态**：理顺 collector 时处理。
-
-Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, 关注点)、`spec.attributes` 里的属性字段、
-返回的 `FetchedRecord.fields` 要符合该关注点的 schema。现在全是字符串和 dict：`serves` 拼错不报错
-（Adapter 永远不被选中）；`spec.attributes["..."]` 无静态检查；`fields` 不合 schema 要到 collector
-校验才发现，且只记警告、丢弃记录。
-
-**建议**（插件之间可以互相 import）：
-1. `serves` 直接写类，如 `{(Aircraft, "position")}`，注册 Adapter 时校验关注点存在；
-2. 提供辅助函数把 `spec` 还原成 `Aircraft` 实例，Adapter 里写 `target.registration` 有静态检查；
-3. `fields` 用 schema 类构造，如 `AircraftPosition(lat=..., lon=...)`；
-4. Adapter 契约测试基类：检查 `serves` 合法、`fields` 通过 schema、`source_id` 不重复。
-
-**背景**：target 与 collector 耦合较紧。core 层面是单向的（collector 依赖 target；target 只通过
-`UpstreamCatalog` Protocol 知道「上游」这个概念），但插件层面 Adapter 与 Target 子类是成套开发的。
+**已解决**：观察点与目标类型解耦后，Adapter 不再引用目标类型（见「已决 · 观察点」）。剩余可做的是
+Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 不重复），等往外分插件任务时再搭。
 
 ### 4. 跨目标条件：单个叶子只能看一个目标的数据
 
@@ -46,7 +33,7 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
 1. 多目标判断方式：允许某种 `Evaluator` 绑定多个目标，每来一条数据把该目标的最新值记进自己的
    state，再用各目标的最新值判断（需要改 `LeafDef.target` 为多目标、`LeafNode` 的适用性判断）；
 2. 在组合层面引入跨叶子比较：新的节点类型，读取子叶子 `extracted` 出来的数值做比较；
-3. 派生可观测目标：在 collector / target 层把「两机距离」做成一个派生的关注点，条件照旧单目标。
+3. 派生可观测目标：在 collector / target 层把「两机距离」做成一个派生的观察点，条件照旧单目标。
 
 **影响范围**：`condition_engine/definitions.py`（LeafDef）、`condition_engine/tree.py`（LeafNode）、判断方式插件接口；
 方案 3 则主要在 target / collector。
@@ -86,7 +73,7 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
 
 - **条件引擎不再查询 target**：去掉设计文档的 `TargetResolver`。`ConditionEngine.compile(definition, fields)`
   由调用方传入「可观测目标 ID → 动态数据字段名」；`EventTemplate.compile()` 按观测声明向 `TargetManager`
-  解析（目标、关注点存在，上游可用）并提取字段，所以条件只能引用已声明的观测、判断方式需要的字段必须存在。
+  解析（目标、观察点存在，上游可用）并提取字段，所以条件只能引用已声明的观测、判断方式需要的字段必须存在。
   文档时代模板没有观测声明，条件引擎只能自己去问 target；有了观测声明，调用方手里已有这份信息。
 
 - **静态定义与运行时对象的命名约定**：纯数据定义的类型以 `Def` 结尾（`TemplateDef`、`RuleDef`、
@@ -106,7 +93,7 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
 
 - **子事件模型（原第 1 条，已实现）**：保留模板。
   - 父事件（静态）：静态目标命名空间（target_id 集合）+ 静态模板集合 + `digest()`；不订阅任何东西。
-  - 模板（静态、不可变、带版本）：观测声明（目标 + 关注点 + 上游）、开启条件（必填）、规则、算子挂载。
+  - 模板（静态、不可变、带版本）：观测声明（目标 + 观察点 + 上游）、开启条件（必填）、规则、算子挂载。
     条件树引用的可观测目标必须在观测声明里；观测的目标必须在父事件命名空间里；上游在装入时检查可用。
   - slot（运行时，每个模板一个）：按观测声明订阅，自己就是订阅者；每条数据都评估开启条件并持久化其状态；
     无活跃实例且开启条件命中时开实例并把该条数据交给它；同一模板最多一个活跃实例。
@@ -120,8 +107,13 @@ Adapter 开发者必须和 `Target` 子类对上：`serves` 里的 (类型名, �
   `Trigger` / `Category` / `Level` / `MountPoint` → operators；`Suggestion` / `Proposal` → hil；`Draft` → report。
   代价：operators 由设计文档的「零依赖」改为依赖 target / condition_engine / hil（均不反向依赖它，无环）。
 - **目标类型写法**：去掉 `TargetType`，每种目标类型继承 `Target` 基类；目标类型只由开发者通过代码定义。
-- **动态数据 schema 归属**：每个关注点下动态数据有哪些字段，由开发者在 `Target` 子类的 `focuses`
-  里声明（关注点名 → Pydantic 模型）；`ObservableTarget` 构造时自己从 `type(target).focuses` 取，
-  不由外部传入。target 模块的扩展点全部集中在写 `Target` 子类上。
+- **观察点（取代「关注点」与「动态数据 schema」）**：观察点与目标类型解耦，不同目标类型可共用。
+  - `ObservedPoint` 子类（如 `Position`）就是观测 `fields` 的 schema，放在 `plugins/observed_points/`；
+  - 目标类型用 `observed_points` 声明可以在哪些观察点被观测（取代原 `focuses`）；
+  - Adapter 声明 `observed_point`（服务哪个观察点）和 `required_fields`（查询需要目标提供的字段），不再引用目标类型；
+    可用上游 = 服务该观察点、且 `required_fields` 在目标上都有值的 Adapter（按字段名匹配）；
+  - 约定：同名属性字段在所有目标类型里含义必须一致；若将来出现冲突，再引入有类型的能力接口；
+  - `ObservableTarget(target, observed_point, upstreams)`；`QuerySpec.observed_point`、`ObservationDef.observed_point`
+    存观察点名；`TargetManager` 从已注册目标类型收集观察点，重名报错。
 - **上游归属**：可观测目标的上游列表由 `TargetManager` 问 `UpstreamCatalog` 得到，不由外部传入；
   订阅者 acquire 时指定要哪些上游，可观测目标内部按上游路由。

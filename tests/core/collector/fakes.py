@@ -2,15 +2,21 @@ from collections.abc import Sequence
 from datetime import datetime
 
 from core.collector import FetchedRecord
-from core.target import Observation, QuerySpec
+from core.target import Observation, ObservedPoint, QuerySpec
+from plugins.observed_points.position import Position
 
 
 class FakeAdapter:
     def __init__(
-        self, name: str, serves: set[tuple[str, str]], records: list[FetchedRecord] | None = None
+        self,
+        name: str,
+        observed_point: type[ObservedPoint] = Position,
+        required_fields: frozenset[str] = frozenset({"registration"}),
+        records: list[FetchedRecord] | None = None,
     ) -> None:
         self.name = name
-        self.serves = frozenset(serves)
+        self.observed_point = observed_point
+        self.required_fields = required_fields
         self.records = records or []
         self.specs: list[QuerySpec] = []
         self.fail = False

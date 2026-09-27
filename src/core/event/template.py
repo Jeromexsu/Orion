@@ -46,7 +46,7 @@ class EventTemplate:
     ) -> "EventTemplate":
         """编译并校验整个模板，所有错误一次收集进 TemplateCompileError。
 
-        观测声明按 TargetManager 解析：目标与关注点存在、上游可用；解析出的动态数据字段交给条件引擎，
+        观测声明按 TargetManager 解析：目标与观察点存在、上游可用；观察点的字段交给条件引擎，
         因此条件只能引用已声明的观测，且判断方式需要的字段必须存在。
         """
         errors: list[str] = []
@@ -59,7 +59,7 @@ class EventTemplate:
                 errors.append(f"{where}: duplicate")
                 continue
             try:
-                observable = targets.get_observable(o.target_id, o.focus)
+                observable = targets.get_observable(o.target_id, o.observed_point)
             except TargetError as e:
                 errors.append(f"{where}: {e}")
                 continue
@@ -68,7 +68,7 @@ class EventTemplate:
                 errors.append(
                     f"{where}: upstreams {unavailable} not in available {list(observable.upstreams)}"
                 )
-            fields_by_observable[observable.id] = set(observable.dynamic_schema.model_fields)
+            fields_by_observable[observable.id] = set(observable.observed_point.model_fields)
 
         def compile_tree(where: str, condition_def: ConditionDef) -> ConditionTree | None:
             try:

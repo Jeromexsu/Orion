@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import ClassVar
 
 import pytest
 
@@ -10,7 +11,8 @@ from core.collector import (
     FetchedRecord,
     UnknownAdapterError,
 )
-from core.target import ObservableTarget, Observation, TargetManager
+from core.target import ObservableTarget, Observation, ObservedPoint, TargetManager
+from plugins.observed_points.position import Position
 from plugins.target.aircraft import Aircraft
 from tests.core.collector.fakes import (
     FakeAdapter,
@@ -19,6 +21,11 @@ from tests.core.collector.fakes import (
 )
 from tests.core.target.conftest import Subscriber
 from tests.core.target.fakes import InMemoryObservableTargetRepository, InMemoryTargetRepository
+
+
+class Fuel(ObservedPoint):
+    name: ClassVar[str] = "fuel"
+    litres: float
 
 
 def at(minute: int) -> datetime:
@@ -31,7 +38,7 @@ def rec(source_id: str, minute: int, **fields: object) -> FetchedRecord:
 
 class Env:
     def __init__(self) -> None:
-        self.adsb = FakeAdapter("adsb", {("aircraft", "position")})
+        self.adsb = FakeAdapter("adsb")
         self.registry = AdapterRegistry()
         self.registry.register(self.adsb)
         self.manager = TargetManager(
@@ -55,13 +62,23 @@ def env() -> Env:
 
 
 def test_registry_is_upstream_catalog(env: Env) -> None:
-    assert env.registry.upstreams_for("aircraft", "position") == ["adsb"]
-    assert env.registry.upstreams_for("aircraft", "fuel") == []
+    plane = env.manager.get_target("t1")
+    assert env.registry.upstreams_for(plane, Position) == ["adsb"]
+    assert env.registry.upstreams_for(plane, Fuel) == []
     assert env.observable().upstreams == ("adsb",)
     with pytest.raises(DuplicateAdapterError):
-        env.registry.register(FakeAdapter("adsb", set()))
+        env.registry.register(FakeAdapter("adsb"))
     with pytest.raises(UnknownAdapterError):
         env.registry.get("nope")
+
+
+def test_upstreams_match_by_required_fields(env: Env) -> None:
+    env.registry.register(FakeAdapter("mode-s", required_fields=frozenset({"icao24"})))
+    no_icao = env.manager.get_target("t1")
+    with_icao = Aircraft(id="t2", name="y", registration="B-1", icao24="780abc")
+    # 查询要 icao24：没有这个值的目标用不了这个上游
+    assert env.registry.upstreams_for(no_icao, Position) == ["adsb"]
+    assert env.registry.upstreams_for(with_icao, Position) == ["adsb", "mode-s"]
 
 
 def test_inactive_observables_are_not_collected(env: Env) -> None:
@@ -139,7 +156,7 @@ def test_dispatcher_counts_failures(env: Env) -> None:
 
 
 def test_only_subscribed_upstreams_are_fetched_and_routed(env: Env) -> None:
-    radar = FakeAdapter("radar", {("aircraft", "position")})
+    radar = FakeAdapter("radar")
     env.registry.register(radar)
     obs = env.observable()
     assert obs.upstreams == ("adsb", "radar")

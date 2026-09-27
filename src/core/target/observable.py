@@ -2,10 +2,9 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime
 from typing import Any, Protocol
 
-from pydantic import BaseModel
-
 from core.target.data import Observation, QuerySpec
-from core.target.errors import UnsupportedFocusError, UnsupportedUpstreamError
+from core.target.errors import UnsupportedObservedPointError, UnsupportedUpstreamError
+from core.target.observed_point import ObservedPoint
 from core.target.target import Target
 
 
@@ -18,12 +17,12 @@ class Referencer(Protocol):
     def on_observation(self, observation: Observation) -> None: ...
 
 
-def observable_key(target_id: str, focus: str) -> str:
-    return f"{target_id}:{focus}"
+def observable_key(target_id: str, observed_point_name: str) -> str:
+    return f"{target_id}:{observed_point_name}"
 
 
 class ObservableTarget:
-    """具体目标实例 + 一个关注点，全局唯一（只由 TargetManager 创建）。
+    """具体目标实例 + 一个观察点，全局唯一（只由 TargetManager 创建）。
 
     upstreams 是 TargetManager 问 UpstreamCatalog 得到的全部可用上游。
     订阅者 acquire 时指定要哪些上游，对象内部维护路由：某个上游的数据
@@ -31,15 +30,19 @@ class ObservableTarget:
     订阅关系只在内存里，不持久化——重启后由 event 模块重新 acquire。
     """
 
-    def __init__(self, target: Target, focus: str, upstreams: Sequence[str]) -> None:
-        schema = type(target).focuses.get(focus)
-        if schema is None:
-            raise UnsupportedFocusError(f"{target.type} has no focus {focus!r}")
+    def __init__(
+        self, target: Target, observed_point: type[ObservedPoint], upstreams: Sequence[str]
+    ) -> None:
+        if observed_point not in type(target).observed_points:
+            raise UnsupportedObservedPointError(
+                f"{target.type} cannot be observed at {observed_point.name!r}"
+            )
         if not upstreams:
-            raise UnsupportedUpstreamError(f"no upstream for ({target.type}, {focus})")
+            raise UnsupportedUpstreamError(
+                f"no upstream for {target.id} at {observed_point.name!r}"
+            )
         self._target = target
-        self._focus = focus
-        self._dynamic_schema = schema
+        self._observed_point = observed_point
         self._upstreams = tuple(upstreams)
         self._subscriptions: dict[Referencer, frozenset[str]] = {}
 
@@ -47,24 +50,21 @@ class ObservableTarget:
 
     @property
     def id(self) -> str:
-        return observable_key(self._target.id, self._focus)
+        return observable_key(self._target.id, self._observed_point.name)
 
     @property
     def target(self) -> Target:
         return self._target
 
     @property
-    def focus(self) -> str:
-        return self._focus
+    def observed_point(self) -> type[ObservedPoint]:
+        """观察点：决定这个可观测目标的观测形状。"""
+        return self._observed_point
 
     @property
     def upstreams(self) -> tuple[str, ...]:
         """全部可用上游。"""
         return self._upstreams
-
-    @property
-    def dynamic_schema(self) -> type[BaseModel]:
-        return self._dynamic_schema
 
     @property
     def is_active(self) -> bool:
@@ -110,15 +110,15 @@ class ObservableTarget:
     def query_spec(self, since: datetime | None = None) -> QuerySpec:
         return QuerySpec(
             type=self._target.type,
-            focus=self._focus,
+            observed_point=self._observed_point.name,
             attributes=self._target.attributes(),
             aliases=self._target.aliases,
             since=since,
         )
 
     def validate_fields(self, fields: Mapping[str, Any]) -> dict[str, Any]:
-        """按 dynamic_schema 校验上游字段，返回规范化后的 dict。失败抛 pydantic.ValidationError。"""
-        return self._dynamic_schema.model_validate(fields).model_dump()
+        """按观察点校验上游字段，返回规范化后的 dict。失败抛 pydantic.ValidationError。"""
+        return self._observed_point.model_validate(fields).model_dump()
 
     def rebind_target(self, target: Target) -> None:
         """目标记录更新后换上新记录。只应由 TargetManager 调用。"""

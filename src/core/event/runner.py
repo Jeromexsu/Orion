@@ -205,7 +205,7 @@ class EventRunner:
         """按当前模板的观测声明订阅；不再需要的可观测目标 release。"""
         subscribed: dict[str, ObservableTarget] = {}
         for o in self._template.observation_defs:
-            observable = self._runtime.targets.get_observable(o.target_id, o.focus)
+            observable = self._runtime.targets.get_observable(o.target_id, o.observed_point)
             observable.acquire(self, o.upstreams)
             subscribed[observable.id] = observable
         for oid, observable in self._observables.items():

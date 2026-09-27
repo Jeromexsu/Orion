@@ -14,7 +14,7 @@ from tests.core.event.conftest import Env, template
 
 def test_collect_drives_sub_event_to_close() -> None:
     env = Env()
-    adsb = FakeAdapter("adsb", {("aircraft", "position")})
+    adsb = FakeAdapter("adsb")
     adapter_registry = AdapterRegistry()
     adapter_registry.register(adsb)
     collector = Collector(

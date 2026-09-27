@@ -30,7 +30,7 @@ class Env:
         self.hil.allow("add_target", self.add_target)
 
     def add_target(self, target: str | None, args: dict[str, Any]) -> object:
-        if args.get("focus") == "invalid":
+        if args.get("observed_point") == "invalid":
             raise ValueError("rejected by core validation")
         self.calls.append((target, args))
         return "ok"
@@ -54,12 +54,12 @@ def test_receive_rejects_unknown_actions(env: Env) -> None:
 
 
 def test_accept_calls_action_with_analyst_overrides(env: Env) -> None:
-    s = suggestion(target_id="t2", focus="position")
+    s = suggestion(target_id="t2", observed_point="position")
     env.hil.receive(s)
     assert env.hil.pending() == [s]
 
     assert env.hil.accept(s.id, {"target_id": "t3"}) == "ok"
-    assert env.calls == [("p1", {"target_id": "t3", "focus": "position"})]
+    assert env.calls == [("p1", {"target_id": "t3", "observed_point": "position"})]
     assert env.repo.resolved == {s.id: True}
     assert env.hil.pending() == []
     with pytest.raises(SuggestionNotFoundError):
@@ -67,7 +67,7 @@ def test_accept_calls_action_with_analyst_overrides(env: Env) -> None:
 
 
 def test_failed_action_keeps_suggestion_pending(env: Env) -> None:
-    s = suggestion(target_id="t2", focus="invalid")
+    s = suggestion(target_id="t2", observed_point="invalid")
     env.hil.receive(s)
     with pytest.raises(ValueError):
         env.hil.accept(s.id)

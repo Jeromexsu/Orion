@@ -1,21 +1,24 @@
-from collections.abc import Mapping
 from typing import ClassVar, Literal
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import ValidationError
 
 from core.target import (
+    DuplicateObservedPointError,
     DuplicateTargetTypeError,
     NoUpstreamError,
+    ObservedPoint,
     Target,
     TargetInUseError,
     TargetManager,
     TargetNotFoundError,
     TargetTypeChangeError,
+    UnknownObservedPointError,
     UnknownTargetTypeError,
-    UnsupportedFocusError,
+    UnsupportedObservedPointError,
     type_name,
 )
+from plugins.observed_points.position import Position
 from plugins.target.aircraft import Aircraft
 from tests.core.target.conftest import Subscriber
 from tests.core.target.fakes import (
@@ -25,8 +28,17 @@ from tests.core.target.fakes import (
 )
 
 
+class Draught(ObservedPoint):
+    """船特有的观察点：吃水。"""
+
+    name: ClassVar[str] = "draught"
+    metres: float
+
+
 class Ship(Target, frozen=True):
-    focuses: ClassVar[Mapping[str, type[BaseModel]]] = {}
+    """船和飞机共用 Position 观察点。"""
+
+    observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (Position, Draught)
     type: Literal["ship"] = "ship"
     mmsi: str
 
@@ -37,6 +49,43 @@ class Ship(Target, frozen=True):
 def test_register_type_twice_rejected(manager: TargetManager) -> None:
     with pytest.raises(DuplicateTargetTypeError):
         manager.register_type(Aircraft)
+
+
+def test_observed_points_are_collected_from_types(manager: TargetManager) -> None:
+    manager.register_type(Ship)
+    assert manager.get_observed_point("position") is Position
+    assert manager.get_observed_point("draught") is Draught
+    assert set(manager.observed_points()) == {Position, Draught}
+
+
+def test_observed_point_name_clash_rejected(manager: TargetManager) -> None:
+    class OtherPosition(ObservedPoint):
+        name: ClassVar[str] = "position"
+        x: float
+
+    class Car(Target, frozen=True):
+        observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (OtherPosition,)
+        type: Literal["car"] = "car"
+
+    with pytest.raises(DuplicateObservedPointError):
+        manager.register_type(Car)
+    with pytest.raises(UnknownTargetTypeError):  # 注册失败不留半截
+        manager.get_type("car")
+
+
+def test_shared_observed_point_across_types() -> None:
+    upstreams = StaticUpstreamCatalog(
+        {("aircraft", "position"): ["adsb"], ("ship", "position"): ["ais"]}
+    )
+    m = TargetManager(InMemoryTargetRepository(), InMemoryObservableTargetRepository(), upstreams)
+    m.register_type(Aircraft)
+    m.register_type(Ship)
+    m.upsert_target(Aircraft(id="a1", name="x", registration="B-1"))
+    m.upsert_target(Ship(id="s1", name="y", mmsi="412000000"))
+
+    plane, ship = m.get_observable("a1", "position"), m.get_observable("s1", "position")
+    assert plane.observed_point is ship.observed_point is Position
+    assert (plane.upstreams, ship.upstreams) == (("adsb",), ("ais",))
 
 
 def test_subclass_must_narrow_type() -> None:
@@ -116,8 +165,11 @@ def test_get_observable_is_singleton(
 def test_get_observable_errors(manager: TargetManager, plane: Target) -> None:
     with pytest.raises(TargetNotFoundError):
         manager.get_observable("missing", "position")
-    with pytest.raises(UnsupportedFocusError):
+    with pytest.raises(UnknownObservedPointError):
         manager.get_observable(plane.id, "fuel")
+    manager.register_type(Ship)
+    with pytest.raises(UnsupportedObservedPointError):  # 吃水是船的观察点，飞机不能被这样观测
+        manager.get_observable(plane.id, "draught")
 
 
 def test_get_observable_without_upstream() -> None:

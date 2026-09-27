@@ -2,7 +2,7 @@
 
 from collections.abc import Sequence
 
-from core.target import ObservableTarget, TargetRecord
+from core.target import ObservableTarget, ObservedPoint, Target, TargetRecord
 
 
 class InMemoryTargetRepository:
@@ -43,5 +43,8 @@ class StaticUpstreamCatalog:
     def __init__(self, table: dict[tuple[str, str], list[str]]) -> None:
         self.table = table
 
-    def upstreams_for(self, target_type: str, focus: str) -> Sequence[str]:
-        return self.table.get((target_type, focus), [])
+    def upstreams_for(
+        self, target: Target, observed_point: type[ObservedPoint]
+    ) -> Sequence[str]:
+        """table 按 (目标类型名, 观察点名) 配置。"""
+        return self.table.get((target.type, observed_point.name), [])

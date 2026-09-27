@@ -1,21 +1,13 @@
 """示例目标类型：飞机。新增目标类型照这个写。"""
 
-from collections.abc import Mapping
 from typing import ClassVar, Literal
 
-from pydantic import BaseModel
-
-from core.target import Target
-
-
-class AircraftPosition(BaseModel):
-    lat: float
-    lon: float
-    altitude_m: float | None = None
+from core.target import ObservedPoint, Target
+from plugins.observed_points.position import Position
 
 
 class Aircraft(Target, frozen=True):
-    focuses: ClassVar[Mapping[str, type[BaseModel]]] = {"position": AircraftPosition}
+    observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (Position,)
 
     type: Literal["aircraft"] = "aircraft"
     registration: str           # 注册号，如 "B-2447"

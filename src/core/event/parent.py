@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class ParentEvent:
     """父事件：静态目标的命名空间 + 静态模板的集合。
 
-    它自己不订阅任何东西——不知道关注点和上游。每个模板由一个 EventRunner 运行，
+    它自己不订阅任何东西——不知道观察点和上游。每个模板由一个 EventRunner 运行，
     runner 按模板的观测声明订阅可观测目标、管理子事件生命周期。
     所有变更方法都会立即持久化自己的记录。通过 ParentEventManager 创建和恢复。
     """

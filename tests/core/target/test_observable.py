@@ -1,15 +1,18 @@
 from datetime import UTC, datetime
+from typing import ClassVar
 
 import pytest
 from pydantic import ValidationError
 
 from core.target import (
     ObservableTarget,
+    ObservedPoint,
     Target,
     TargetManager,
-    UnsupportedFocusError,
+    UnsupportedObservedPointError,
     UnsupportedUpstreamError,
 )
+from plugins.observed_points.position import Position
 from tests.core.target.conftest import Subscriber
 
 
@@ -38,7 +41,7 @@ def test_query_spec(manager: TargetManager, plane: Target) -> None:
     since = datetime(2026, 9, 1, tzinfo=UTC)
     spec = manager.get_observable(plane.id, "position").query_spec(since)
     assert spec.type == "aircraft"
-    assert spec.focus == "position"
+    assert spec.observed_point == "position"
     assert spec.attributes["registration"] == "B-2447"
     assert spec.aliases == ["MU5101"]
     assert spec.since == since
@@ -64,17 +67,23 @@ def test_rebind_target_rejects_other_id(manager: TargetManager, plane: Target) -
 # ---------------------------------------------------------------- 构造与按上游订阅
 
 
-def test_constructor_validates_focus_and_upstreams(plane: Target) -> None:
-    with pytest.raises(UnsupportedFocusError):
-        ObservableTarget(plane, "fuel", ["adsb"])
+class Fuel(ObservedPoint):
+    name: ClassVar[str] = "fuel"
+    litres: float
+
+
+def test_constructor_validates_observed_point_and_upstreams(plane: Target) -> None:
+    with pytest.raises(UnsupportedObservedPointError):
+        ObservableTarget(plane, Fuel, ["adsb"])
     with pytest.raises(UnsupportedUpstreamError):
-        ObservableTarget(plane, "position", [])
-    obs = ObservableTarget(plane, "position", ["adsb", "radar"])
-    assert obs.dynamic_schema.__name__ == "AircraftPosition"
+        ObservableTarget(plane, Position, [])
+    obs = ObservableTarget(plane, Position, ["adsb", "radar"])
+    assert obs.observed_point is Position
+    assert obs.id == "t1:position"
 
 
 def test_acquire_validates_upstreams(plane: Target) -> None:
-    obs = ObservableTarget(plane, "position", ["adsb", "radar"])
+    obs = ObservableTarget(plane, Position, ["adsb", "radar"])
     with pytest.raises(UnsupportedUpstreamError):
         obs.acquire(Subscriber(), [])
     with pytest.raises(UnsupportedUpstreamError):
@@ -83,7 +92,7 @@ def test_acquire_validates_upstreams(plane: Target) -> None:
 
 
 def test_routing_by_upstream(plane: Target) -> None:
-    obs = ObservableTarget(plane, "position", ["adsb", "radar", "satellite"])
+    obs = ObservableTarget(plane, Position, ["adsb", "radar", "satellite"])
     a, b = Subscriber(), Subscriber()
     obs.acquire(a, ["adsb"])
     obs.acquire(b, ["adsb", "radar"])

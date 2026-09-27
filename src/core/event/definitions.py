@@ -23,17 +23,17 @@ class OperatorMountDef(BaseModel):
 
 
 class ObservationDef(BaseModel):
-    """观测声明：模板要观测哪个目标的哪个关注点，订阅哪些上游。"""
+    """观测声明：模板要在哪个观察点观测哪个目标，订阅哪些上游。"""
 
     model_config = ConfigDict(frozen=True)
 
     target_id: str              # 必须在父事件的目标命名空间里
-    focus: str
+    observed_point: str         # 观察点名，如 "position"
     upstreams: list[str] = Field(min_length=1)
 
     @property
     def observable_id(self) -> str:
-        return f"{self.target_id}:{self.focus}"
+        return f"{self.target_id}:{self.observed_point}"
 
 
 class RuleDef(BaseModel):

@@ -208,7 +208,7 @@ def template(
         "version": version,
         "name": "进入区域",
         "observation_defs": [
-            {"target_id": target, "focus": "position", "upstreams": upstreams or ["adsb"]}
+            {"target_id": target, "observed_point": "position", "upstreams": upstreams or ["adsb"]}
         ],
         "open_condition_def": enter(observable),
         "rule_defs": [

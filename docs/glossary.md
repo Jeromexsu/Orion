@@ -6,14 +6,14 @@
 
 | 术语 | 代码 | 含义 |
 |---|---|---|
-| 目标类型 | `Target` 的子类（如 `Aircraft`） | 一类静态目标，如飞机。由开发者用代码定义：类型名（`type` 的 Literal 默认值）、属性字段、关注点及其动态数据 schema（`focuses`） |
+| 目标类型 | `Target` 的子类（如 `Aircraft`） | 一类静态目标，如飞机。由开发者用代码定义：类型名（`type` 的 Literal 默认值）、属性字段、可以在哪些观察点被观测（`observed_points`）。同名属性字段在所有目标类型里含义必须一致 |
 | 目标 | `Target` 子类的实例 | 一个具体的静态目标，如注册号 B-2447 的那架飞机 |
-| 关注点 | `focus` | 对一个目标关注的方面，如 `position`；每个关注点有自己的动态数据 schema |
-| 上游 | `upstream` | 数据来源，如 `adsb`；由 collector 的一个 Adapter 实现 |
-| 可观测目标（obs） | `ObservableTarget` | 封装好的「具体目标 + 一个关注点」，ID 形如 `t1:position`；持有全部可用上游和订阅关系，全局唯一，由 `TargetManager` 创建 |
+| 观察点 | `ObservedPoint` 的子类（如 `Position`），名字如 `position` | 观测的形状：类本身就是观测 `fields` 的 schema。与目标类型无关，多种目标类型可共用 |
+| 上游 | `upstream` | 数据来源，如 `adsb`；由 collector 的一个 Adapter 实现，声明服务哪个观察点、查询需要目标提供哪些字段（`required_fields`） |
+| 可观测目标（obs） | `ObservableTarget` | 封装好的「具体目标 + 一个观察点」，ID 形如 `t1:position`；持有全部可用上游（服务该观察点且目标能提供查询字段的上游）和订阅关系，全局唯一，由 `TargetManager` 创建 |
 | 订阅 | `ObservableTarget.acquire(订阅者, 上游集合)` | 订阅者指定要哪些上游；可观测目标按上游把数据路由给订阅者 |
 | 观测（observation） | `Observation` | 对一个可观测目标的一次观测结果：`observable_id`、`upstream`、`fields`、`occurred_at`、`source_id`、`raw`。collector 产出，条件判断的输入 |
-| 动态数据 | `Observation.fields` | 一次观测里该关注点 dynamic schema 描述的那组字段，如 `{"lat": ..., "lon": ...}` |
+| 动态数据 | `Observation.fields` | 一次观测里的那组字段，形状由观察点定义，如 `{"lat": ..., "lon": ...}` |
 
 注意区分 **obs**（可观测目标，长期存在的对象）与 **observation**（观测，一条结果）。
 
@@ -23,7 +23,7 @@
 |---|---|---|
 | 父事件 | `ParentEvent` | 静态：目标命名空间（target_id 集合）+ 模板集合 + `digest()`；自己不订阅 |
 | 模板 | `EventTemplate`（定义为 `TemplateDef`） | 静态、不可变、带版本：观测声明、开启条件、规则、算子挂载 |
-| 观测声明 | `ObservationDef` | 模板要观测的 (target_id, focus) 及订阅哪些上游 |
+| 观测声明 | `ObservationDef` | 模板要观测的 (target_id, observed_point) 及订阅哪些上游 |
 | runner | `EventRunner` | 运行中的模板：按观测声明订阅，评估开启条件，管理子事件生命周期（开启、换版本、存档） |
 | 子事件 | `Event` | 模板的一次运行（一个周期）；同一模板同时最多一个 |
 | 周期 | `cycle` | 子事件的周期标识：触发开启的那条数据发生的年份。子事件是以年为周期重复发生的事情 |

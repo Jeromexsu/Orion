@@ -2,22 +2,28 @@ from collections.abc import Mapping
 from typing import Any
 
 from core.target.errors import (
+    DuplicateObservedPointError,
     DuplicateTargetTypeError,
     NoUpstreamError,
     TargetInUseError,
     TargetNotFoundError,
     TargetTypeChangeError,
+    UnknownObservedPointError,
     UnknownTargetTypeError,
-    UnsupportedFocusError,
+    UnsupportedObservedPointError,
 )
 from core.target.observable import ObservableTarget, observable_key
+from core.target.observed_point import ObservedPoint, observed_point_name
 from core.target.repository import ObservableTargetRepository, TargetRepository
 from core.target.target import Target, TargetRecord, type_name
 from core.target.upstream import UpstreamCatalog
 
 
 class TargetManager:
-    """target 模块唯一入口。保证每个 (target, focus) 只有一个 ObservableTarget 实例。"""
+    """target 模块唯一入口。保证每个 (目标, 观察点) 只有一个 ObservableTarget 实例。
+
+    观察点不单独注册：从已注册目标类型的 observed_points 里收集，按名字建立对照表。
+    """
 
     def __init__(
         self,
@@ -29,6 +35,7 @@ class TargetManager:
         self._observables = observables
         self._upstreams = upstreams
         self._types: dict[str, type[Target]] = {}
+        self._observed_points: dict[str, type[ObservedPoint]] = {}
         # 内存里的单例表：订阅者集合只存在这些对象上
         self._live: dict[str, ObservableTarget] = {}
 
@@ -38,7 +45,17 @@ class TargetManager:
         name = type_name(target_class)
         if name in self._types:
             raise DuplicateTargetTypeError(name)
+        points: dict[str, type[ObservedPoint]] = {}
+        for point in target_class.observed_points:
+            point_name = observed_point_name(point)
+            known = self._observed_points.get(point_name) or points.get(point_name)
+            if known is not None and known is not point:
+                raise DuplicateObservedPointError(
+                    f"{point_name!r} is both {known.__name__} and {point.__name__}"
+                )
+            points[point_name] = point
         self._types[name] = target_class
+        self._observed_points.update(points)
 
     def get_type(self, name: str) -> type[Target]:
         try:
@@ -48,6 +65,15 @@ class TargetManager:
 
     def types(self) -> list[type[Target]]:
         return list(self._types.values())
+
+    def get_observed_point(self, name: str) -> type[ObservedPoint]:
+        try:
+            return self._observed_points[name]
+        except KeyError:
+            raise UnknownObservedPointError(name) from None
+
+    def observed_points(self) -> list[type[ObservedPoint]]:
+        return list(self._observed_points.values())
 
     def parse(self, raw: Mapping[str, Any]) -> Target:
         """JSON → 对应的 Target 子类（按 type 分派）。给 API 层用。属性不合法抛 pydantic.ValidationError。"""
@@ -68,8 +94,8 @@ class TargetManager:
             )
 
         self._targets.upsert(target.to_record())
-        for focus in type(target).focuses:
-            live = self._live.get(observable_key(target.id, focus))
+        for point in type(target).observed_points:
+            live = self._live.get(observable_key(target.id, point.name))
             if live is not None:
                 live.rebind_target(target)
         return target
@@ -87,7 +113,7 @@ class TargetManager:
     def remove_target(self, target_id: str) -> None:
         """删除目标及其所有 ObservableTarget。仍有引用者时拒绝。"""
         target = self.get_target(target_id)
-        keys = [observable_key(target_id, focus) for focus in type(target).focuses]
+        keys = [observable_key(target_id, p.name) for p in type(target).observed_points]
         in_use = [k for k in keys if (live := self._live.get(k)) is not None and live.is_active]
         if in_use:
             raise TargetInUseError(f"{target_id} still referenced via {in_use}")
@@ -98,24 +124,27 @@ class TargetManager:
 
     # ------------------------------------------------------------ 可观测目标
 
-    def get_observable(self, target_id: str, focus: str) -> ObservableTarget:
-        """取（必要时创建）唯一的 ObservableTarget。上游列表由这里问 UpstreamCatalog 得到。
+    def get_observable(self, target_id: str, observed_point: str) -> ObservableTarget:
+        """取（必要时创建）唯一的 ObservableTarget。observed_point 是观察点名。
 
-        调用方随后自行 acquire(referencer, upstreams) 订阅需要的上游。
+        上游列表由这里问 UpstreamCatalog 得到；调用方随后自行 acquire(referencer, upstreams)。
         """
-        key = observable_key(target_id, focus)
+        key = observable_key(target_id, observed_point)
         live = self._live.get(key)
         if live is not None:
             return live
 
+        point = self.get_observed_point(observed_point)
         target = self.get_target(target_id)
-        if focus not in type(target).focuses:
-            raise UnsupportedFocusError(f"{target.type} has no focus {focus!r}")
-        upstreams = self._upstreams.upstreams_for(target.type, focus)
+        if point not in type(target).observed_points:
+            raise UnsupportedObservedPointError(
+                f"{target.type} cannot be observed at {observed_point!r}"
+            )
+        upstreams = self._upstreams.upstreams_for(target, point)
         if not upstreams:
-            raise NoUpstreamError(f"no upstream serves ({target.type}, {focus})")
+            raise NoUpstreamError(f"no upstream can observe {target_id} at {observed_point!r}")
 
-        observable = ObservableTarget(target, focus, upstreams)
+        observable = ObservableTarget(target, point, upstreams)
         self._live[key] = observable
         self._observables.upsert(observable)
         return observable

@@ -14,12 +14,20 @@ class TargetNotFoundError(TargetError):
     pass
 
 
-class UnsupportedFocusError(TargetError):
-    """目标类型没有声明这个关注点。"""
+class DuplicateObservedPointError(TargetError):
+    """两个不同的观察点类用了同一个名字。"""
+
+
+class UnknownObservedPointError(TargetError):
+    pass
+
+
+class UnsupportedObservedPointError(TargetError):
+    """目标类型没有声明这个观察点。"""
 
 
 class NoUpstreamError(TargetError):
-    """没有任何上游能服务这个 (type, focus) 组合。"""
+    """没有任何上游能在这个观察点观测这个目标。"""
 
 
 class UnsupportedUpstreamError(TargetError):
@@ -31,4 +39,4 @@ class TargetInUseError(TargetError):
 
 
 class TargetTypeChangeError(TargetError):
-    """已存在的目标不能换类型——已有 ObservableTarget 的关注点和 schema 会失效。"""
+    """已存在的目标不能换类型——已有 ObservableTarget 的观察点可能失效。"""

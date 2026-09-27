@@ -58,8 +58,8 @@ def test_invalid_operator_params(env: Env) -> None:
 
 def test_observation_defs_are_resolved(env: Env) -> None:
     raw = template(upstreams=["adsb", "satellite"])
-    raw["observation_defs"].append({"target_id": "ghost", "focus": "position", "upstreams": ["adsb"]})
-    raw["observation_defs"].append({"target_id": "t2", "focus": "fuel", "upstreams": ["adsb"]})
+    raw["observation_defs"].append({"target_id": "ghost", "observed_point": "position", "upstreams": ["adsb"]})
+    raw["observation_defs"].append({"target_id": "t2", "observed_point": "fuel", "upstreams": ["adsb"]})
     with pytest.raises(TemplateCompileError) as info:
         compile_(env, raw)
     errors = info.value.errors

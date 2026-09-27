@@ -4,11 +4,11 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel, ConfigDict
 
-from core.target import QuerySpec
+from core.target import ObservedPoint, QuerySpec
 
 
 class FetchedRecord(BaseModel):
-    """Adapter 从上游拿到的一条原始记录，尚未按 dynamic_schema 校验。"""
+    """Adapter 从上游拿到的一条原始记录，尚未按观察点校验。"""
 
     model_config = ConfigDict(frozen=True)
 
@@ -19,7 +19,11 @@ class FetchedRecord(BaseModel):
 
 
 class Adapter(Protocol):
-    """一个上游一个实现，放在 plugins/collector/ 下。"""
+    """一个上游一个实现，放在 plugins/collector/ 下。
+
+    Adapter 不关心目标类型，只关心观察点和查询所需的字段——不同目标类型只要能提供这些字段，
+    就能用同一个 Adapter 观测。
+    """
 
     @property
     def name(self) -> str:
@@ -27,8 +31,13 @@ class Adapter(Protocol):
         ...
 
     @property
-    def serves(self) -> frozenset[tuple[str, str]]:
-        """能服务的 (target_type, focus) 组合。"""
+    def observed_point(self) -> type[ObservedPoint]:
+        """服务的观察点：返回的 FetchedRecord.fields 必须符合它的形状。"""
+        ...
+
+    @property
+    def required_fields(self) -> frozenset[str]:
+        """查询需要目标提供的字段（如 icao24）。目标这些字段都有值，才能用这个上游观测它。"""
         ...
 
     def fetch(self, spec: QuerySpec) -> Sequence[FetchedRecord]:
