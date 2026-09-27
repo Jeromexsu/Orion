@@ -1,7 +1,7 @@
 from core.condition_engine import (
     ConditionCompileError,
+    ConditionCompiler,
     ConditionDef,
-    ConditionEngine,
     ConditionTree,
 )
 from core.event.definitions import OperatorMountDef, TemplateDef
@@ -16,11 +16,11 @@ class TemplateCompiler:
 
     def __init__(
         self,
-        conditions: ConditionEngine,
+        condition_compiler: ConditionCompiler,
         operator_registry: OperatorRegistry,
         targets: TargetManager,
     ) -> None:
-        self._conditions = conditions
+        self._condition_compiler = condition_compiler
         self._operator_registry = operator_registry
         self._targets = targets
 
@@ -35,7 +35,7 @@ class TemplateCompiler:
 
         def compile_tree(where: str, condition_def: ConditionDef) -> ConditionTree | None:
             try:
-                return self._conditions.compile(condition_def, fields_by_observable)
+                return self._condition_compiler.compile(condition_def, fields_by_observable)
             except ConditionCompileError as e:
                 errors.extend(f"{where}: {msg}" for msg in e.errors)
                 return None

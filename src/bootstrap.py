@@ -13,7 +13,7 @@ from core.collector import (
     Dispatcher,
     ObservationRepository,
 )
-from core.condition_engine import ConditionEngine, EvaluatorRegistry
+from core.condition_engine import ConditionCompiler, EvaluatorRegistry
 from core.event import (
     EventRepository,
     EventRuntime,
@@ -72,7 +72,7 @@ class App:
         targets: TargetManager,
         adapter_registry: AdapterRegistry,
         collector: Collector,
-        conditions: ConditionEngine,
+        condition_compiler: ConditionCompiler,
         operator_registry: OperatorRegistry,
         parent_events: ParentEventManager,
         reports: ReportManager,
@@ -81,7 +81,7 @@ class App:
         self.targets = targets
         self.adapter_registry = adapter_registry
         self.collector = collector
-        self.conditions = conditions
+        self.condition_compiler = condition_compiler
         self.operator_registry = operator_registry
         self.parent_events = parent_events
         self.reports = reports
@@ -102,7 +102,7 @@ def build_app(repos: Repositories) -> App:
 
     evaluator_registry = EvaluatorRegistry()
     evaluator_registry.register(OnEnter())
-    conditions = ConditionEngine(evaluator_registry)
+    condition_compiler = ConditionCompiler(evaluator_registry)
 
     reports = ReportManager(repos.drafts)
     hil = HilManager(repos.suggestions)
@@ -114,7 +114,7 @@ def build_app(repos: Repositories) -> App:
     parent_events = ParentEventManager(
         EventRuntime(
             targets=targets,
-            template_compiler=TemplateCompiler(conditions, operator_registry, targets),
+            template_compiler=TemplateCompiler(condition_compiler, operator_registry, targets),
             operator_registry=operator_registry,
             suggestions=hil,
             parents=repos.parents,
@@ -135,7 +135,7 @@ def build_app(repos: Repositories) -> App:
         targets=targets,
         adapter_registry=adapter_registry,
         collector=collector,
-        conditions=conditions,
+        condition_compiler=condition_compiler,
         operator_registry=operator_registry,
         parent_events=parent_events,
         reports=reports,

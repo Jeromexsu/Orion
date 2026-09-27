@@ -1,4 +1,4 @@
-"""条件定义（纯数据）。结构校验交给 Pydantic，语义校验留给 ConditionEngine.compile。"""
+"""条件定义（纯数据）。结构校验交给 Pydantic，语义校验留给 ConditionCompiler.compile。"""
 
 from typing import Annotated, Any, Literal
 

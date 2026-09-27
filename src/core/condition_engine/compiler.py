@@ -11,7 +11,7 @@ from core.condition_engine.registry import EvaluatorRegistry
 from core.condition_engine.tree import ConditionNode, ConditionTree, LeafNode, OpNode
 
 
-class ConditionEngine:
+class ConditionCompiler:
     """把条件定义（ConditionDef）编译成 ConditionTree。
 
     输入必须是已解析好的静态定义；JSON → ConditionDef 属于边界（API 层 / 持久化层）的职责，

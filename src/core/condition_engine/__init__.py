@@ -1,7 +1,7 @@
-"""条件引擎：EvaluatorRegistry / ConditionEngine / ConditionTree。零依赖。"""
+"""条件引擎：ConditionDef → ConditionCompiler → ConditionTree；扩展点 Evaluator（EvaluatorRegistry 管理）。"""
 
+from core.condition_engine.compiler import ConditionCompiler, FieldsByObservable
 from core.condition_engine.definitions import ConditionDef, LeafDef, OpDef
-from core.condition_engine.engine import ConditionEngine, FieldsByObservable
 from core.condition_engine.errors import (
     ConditionCompileError,
     ConditionEngineError,
@@ -16,7 +16,7 @@ from core.condition_engine.tree import ConditionTree, TreeState, apply_state_pat
 __all__ = [
     "ConditionCompileError",
     "ConditionDef",
-    "ConditionEngine",
+    "ConditionCompiler",
     "ConditionEngineError",
     "ConditionTree",
     "DuplicateEvaluatorError",

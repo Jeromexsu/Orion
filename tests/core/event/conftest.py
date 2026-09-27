@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from core.condition_engine import ConditionEngine, EvaluatorRegistry
+from core.condition_engine import ConditionCompiler, EvaluatorRegistry
 from core.event import EventRuntime, ParentEventManager, TemplateCompiler
 from core.hil import Proposal, Suggestion
 from core.operators import (
@@ -156,7 +156,7 @@ class Env:
         return EventRuntime(
             targets=targets,
             template_compiler=TemplateCompiler(
-                ConditionEngine(evaluator_registry), self.operator_registry, targets
+                ConditionCompiler(evaluator_registry), self.operator_registry, targets
             ),
             operator_registry=self.operator_registry,
             suggestions=self.sink,

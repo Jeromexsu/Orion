@@ -9,8 +9,8 @@ from pydantic import BaseModel, ConfigDict, TypeAdapter
 from core.condition_engine import (
     HIT,
     MISS,
+    ConditionCompiler,
     ConditionDef,
-    ConditionEngine,
     ConditionTree,
     EvalResult,
     Evaluator,
@@ -28,9 +28,9 @@ def parse(raw: dict[str, Any]) -> ConditionDef:
 
 
 def compile_(
-    engine: ConditionEngine, raw: dict[str, Any], fields: dict[str, set[str]] | None = None
+    compiler: ConditionCompiler, raw: dict[str, Any], fields: dict[str, set[str]] | None = None
 ) -> ConditionTree:
-    return engine.compile(parse(raw), FIELDS if fields is None else fields)
+    return compiler.compile(parse(raw), FIELDS if fields is None else fields)
 
 
 T0 = datetime(2026, 9, 26, tzinfo=UTC)
@@ -84,8 +84,8 @@ SQUARE = [(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0)]
 
 
 @pytest.fixture
-def engine() -> ConditionEngine:
+def compiler() -> ConditionCompiler:
     registry = EvaluatorRegistry()
     registry.register(OnEnter())
     registry.register(Gt())
-    return ConditionEngine(registry)
+    return ConditionCompiler(registry)

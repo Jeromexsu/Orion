@@ -135,7 +135,7 @@ graph LR
 
 ```mermaid
 graph LR
-  CD["ConditionDef<br/>LeafDef / OpDef（纯数据）"] -->|"ConditionEngine.compile(def, fields_by_observable)"| CT["ConditionTree<br/>OpNode / LeafNode"]
+  CD["ConditionDef<br/>LeafDef / OpDef（纯数据）"] -->|"ConditionCompiler.compile(def, fields_by_observable)"| CT["ConditionTree<br/>OpNode / LeafNode"]
   CT -->|"evaluate(envelope, state)"| ER["EvalResult<br/>命中 / 未命中 / 不适用 + state_patch"]
   LN["LeafNode"] -->|调用| EV["Evaluator<br/>唯一扩展点"]
 ```
@@ -151,7 +151,7 @@ graph LR
 | 纯数据定义（存库） | 编译 / 重建者 | 运行时对象 |
 |---|---|---|
 | `TemplateDef` | `TemplateCompiler` | `EventTemplate` |
-| `ConditionDef` | `ConditionEngine` | `ConditionTree` |
+| `ConditionDef` | `ConditionCompiler` | `ConditionTree` |
 | `TargetRecord` | `TargetManager` | `Target` 子类实例 |
 | `ParentEventRecord` / `EventRecord` | `ParentEventManager` / `EventRunner` | `ParentEvent` / `EventRunner` / `Event` |
 

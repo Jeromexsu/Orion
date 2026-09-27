@@ -10,7 +10,7 @@ from core.condition_engine import (
     MISS,
     NOT_APPLICABLE,
     ConditionCompileError,
-    ConditionEngine,
+    ConditionCompiler,
     DuplicateEvaluatorError,
     EvalResult,
     Evaluator,
@@ -58,7 +58,7 @@ def test_structure_errors_are_pydantic() -> None:
         parse({"kind": "leaf", "type": "gt"})
 
 
-def test_semantic_errors_are_collected_with_paths(engine: ConditionEngine) -> None:
+def test_semantic_errors_are_collected_with_paths(compiler: ConditionCompiler) -> None:
     definition = op(
         "all",
         {"kind": "leaf", "target": "t1:position", "type": "nope"},
@@ -68,7 +68,7 @@ def test_semantic_errors_are_collected_with_paths(engine: ConditionEngine) -> No
         op("not", gt(1), gt(2)),
     )
     with pytest.raises(ConditionCompileError) as info:
-        compile_(engine, definition)
+        compile_(compiler, definition)
     errors = info.value.errors
     assert any(e.startswith("root/0: unknown condition type") for e in errors)
     assert any(e.startswith("root/1: unknown target") for e in errors)
@@ -77,28 +77,28 @@ def test_semantic_errors_are_collected_with_paths(engine: ConditionEngine) -> No
     assert any(e.startswith("root/4: 'not' takes exactly one child") for e in errors)
 
 
-def test_empty_combinator_rejected(engine: ConditionEngine) -> None:
+def test_empty_combinator_rejected(compiler: ConditionCompiler) -> None:
     with pytest.raises(ConditionCompileError):
-        compile_(engine, op("any"))
+        compile_(compiler, op("any"))
 
 
-def test_targets(engine: ConditionEngine) -> None:
-    tree = compile_(engine, op("any", enter(), enter(target="t2:position")))
+def test_targets(compiler: ConditionCompiler) -> None:
+    tree = compile_(compiler, op("any", enter(), enter(target="t2:position")))
     assert tree.targets() == {"t1:position", "t2:position"}
 
 
 # ---------------------------------------------------------------- 求值
 
 
-def test_irrelevant_data_is_not_applicable(engine: ConditionEngine) -> None:
-    tree = compile_(engine, op("not", gt(100)))
+def test_irrelevant_data_is_not_applicable(compiler: ConditionCompiler) -> None:
+    tree = compile_(compiler, op("not", gt(100)))
     assert tree.evaluate(make_envelope("t2:position", lat=1, lon=1), {}).outcome == NOT_APPLICABLE
     # 字段不全也是不适用
     assert tree.evaluate(make_envelope("t1:position", lat=1, lon=1), {}).outcome == NOT_APPLICABLE
 
 
-def test_stateful_leaf_through_state_patch(engine: ConditionEngine) -> None:
-    tree = compile_(engine, enter())
+def test_stateful_leaf_through_state_patch(compiler: ConditionCompiler) -> None:
+    tree = compile_(compiler, enter())
     state: dict[str, dict[str, Any]] = {}
 
     outside = tree.evaluate(make_envelope("t1:position", lat=20, lon=20), state)
@@ -116,30 +116,30 @@ def test_stateful_leaf_through_state_patch(engine: ConditionEngine) -> None:
     assert staying.outcome == MISS
 
 
-def test_initial_as_enter(engine: ConditionEngine) -> None:
-    tree = compile_(engine, enter(initial_as_enter=True))
+def test_initial_as_enter(compiler: ConditionCompiler) -> None:
+    tree = compile_(compiler, enter(initial_as_enter=True))
     assert tree.evaluate(make_envelope("t1:position", lat=5, lon=5), {}).outcome == HIT
 
 
-def test_combinators_never_short_circuit(engine: ConditionEngine) -> None:
+def test_combinators_never_short_circuit(compiler: ConditionCompiler) -> None:
     # any 的第一个子节点已命中，第二个有状态叶子仍然要更新
-    tree = compile_(engine, op("any", gt(0), enter()))
+    tree = compile_(compiler, op("any", gt(0), enter()))
     result = tree.evaluate(make_envelope("t1:position", lat=5, lon=5, alt=100), {})
     assert result.outcome == HIT
     assert result.state_patch == {"root/1": {"inside": True}}
     assert [t["path"] for t in result.trace] == ["root/0", "root/1"]
 
 
-def test_not_applicable_is_neutral_in_all(engine: ConditionEngine) -> None:
-    tree = compile_(engine, op("all", gt(10), enter(target="t2:position")))
+def test_not_applicable_is_neutral_in_all(compiler: ConditionCompiler) -> None:
+    tree = compile_(compiler, op("all", gt(10), enter(target="t2:position")))
     # 只有 t1 的数据：t2 的叶子不适用，不拖累 all
     result = tree.evaluate(make_envelope("t1:position", lat=50, lon=50, alt=100), {})
     assert result.outcome == HIT
     assert result.extracted == {"alt": 100}
 
 
-def test_evaluate_does_not_mutate_state(engine: ConditionEngine) -> None:
-    tree = compile_(engine, enter())
+def test_evaluate_does_not_mutate_state(compiler: ConditionCompiler) -> None:
+    tree = compile_(compiler, enter())
     state = {"root": {"inside": False}}
     tree.evaluate(make_envelope("t1:position", lat=5, lon=5), state)
     assert state == {"root": {"inside": False}}
@@ -192,10 +192,10 @@ def test_evaluator_gets_a_copy_with_time() -> None:
     spy = Spy()
     registry = EvaluatorRegistry()
     registry.register(spy)
-    engine = ConditionEngine(registry)
+    compiler = ConditionCompiler(registry)
     original = make_envelope("t1:position", at=3, lat=1, lon=1, alt=100)
 
-    result = compile_(engine, {"kind": "leaf", "target": "t1:position", "type": "spy",
+    result = compile_(compiler, {"kind": "leaf", "target": "t1:position", "type": "spy",
                                "params": {"field": "alt", "value": 0}}).evaluate(original, {})
     (seen,) = spy.seen
     assert seen.occurred_at == T0 + timedelta(hours=3)
@@ -207,8 +207,8 @@ def test_evaluator_gets_a_copy_with_time() -> None:
 def test_state_can_hold_a_sliding_window() -> None:
     registry = EvaluatorRegistry()
     registry.register(RecentCount())
-    engine = ConditionEngine(registry)
-    tree = compile_(engine, {"kind": "leaf", "target": "t1:position", "type": "recentCount",
+    compiler = ConditionCompiler(registry)
+    tree = compile_(compiler, {"kind": "leaf", "target": "t1:position", "type": "recentCount",
                              "params": {"hours": 24, "count": 3}})
 
     state: dict[str, dict[str, Any]] = {}

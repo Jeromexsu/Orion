@@ -140,7 +140,7 @@ class OpNode(ConditionNode):
 
 
 class ConditionTree:
-    """编译好的条件树。只通过 ConditionEngine.compile 构造。"""
+    """编译好的条件树。只通过 ConditionCompiler.compile 构造。"""
 
     def __init__(self, root: ConditionNode) -> None:
         self._root = root

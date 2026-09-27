@@ -11,7 +11,7 @@ from core.condition_engine import (
     HIT,
     MISS,
     NOT_APPLICABLE,
-    ConditionEngine,
+    ConditionCompiler,
     EvalResult,
     Evaluator,
     EvaluatorRegistry,
@@ -40,7 +40,7 @@ class Fixed(Evaluator[FixedParams]):
 
 registry = EvaluatorRegistry()
 registry.register(Fixed())
-engine = ConditionEngine(registry)
+compiler = ConditionCompiler(registry)
 
 
 def leaf(o: Outcome) -> dict[str, Any]:
@@ -48,7 +48,7 @@ def leaf(o: Outcome) -> dict[str, Any]:
 
 
 def run(definition: dict[str, Any]) -> Outcome:
-    return compile_(engine, definition, {"t": set()}).evaluate(make_envelope("t"), {}).outcome
+    return compile_(compiler, definition, {"t": set()}).evaluate(make_envelope("t"), {}).outcome
 
 
 @given(outcomes)
