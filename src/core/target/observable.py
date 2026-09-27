@@ -1,5 +1,5 @@
-from collections.abc import Iterable, Mapping, Sequence
-from typing import Any, Protocol
+from collections.abc import Iterable, Sequence
+from typing import Protocol
 
 from core.target.data import ObservationEnvelope, QuerySpec
 from core.target.errors import UnsupportedObservedPointError, UnsupportedUpstreamError
@@ -121,9 +121,9 @@ class ObservableTarget:
             aliases=self._target.aliases,
         )
 
-    def parse_observation(self, fields: Mapping[str, Any]) -> Observation:
-        """把上游返回的字段解析成该观察点的观测实例。失败抛 pydantic.ValidationError。"""
-        return self._observed_point.observation.model_validate(dict(fields))
+    def accepts(self, observation: Observation) -> bool:
+        """这个观测是不是本观察点的观测类（或其子类）的实例。"""
+        return isinstance(observation, self._observed_point.observation)
 
     def rebind_target(self, target: Target) -> None:
         """目标记录更新后换上新记录。只应由 TargetManager 调用。"""

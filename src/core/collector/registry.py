@@ -1,4 +1,4 @@
-from core.collector.adapter import Adapter, Query
+from core.collector.adapter import Adapter, Query, check_adapter
 from core.collector.errors import DuplicateAdapterError, UnknownAdapterError
 from core.target import ObservedPoint, Target
 
@@ -10,7 +10,8 @@ class AdapterRegistry:
         self._adapters: dict[str, Adapter] = {}
 
     def register(self, adapter: Adapter) -> None:
-        """注册一个上游。名字重复抛 DuplicateAdapterError。"""
+        """注册一个上游。类属性漏写或没有查询方式抛 TypeError；名字重复抛 DuplicateAdapterError。"""
+        check_adapter(adapter)
         if adapter.name in self._adapters:
             raise DuplicateAdapterError(adapter.name)
         self._adapters[adapter.name] = adapter

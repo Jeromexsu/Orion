@@ -58,8 +58,10 @@ def at(minute: int) -> datetime:
     return datetime(2026, 9, 26, 12, minute, tzinfo=UTC)
 
 
-def rec(source_id: str, minute: int, **fields: object) -> FetchedRecord:
-    return FetchedRecord(fields=dict(fields), occurred_at=at(minute), source_id=source_id)
+def rec(source_id: str, minute: int, lat: float = 1.0, lon: float = 2.0) -> FetchedRecord:
+    return FetchedRecord(
+        observation=PositionObservation(lat=lat, lon=lon), occurred_at=at(minute), source_id=source_id
+    )
 
 
 class Env:
@@ -140,10 +142,11 @@ def test_collect_validates_dedups_persists_and_dispatches(env: Env) -> None:
     sub = Subscriber()
     env.observable().subscribe(sub, ["adsb"])
     env.adsb.records = [
-        rec("a#2", 2, lat="31.2", lon=121.3),
+        rec("a#2", 2, lat=31.2, lon=121.3),
         rec("a#1", 1, lat=31.0, lon=121.0),
         rec("a#1", 1, lat=31.0, lon=121.0),  # 同批重复
-        rec("a#3", 3, lat=31.4),  # 缺 lon，校验失败
+        # 观测类型与上游服务的观察点不符，丢弃
+        FetchedRecord(observation=FuelObservation(litres=1.0), occurred_at=at(3), source_id="a#3"),
     ]
     new = env.collector.collect()
 
@@ -233,3 +236,12 @@ def test_only_subscribed_upstreams_are_fetched_and_routed(env: Env) -> None:
     env.collector.collect()
     assert len(radar.calls) == 1
     assert len(env.adsb.calls) == 2
+
+
+def test_register_checks_adapter_declarations(env: Env) -> None:
+    class NoQuery(FakeAdapter):
+        pass
+
+    incomplete = NoQuery("no-query", query_key_sets=())
+    with pytest.raises(TypeError, match="query_key_sets"):
+        env.registry.register(incomplete)

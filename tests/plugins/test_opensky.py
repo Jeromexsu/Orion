@@ -55,9 +55,8 @@ def test_fetch_translates_state_vectors() -> None:
     # 没有位置的跳过；since 之前（含）的跳过
     (only,) = records
     assert only.occurred_at == datetime.fromtimestamp(T0 + 10, UTC)
-    assert only.fields == {"lat": 31.2, "lon": 121.5, "altitude_m": 10050.0}
+    assert only.observation == PositionObservation(lat=31.2, lon=121.5, altitude_m=10050.0)
     assert only.source_id == f"opensky#780a3b#{T0 + 10}"
-    PositionObservation.model_validate(only.fields)   # 符合观察点的形状
 
 
 def test_collector_end_to_end() -> None:

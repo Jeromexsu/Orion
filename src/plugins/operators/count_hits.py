@@ -3,7 +3,7 @@
 from pydantic import BaseModel, Field
 
 from core.event import CLOSE_STATUS_KEY
-from core.operators import Category, Level, MountPoint, ProgressContext, Trigger
+from core.operators import Operator, ProgressContext, Trigger
 
 
 class CountHitsParams(BaseModel):
@@ -12,14 +12,13 @@ class CountHitsParams(BaseModel):
     threshold: int = Field(default=1, ge=1)
 
 
-class CountHits:
+class CountHits(Operator[ProgressContext]):
     """挂在 rule_hit：状态 hits +1，达到 threshold 时置 CLOSE_STATUS_KEY。"""
 
-    # Literal 类型的属性要显式标注，否则 pyright 推断成 str，不满足 Operator 协议
     name = "count_hits"
-    category: Category = "progress"
-    levels: frozenset[Level] = frozenset({"event"})
-    mount_points: frozenset[MountPoint] = frozenset({"rule_hit"})
+    category = "progress"
+    levels = frozenset({"event"})
+    mount_points = frozenset({"rule_hit"})
     params_model = CountHitsParams
 
     def run(self, trigger: Trigger, ctx: ProgressContext) -> None:

@@ -5,7 +5,7 @@
 对外：Operator、OperatorRegistry、Trigger（触发信息）、BaseContext / ProgressContext / SuggestContext、
       build_context、SuggestionSink（建议的去处，由 hil 实现）。
 依赖：target（ObservationEnvelope）、condition_engine（EvalResult）、hil（Suggestion）。
-扩展点：plugins/operators/ 下实现 Operator。
+扩展点：plugins/operators/ 下继承 Operator。
 """
 
 from core.operators.context import BaseContext, ProgressContext, SuggestContext, build_context

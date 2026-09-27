@@ -3,7 +3,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from core.operators.errors import DuplicateOperatorError, InvalidMountError, UnknownOperatorError
-from core.operators.operator import Operator
+from core.operators.operator import Operator, check_operator
 from core.operators.trigger import Level, MountPoint
 
 
@@ -14,7 +14,8 @@ class OperatorRegistry:
         self._operators: dict[str, Operator[Any]] = {}
 
     def register(self, operator: Operator[Any]) -> None:
-        """名字重复抛 DuplicateOperatorError。"""
+        """类属性漏写抛 TypeError；名字重复抛 DuplicateOperatorError。"""
+        check_operator(operator)
         if operator.name in self._operators:
             raise DuplicateOperatorError(operator.name)
         self._operators[operator.name] = operator

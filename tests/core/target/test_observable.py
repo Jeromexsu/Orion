@@ -2,7 +2,6 @@ from datetime import UTC, datetime
 from typing import ClassVar
 
 import pytest
-from pydantic import ValidationError
 
 from core.target import (
     ObservableTarget,
@@ -47,13 +46,13 @@ def test_query_spec(manager: TargetManager, plane: Target) -> None:
     assert spec.aliases == ["MU5101"]
 
 
-def test_parse_observation(manager: TargetManager, plane: Target) -> None:
+def test_accepts_only_its_observation_class(manager: TargetManager, plane: Target) -> None:
+    class Other(Observation):
+        x: int
+
     obs = manager.get_observable(plane.id, "position")
-    assert obs.parse_observation({"lat": "31.2", "lon": 121.3}) == PositionObservation(
-        lat=31.2, lon=121.3
-    )
-    with pytest.raises(ValidationError):
-        obs.parse_observation({"lat": 31.2})
+    assert obs.accepts(PositionObservation(lat=31.2, lon=121.3))
+    assert not obs.accepts(Other(x=1))
 
 
 def test_rebind_target_rejects_other_id(manager: TargetManager, plane: Target) -> None:

@@ -141,3 +141,17 @@ def test_count_hits_runs_through_built_context(registry: OperatorRegistry) -> No
 def test_plugin_satisfies_operator_protocol() -> None:
     op: Operator[ProgressContext] = CountHits()
     assert isinstance(op.params_model(), BaseModel)
+
+
+def test_register_checks_operator_declarations() -> None:
+    class Nameless(Operator[BaseContext]):
+        category = "output"
+        levels = frozenset({"event"})
+        mount_points = frozenset({"closed"})
+        params_model = BaseModel
+
+        def run(self, trigger: Trigger, ctx: BaseContext) -> None:
+            pass
+
+    with pytest.raises(TypeError, match="must set name"):
+        OperatorRegistry().register(Nameless())

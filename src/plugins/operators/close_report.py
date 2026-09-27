@@ -5,7 +5,7 @@
 
 from pydantic import BaseModel
 
-from core.operators import BaseContext, Category, Level, MountPoint, Trigger
+from core.operators import BaseContext, Operator, Trigger
 from core.report import ReportManager
 
 
@@ -15,13 +15,13 @@ class CloseReportParams(BaseModel):
     title: str = "子事件收敛"
 
 
-class CloseReport:
+class CloseReport(Operator[BaseContext]):
     """挂在 closed：用子事件最终状态写一份新草稿到所属父事件。"""
 
     name = "close_report"
-    category: Category = "output"
-    levels: frozenset[Level] = frozenset({"event"})
-    mount_points: frozenset[MountPoint] = frozenset({"closed"})
+    category = "output"
+    levels = frozenset({"event"})
+    mount_points = frozenset({"closed"})
     params_model = CloseReportParams
 
     def __init__(self, report_manager: ReportManager) -> None:

@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from datetime import datetime
 
-from core.collector import FetchedRecord, Query
+from core.collector import Adapter, FetchedRecord, Query
 from core.target import ObservationEnvelope, ObservedPoint, QueryKey, QuerySpec
 from plugins.observed_points.position import Position
 from plugins.query_keys.registration import Registration
@@ -16,7 +16,7 @@ class FetchCall:
         self.since = since
 
 
-class FakeAdapter:
+class FakeAdapter(Adapter):
     def __init__(
         self,
         name: str,

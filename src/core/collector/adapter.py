@@ -1,54 +1,56 @@
+from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Protocol
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, SerializeAsAny
 
-from core.target import ObservedPoint, QueryKey, QuerySpec
+from core.target import Observation, ObservedPoint, QueryKey, QuerySpec
 
 Query = dict[type[QueryKey], Any]
 """这次查询：查询键 → 取值，如 {Icao24: "780a3b"}。由 collector 按上游挑出的查询方式组装。"""
 
 
 class FetchedRecord(BaseModel):
-    """Adapter 从上游拿到的一条原始记录，尚未按观察点校验。"""
+    """Adapter 从上游拿到的一条记录：观测实例 + 来源信息。
+
+    observation 由 Adapter 直接构造成观察点的观测类（如 PositionObservation），字段写错在 Adapter 里当场报错；
+    collector 只检查它的类型是否与上游服务的观察点一致。
+    """
 
     model_config = ConfigDict(frozen=True)
 
-    fields: dict[str, Any]
+    observation: SerializeAsAny[Observation]
     occurred_at: datetime
     source_id: str              # 全局唯一，去重用，如 "adsb#881"
-    raw: dict[str, Any] | None = None
+    raw: dict[str, Any] | None = None   # 上游原始响应，便于排查
 
 
-class Adapter(Protocol):
-    """一个上游一个实现，放在 plugins/collector/ 下。
+class Adapter(ABC):
+    """上游基类。一个上游一个子类，放在 plugins/collector/ 下：
 
+        class OpenSkyAdapter(Adapter):
+            name = "opensky"
+            observed_point = Position
+            query_key_sets = (frozenset({Icao24}),)
+
+            def fetch(self, spec, query, since): ...
+
+    类属性的类型在这里声明，子类直接赋值即可。
     Adapter 不关心目标类型，只关心观察点（输出契约）和查询键（输入契约）——不同目标类型只要
     能提供其中一种查询方式要的查询键，就能用同一个 Adapter 观测。
     查询逻辑确实依赖类型时，可在 fetch 里读 QuerySpec.type 兜底。
     """
 
-    @property
-    def name(self) -> str:
-        """上游名，写进 ObservableTarget.upstreams。"""
-        ...
+    name: str                           # 上游名，写进 ObservableTarget.upstreams
+    observed_point: type[ObservedPoint]  # 服务的观察点：返回的观测必须是它的观测类
+    # 支持的查询方式，按优先级排列；每种是一组需要目标提供的查询键。
+    # 目标能提供其中任意一组（这些查询键都有值），就能用这个上游观测它；采用第一组满足的。
+    # 例如 (frozenset({Icao24}), frozenset({Mmsi}))：有 ICAO 地址的按它查，有 MMSI 的按它查——
+    # Adapter 不需要认识目标类型，也不需要知道目标的字段名。
+    query_key_sets: tuple[frozenset[type[QueryKey]], ...]
 
-    @property
-    def observed_point(self) -> type[ObservedPoint]:
-        """服务的观察点：返回的 FetchedRecord.fields 必须符合它的形状。"""
-        ...
-
-    @property
-    def query_key_sets(self) -> tuple[frozenset[type[QueryKey]], ...]:
-        """支持的查询方式，按优先级排列；每种是一组需要目标提供的查询键。
-
-        目标能提供其中任意一组（这些查询键都有值），就能用这个上游观测它；采用第一组满足的。
-        例如 (frozenset({Icao24}), frozenset({Mmsi}))：有 ICAO 地址的按它查，有 MMSI 的按它查——
-        Adapter 不需要认识目标类型，也不需要知道目标的字段名。
-        """
-        ...
-
+    @abstractmethod
     def fetch(
         self, spec: QuerySpec, query: Query, since: datetime | None
     ) -> Sequence[FetchedRecord]:
@@ -58,3 +60,14 @@ class Adapter(Protocol):
         since：这个上游的游标，首次采集为 None。
         """
         ...
+
+
+def check_adapter(adapter: Adapter) -> None:
+    """注册时检查子类把类属性都声明了，且至少支持一种查询方式；不合格抛 TypeError。"""
+    missing = [
+        attr for attr in ("name", "observed_point", "query_key_sets") if not hasattr(adapter, attr)
+    ]
+    if missing:
+        raise TypeError(f"{type(adapter).__name__} must set {', '.join(missing)}")
+    if not adapter.query_key_sets or not all(adapter.query_key_sets):
+        raise TypeError(f"{adapter.name}: query_key_sets needs at least one non-empty set")

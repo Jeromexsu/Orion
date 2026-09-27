@@ -70,8 +70,8 @@ sequenceDiagram
 
   C->>O: active_upstreams()（只拉有人订阅的上游）
   C->>A: fetch(spec, query, since)（目标描述 + 按查询键匹配到的查询 + 该上游的游标）
-  A-->>C: FetchedRecord（原始字段）
-  C->>O: parse_observation(字段) → Observation
+  A-->>C: FetchedRecord（观测实例 + 来源信息）
+  C->>O: accepts(observation)（观测类型是否与观察点一致）
   Note over C: 包成 ObservationEnvelope，去重、落库、推进游标
   C->>D: dispatch(observable, envelope)
   D->>R: on_observation(envelope)（只给订阅了该上游的 runner）

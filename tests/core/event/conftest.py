@@ -13,6 +13,7 @@ from core.operators import (
     Category,
     Level,
     MountPoint,
+    Operator,
     OperatorRegistry,
     ProgressContext,
     SuggestContext,
@@ -56,7 +57,7 @@ class Log:
         self.calls: list[tuple[str, MountPoint]] = []
 
 
-class Recorder:
+class Recorder(Operator[BaseContext]):
     """输出类：只记录被调用的挂载点。"""
 
     name = "recorder"
@@ -72,7 +73,7 @@ class Recorder:
         self.log.calls.append((self.name, trigger.mount_point))
 
 
-class Echo:
+class Echo(Operator[ProgressContext]):
     """推进类，挂在 status_updated：再次 update_status 用来验证不会无限递归。"""
 
     name = "echo"
@@ -85,7 +86,7 @@ class Echo:
         ctx.update_status({"echoed": int(ctx.state.get("echoed", 0)) + 1})
 
 
-class Spotter:
+class Spotter(Operator[SuggestContext]):
     """发现类，挂在 pre：每条数据都提一个建议。"""
 
     name = "spotter"
@@ -106,7 +107,7 @@ class Spotter:
         )
 
 
-class Boom:
+class Boom(Operator[BaseContext]):
     name = "boom"
     category: Category = "output"
     levels: frozenset[Level] = frozenset({"event"})

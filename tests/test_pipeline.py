@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 from core.collector import AdapterRegistry, Collector, Dispatcher, FetchedRecord
 from core.event import TemplateDef
+from plugins.observed_points.position import PositionObservation
 from tests.core.collector.fakes import (
     FakeAdapter,
     InMemoryCursorRepository,
@@ -31,7 +32,7 @@ def test_collect_drives_sub_event_to_close() -> None:
 
     adsb.records = [
         FetchedRecord(
-            fields={"lat": lat, "lon": lon},
+            observation=PositionObservation(lat=lat, lon=lon),
             occurred_at=datetime(2026, 9, 26, 12, minute, tzinfo=UTC),
             source_id=f"adsb#{minute}",
         )

@@ -18,8 +18,9 @@
 ### 3. Adapter 与 Target 子类的对应关系只靠约定
 
 **已解决**：观察点与目标类型解耦后，Adapter 不再引用目标类型（见「已决 · 观察点」）；查询也不再靠字段名
-约定（见「已决 · 查询键」）。剩余可做的是 Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 不重复），
-等往外分插件任务时再搭。
+约定（见「已决 · 查询键」）。`Adapter` / `Operator` 已改为基类，注册时检查类属性声明；Adapter 直接构造
+观测实例，collector 检查其类型。剩余可做的是 Adapter 契约测试基类（跑一次 fetch，检查 source_id 不重复、
+since 之前的不返回），等往外分插件任务时再搭。
 
 ### 4. 跨目标条件：单个叶子只能看一个目标的数据
 
@@ -160,5 +161,8 @@
     采用目标能提供的第一种，组装成 `query`（查询键 → 取值）；
   - `QuerySpec` 只剩可观测目标对自己的描述（类型、观察点、属性、别名）；这次用的查询方式和游标由 collector
     按上游决定，`Adapter.fetch(spec, query, since)` 分开传。
+- **插件接口用基类，不用协议**：`Adapter`、`Operator` 与 `Evaluator` 一样是 ABC 基类，类属性的类型在基类里
+  声明，插件直接赋值（`category = "progress"`），不必逐个标注，也不会踩「协议是只读属性、pyright 不认 ClassVar」的坑；
+  注册时检查类属性是否都声明了。`FetchedRecord` 直接装观测实例（原为字段 dict），字段写错在 Adapter 里当场报错。
 - **上游归属**：可观测目标的上游列表由 `TargetManager` 问 `UpstreamCatalog` 得到，不由外部传入；
   订阅者 subscribe 时指定要哪些上游，可观测目标内部按上游路由。

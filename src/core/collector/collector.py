@@ -1,8 +1,6 @@
 import logging
 from datetime import datetime
 
-from pydantic import ValidationError
-
 from core.collector.dispatcher import Dispatcher
 from core.collector.registry import AdapterRegistry, match_query
 from core.collector.repository import CursorRepository, ObservationRepository
@@ -77,15 +75,19 @@ class Collector:
         for record in sorted(records, key=lambda r: r.occurred_at):
             if self._observation_repository.exists(record.source_id):
                 continue
-            try:
-                observation = observable.parse_observation(record.fields)
-            except ValidationError:
-                logger.warning("invalid record %s for %s", record.source_id, observable.id)
+            if not observable.accepts(record.observation):
+                logger.warning(
+                    "%s returned %s for %s, expected %s",
+                    upstream,
+                    type(record.observation).__name__,
+                    observable.id,
+                    observable.observed_point.observation.__name__,
+                )
                 continue
             envelope = ObservationEnvelope(
                 observable_id=observable.id,
                 upstream=upstream,
-                observation=observation,
+                observation=record.observation,
                 occurred_at=record.occurred_at,
                 source_id=record.source_id,
                 raw=record.raw,
