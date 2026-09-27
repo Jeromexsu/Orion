@@ -114,7 +114,7 @@ graph LR
   DEF -. 存库 .-> REPO[("TemplateRepository")]
   PE["ParentEvent<br/>目标命名空间 + runner 们"] -->|装入模板| RUN
   TPL --> RUN["EventRunner<br/>运行中的模板"]
-  RT["EventRuntime<br/>运行时依赖"] --> RUN
+  RT["EventRuntime<br/>runner / 子事件的依赖"] --> RUN
   RUN -->|开启条件命中时实例化| EV["Event<br/>子事件（一个周期）"]
   RUN -->|分发观测| EV
 ```
@@ -124,7 +124,8 @@ graph LR
 | `TemplateDef`（及 `ObservableDef`、`RuleDef`、`OperatorMountDef`） | 纯数据 | 模板定义：可观测目标声明、开启条件、规则、算子挂载。和用户打交道的接口，也是持久化的接口 |
 | `TemplateCompiler` | 无状态服务 | 把定义编译成 `EventTemplate`，一次做完所有校验（可观测目标声明、条件、字段、算子挂载），错误一次报全 |
 | `EventTemplate` | 运行时对象，不可变 | 编译结果：runner 要订阅的 `compiled_observables`（`CompiledObservable`：可观测目标 + 要订阅的上游）、开启条件树、规则树、规范化后的算子挂载；持有原定义。不存库，每次从定义编译 |
-| `EventRuntime` | 依赖包 | 仓库、`TargetManager`、算子注册表、建议去处、报告管理器；bootstrap 装配一次。模板编译器不在其中，由 `ParentEventManager` 单独交给父事件 |
+| `ParentEventServices` | 依赖包 | 只有父事件用到的：`TargetManager`、父事件仓库、模板仓库、模板编译器、报告管理器；由 `ParentEventManager` 交给父事件 |
+| `EventRuntime` | 依赖包 | runner 和子事件共用的：子事件仓库、开启条件状态仓库、算子注册表、建议去处；父事件转交给 runner |
 | `ParentEvent` | 静态（带运行时部件） | 目标命名空间 + 一组 runner + `digest()`。唯一调用 `TemplateCompiler` 的地方：装入模板时先按定义检查命名空间和版本，再编译、保存定义，然后交给 runner；重启时读回定义编译后交给 runner 恢复。自己不订阅、不接收数据 |
 | `EventRunner` | 有状态的活对象 | 持有模板和运行时依赖：按模板里解析好的可观测目标订阅（不接触 `TargetManager`）；每条观测都评估开启条件并持久化其状态；无活跃子事件且命中时实例化 `Event`；把观测交给活跃 `Event`；新版本挂起到当前子事件关闭后再切换；`dispose` 时取消订阅 |
 | `Event` | 有状态的活对象 | 一个周期（`cycle` = 开启时数据发生的年份）：跑规则和算子、维护业务状态和规则状态，收敛后关闭 |

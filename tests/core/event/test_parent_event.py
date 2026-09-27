@@ -274,5 +274,5 @@ def test_restore(env: Env) -> None:
 def test_restore_failure_is_isolated(env: Env) -> None:
     make_parent(env)
     env.templates.items.clear()
-    events = ParentEventManager(env.runtime, env.template_compiler)
+    events = ParentEventManager(env.services, env.runtime)
     assert events.restore() == ["p1"]

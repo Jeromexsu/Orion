@@ -19,6 +19,7 @@ from core.event import (
     EventRuntime,
     ParentEventManager,
     ParentEventRepository,
+    ParentEventServices,
     RunnerStateRepository,
     TemplateCompiler,
     TemplateDef,
@@ -112,17 +113,19 @@ def build_app(repos: Repositories) -> App:
     operator_registry.register(CloseReport(reports))
 
     parent_events = ParentEventManager(
-        EventRuntime(
+        ParentEventServices(
             targets=targets,
-            operator_registry=operator_registry,
-            suggestions=hil,
             parents=repos.parents,
             templates=repos.templates,
-            events=repos.events,
-            runner_states=repos.runner_states,
+            template_compiler=TemplateCompiler(condition_compiler, operator_registry, targets),
             reports=reports,
         ),
-        TemplateCompiler(condition_compiler, operator_registry, targets),
+        EventRuntime(
+            events=repos.events,
+            runner_states=repos.runner_states,
+            operator_registry=operator_registry,
+            suggestions=hil,
+        ),
     )
     _allow_actions(hil, parent_events)
 

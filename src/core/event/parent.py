@@ -1,6 +1,5 @@
 import logging
 
-from core.event.compiler import TemplateCompiler
 from core.event.definitions import TemplateDef
 from core.event.errors import (
     TargetStillReferencedError,
@@ -9,7 +8,7 @@ from core.event.errors import (
 )
 from core.event.records import ParentEventRecord
 from core.event.runner import EventRunner
-from core.event.runtime import EventRuntime
+from core.event.runtime import EventRuntime, ParentEventServices
 from core.event.template import EventTemplate
 from core.report import DRAFT, Draft
 from core.target import TargetNotFoundError
@@ -29,22 +28,22 @@ class ParentEvent:
         self,
         parent_id: str,
         name: str,
+        services: ParentEventServices,
         runtime: EventRuntime,
-        template_compiler: TemplateCompiler,
     ) -> None:
         self._id = parent_id
         self._name = name
-        self._runtime = runtime
-        self._template_compiler = template_compiler   # 只有父事件编译模板
+        self._services = services   # 父事件自己的依赖
+        self._runtime = runtime     # 转交给 runner 的依赖
         self._targets: set[str] = set()
         self._runners: dict[str, EventRunner] = {}
 
     @classmethod
     def restore(
-        cls, record: ParentEventRecord, runtime: EventRuntime, template_compiler: TemplateCompiler
+        cls, record: ParentEventRecord, services: ParentEventServices, runtime: EventRuntime
     ) -> "ParentEvent":
         """重启恢复：还原命名空间；读回模板定义并编译（当前版本和挂起版本），交给 runner 恢复。不写库。"""
-        parent = cls(record.id, record.name, runtime, template_compiler)
+        parent = cls(record.id, record.name, services, runtime)
         parent._targets = set(record.targets)
         for ref in record.templates:
             template = parent._load_template(ref.template_id, ref.version)
@@ -92,7 +91,7 @@ class ParentEvent:
 
     def add_target(self, target_id: str) -> None:
         """把静态目标加入命名空间。目标必须已存在。"""
-        self._runtime.targets.get_target(target_id)
+        self._services.targets.get_target(target_id)
         if target_id not in self._targets:
             self._targets.add(target_id)
             self._save()
@@ -119,8 +118,8 @@ class ParentEvent:
         if runner is not None:
             runner.check_version(template_def.version)
 
-        template = self._template_compiler.compile(template_def)
-        self._runtime.templates.upsert(template_def)
+        template = self._services.template_compiler.compile(template_def)
+        self._services.templates.upsert(template_def)
         if runner is None:
             self._runners[template.id] = EventRunner.start(
                 self._id, template, self._runtime, self._save
@@ -141,9 +140,9 @@ class ParentEvent:
 
     def digest(self) -> Draft:
         """定时触发的汇总（原生方法，不是算子）：写进本父事件最近一份仍是“草稿”的报告，没有就新建。"""
-        drafts = [d for d in self._runtime.reports.list_by_parent(self._id) if d.status == DRAFT]
+        drafts = [d for d in self._services.reports.list_by_parent(self._id) if d.status == DRAFT]
         latest = max(drafts, key=lambda d: d.updated_at, default=None)
-        return self._runtime.reports.write(
+        return self._services.reports.write(
             self._id,
             title=f"{self._name} 汇总",
             content=self._digest_content(),
@@ -173,7 +172,7 @@ class ParentEvent:
 
     def _target_name(self, target_id: str) -> str:
         try:
-            return self._runtime.targets.get_target(target_id).name
+            return self._services.targets.get_target(target_id).name
         except TargetNotFoundError:
             return target_id
 
@@ -187,10 +186,10 @@ class ParentEvent:
             )
 
     def _load_template(self, template_id: str, version: int) -> EventTemplate:
-        template_def = self._runtime.templates.get(template_id, version)
+        template_def = self._services.templates.get(template_id, version)
         if template_def is None:
             raise TemplateNotFoundError(f"{template_id} v{version}")
-        return self._template_compiler.compile(template_def)
+        return self._services.template_compiler.compile(template_def)
 
     def _save(self) -> None:
-        self._runtime.parents.upsert(self.to_record())
+        self._services.parents.upsert(self.to_record())

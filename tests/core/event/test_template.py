@@ -7,7 +7,7 @@ from tests.core.event.conftest import Env, enter, mount, template
 
 
 def compile_(env: Env, raw: dict[str, Any]) -> EventTemplate:
-    return env.template_compiler.compile(TemplateDef.model_validate(raw))
+    return env.services.template_compiler.compile(TemplateDef.model_validate(raw))
 
 
 def test_compile(env: Env) -> None:

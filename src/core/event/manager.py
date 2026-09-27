@@ -1,9 +1,8 @@
 import logging
 
-from core.event.compiler import TemplateCompiler
 from core.event.errors import DuplicateParentEventError, ParentEventNotFoundError
 from core.event.parent import ParentEvent
-from core.event.runtime import EventRuntime
+from core.event.runtime import EventRuntime, ParentEventServices
 
 logger = logging.getLogger(__name__)
 
@@ -11,16 +10,16 @@ logger = logging.getLogger(__name__)
 class ParentEventManager:
     """event 模块入口：创建、查找父事件，以及启动时的重启恢复。"""
 
-    def __init__(self, runtime: EventRuntime, template_compiler: TemplateCompiler) -> None:
+    def __init__(self, services: ParentEventServices, runtime: EventRuntime) -> None:
+        self._services = services
         self._runtime = runtime
-        self._template_compiler = template_compiler
         self._parents: dict[str, ParentEvent] = {}
 
     def create(self, parent_id: str, name: str) -> ParentEvent:
-        if parent_id in self._parents or self._runtime.parents.get(parent_id) is not None:
+        if parent_id in self._parents or self._services.parents.get(parent_id) is not None:
             raise DuplicateParentEventError(parent_id)
-        parent = ParentEvent(parent_id, name, self._runtime, self._template_compiler)
-        self._runtime.parents.upsert(parent.to_record())
+        parent = ParentEvent(parent_id, name, self._services, self._runtime)
+        self._services.parents.upsert(parent.to_record())
         self._parents[parent_id] = parent
         return parent
 
@@ -50,12 +49,12 @@ class ParentEventManager:
         单个父事件恢复失败只记日志，不影响其他。返回恢复失败的父事件 ID。
         """
         failed: list[str] = []
-        for record in self._runtime.parents.list_all():
+        for record in self._services.parents.list_all():
             if record.id in self._parents:
                 continue
             try:
                 self._parents[record.id] = ParentEvent.restore(
-                    record, self._runtime, self._template_compiler
+                    record, self._services, self._runtime
                 )
             except Exception:
                 logger.exception("failed to restore parent event %s", record.id)

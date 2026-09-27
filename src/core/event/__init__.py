@@ -24,7 +24,7 @@ from core.event.repository import (
     TemplateRepository,
 )
 from core.event.runner import EventRunner
-from core.event.runtime import EventRuntime
+from core.event.runtime import EventRuntime, ParentEventServices
 from core.event.template import CompiledObservable, CompiledRule, EventTemplate
 
 __all__ = [
@@ -44,6 +44,7 @@ __all__ = [
     "ParentEventNotFoundError",
     "ParentEventRecord",
     "ParentEventRepository",
+    "ParentEventServices",
     "RuleDef",
     "RunnerStateRepository",
     "Event",

@@ -6,7 +6,7 @@ import pytest
 from pydantic import BaseModel
 
 from core.condition_engine import ConditionCompiler, EvaluatorRegistry
-from core.event import EventRuntime, ParentEventManager, TemplateCompiler
+from core.event import EventRuntime, ParentEventManager, ParentEventServices, TemplateCompiler
 from core.hil import Proposal, Suggestion
 from core.operators import (
     BaseContext,
@@ -136,9 +136,14 @@ class Env:
         self.templates = InMemoryTemplateRepository()
         self.events = InMemoryEventRepository()
         self.runner_states = InMemoryRunnerStateRepository()
-        self.runtime = self.make_runtime(self.targets)
-        self.template_compiler = self.make_compiler(self.targets)
-        self.parent_events = ParentEventManager(self.runtime, self.template_compiler)
+        self.runtime = EventRuntime(
+            events=self.events,
+            runner_states=self.runner_states,
+            operator_registry=self.operator_registry,
+            suggestions=self.sink,
+        )
+        self.services = self.make_services(self.targets)
+        self.parent_events = ParentEventManager(self.services, self.runtime)
         self._seq = count()
 
     def make_targets(self) -> TargetManager:
@@ -151,26 +156,22 @@ class Env:
         targets.register_type(Aircraft)
         return targets
 
-    def make_compiler(self, targets: TargetManager) -> TemplateCompiler:
+    def make_services(self, targets: TargetManager) -> ParentEventServices:
         evaluator_registry = EvaluatorRegistry()
         evaluator_registry.register(OnEnter())
-        return TemplateCompiler(ConditionCompiler(evaluator_registry), self.operator_registry, targets)
-
-    def make_parent_events(self, targets: TargetManager) -> ParentEventManager:
-        """用给定的 TargetManager 组装一套新的父事件管理器——模拟重启。"""
-        return ParentEventManager(self.make_runtime(targets), self.make_compiler(targets))
-
-    def make_runtime(self, targets: TargetManager) -> EventRuntime:
-        return EventRuntime(
+        return ParentEventServices(
             targets=targets,
-            operator_registry=self.operator_registry,
-            suggestions=self.sink,
             parents=self.parents,
             templates=self.templates,
-            events=self.events,
-            runner_states=self.runner_states,
+            template_compiler=TemplateCompiler(
+                ConditionCompiler(evaluator_registry), self.operator_registry, targets
+            ),
             reports=self.reports,
         )
+
+    def make_parent_events(self, targets: TargetManager) -> ParentEventManager:
+        """用给定的 TargetManager 组装一套新的父事件管理器——模拟重启（仓库共用）。"""
+        return ParentEventManager(self.make_services(targets), self.runtime)
 
     def envelope(
         self,
