@@ -12,6 +12,8 @@ DraftStatus = Literal["草稿", "编辑中", "已发出"]
 
 
 class Draft(BaseModel):
+    """一份报告的当前版本。不可变：每次变更由 ReportManager 生成新对象。"""
+
     model_config = ConfigDict(frozen=True)
 
     id: str
