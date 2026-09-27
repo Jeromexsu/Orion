@@ -20,12 +20,12 @@ class FakeAdapter(Adapter):
     def __init__(
         self,
         name: str,
-        observed_point: type[ObservedPoint] = Position,
+        observed_points: frozenset[type[ObservedPoint]] = frozenset({Position}),
         query_key_sets: tuple[frozenset[type[QueryKey]], ...] = (frozenset({Registration}),),
         records: list[FetchedRecord] | None = None,
     ) -> None:
         self.name = name
-        self.observed_point = observed_point
+        self.observed_points = observed_points
         self.query_key_sets = query_key_sets
         self.records = records or []
         self.calls: list[FetchCall] = []

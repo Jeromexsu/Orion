@@ -4,7 +4,7 @@ from typing import Any
 from core.collector import AdapterRegistry, Collector, Dispatcher
 from core.target import QuerySpec, TargetManager
 from plugins.collector.opensky import OpenSkyAdapter
-from plugins.observed_points.position import PositionObservation
+from plugins.observed_points.position import Position, PositionObservation
 from plugins.query_keys.icao24 import Icao24
 from plugins.target.aircraft import Aircraft
 from tests.core.collector.fakes import InMemoryCursorRepository, InMemoryObservationRepository
@@ -39,8 +39,8 @@ def test_only_serves_aircraft_with_icao24() -> None:
     registry.register(OpenSkyAdapter(FakeOpenSky()))
     with_icao = Aircraft(id="a", name="x", registration="B-1", icao24="780a3b")
     without = Aircraft(id="b", name="y", registration="B-2")
-    assert registry.upstreams_for(with_icao, OpenSkyAdapter.observed_point) == ["opensky"]
-    assert registry.upstreams_for(without, OpenSkyAdapter.observed_point) == []
+    assert registry.upstreams_for(with_icao, Position) == ["opensky"]
+    assert registry.upstreams_for(without, Position) == []
 
 
 def test_fetch_translates_state_vectors() -> None:

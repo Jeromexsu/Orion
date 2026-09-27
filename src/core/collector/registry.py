@@ -33,7 +33,7 @@ class AdapterRegistry:
         return [
             a.name
             for a in self._adapters.values()
-            if a.observed_point is observed_point and match_query(a, target) is not None
+            if observed_point in a.observed_points and match_query(a, target) is not None
         ]
 
 

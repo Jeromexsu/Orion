@@ -45,7 +45,7 @@ class OpenSkyAdapter(Adapter):
     """按 ICAO 地址查飞机当前位置。"""
 
     name = "opensky"
-    observed_point = Position
+    observed_points = frozenset({Position})
     query_key_sets = (frozenset({Icao24}),)
 
     def __init__(self, get_json: GetJson = _http_get_json) -> None:

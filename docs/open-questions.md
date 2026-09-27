@@ -150,7 +150,9 @@ since 之前的不返回），等往外分插件任务时再搭。
 - **观察点（取代「关注点」与「动态数据 schema」）**：观察点与目标类型解耦，不同目标类型可共用。
   - `ObservedPoint` 子类（如 `Position`）就是观测 `fields` 的 schema，放在 `plugins/observed_points/`；
   - 目标类型用 `observed_points` 声明可以在哪些观察点被观测（取代原 `focuses`）；
-  - Adapter 声明 `observed_point`（服务哪个观察点）和支持的查询方式（见下条「查询键」），不再引用目标类型；
+  - Adapter 声明 `observed_points`（服务哪些观察点）和支持的查询方式（见下条「查询键」），不再引用目标类型；
+    上游 = 数据提供方，一个上游可服务多个观察点，`fetch` 按 `spec.observed_point` 分支；查询方式对它服务的
+    全部观察点通用（真遇到按观察点不同再扩展成按观察点声明）；
     查询逻辑确实依赖目标类型时，Adapter 可在 fetch 里读 `QuerySpec.type` 兜底；
   - `ObservableTarget(target, observed_point, upstreams)`；`QuerySpec.observed_point`、`ObservableDef.observed_point`
     存观察点名；`TargetManager` 从已注册目标类型收集观察点，重名报错。

@@ -90,7 +90,7 @@ sequenceDiagram
 | `ObservedPoint` 子类（如 `Position`） | 观察点：名字 + 返回什么观测。与目标类型无关，可被多种目标共用 | 开发者（`plugins/observed_points/`） |
 | `Observation` 子类（如 `PositionObservation`） | 观测：观察点返回的数据，字段即形状 | 开发者（和观察点放在一起） |
 | `QueryKey` 子类（如 `Icao24`） | 查询键：拿什么去查一个目标，名字 + 取值的类型与格式 | 开发者（`plugins/query_keys/`） |
-| `Adapter`（上游） | 数据提供方：服务哪个观察点、支持哪些查询方式（`query_key_sets`，每种是一组查询键，目标能提供其一即可） | 开发者（`plugins/collector/`） |
+| `Adapter`（上游） | 接入一个数据提供方（上游，如 OpenSky）：服务哪些观察点（`observed_points`，可多个）、支持哪些查询方式（`query_key_sets`，每种是一组查询键，目标能提供其一即可），把查询键翻译成上游 API、把响应翻译成观测 | 开发者（`plugins/collector/`） |
 | `ObservableTarget`（obs） | 目标实例 + 观察点 + 可用上游，全局唯一；订阅者按上游订阅，它按上游路由数据 | `TargetManager` 按需创建 |
 | `ObservationEnvelope` | 观测的外壳：来源信息（可观测目标、上游、发生时间、去重 ID）+ 观测实例 | collector 产出 |
 
@@ -105,13 +105,15 @@ graph LR
 ```
 
 可用上游 = 服务该观察点、且目标能提供其某种查询方式要的全部查询键（字段有值）的 Adapter。
+一个上游 = 一个数据提供方，可以服务多个观察点（`fetch` 按 `spec.observed_point` 分支）；模板里写的上游名就是提供方的名字。
+游标、订阅、路由都按（可观测目标, 上游）组织，可观测目标里已带观察点，所以同一上游的不同观察点互不干扰。
 上游不认识目标类型：同一个上游可以对飞机按 `Icao24`、对船按 `Mmsi` 查询。
 
 观察点和查询键是目标类型与上游之间的两份契约，双方都 import 同一个类，不靠字段名字符串对齐：
 
 | 契约 | 方向 | 目标类型声明 | Adapter 声明 |
 |---|---|---|---|
-| 观察点 `ObservedPoint` | 输出：上游返回什么 | `observed_points = (Position,)` | `observed_point = Position` |
+| 观察点 `ObservedPoint` | 输出：上游返回什么 | `observed_points = (Position,)` | `observed_points = frozenset({Position})` |
 | 查询键 `QueryKey` | 输入：上游拿什么去查 | `icao24: Annotated[str \| None, Icao24]` | `query_key_sets = (frozenset({Icao24}),)` |
 
 输入这一侧的分工：

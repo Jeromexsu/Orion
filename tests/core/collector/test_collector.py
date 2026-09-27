@@ -4,11 +4,13 @@ from typing import Annotated, Any, ClassVar, Literal
 import pytest
 
 from core.collector import (
+    Adapter,
     AdapterRegistry,
     Collector,
     Dispatcher,
     DuplicateAdapterError,
     FetchedRecord,
+    Query,
     UnknownAdapterError,
     match_query,
 )
@@ -18,6 +20,7 @@ from core.target import (
     ObservationEnvelope,
     ObservedPoint,
     QueryKey,
+    QuerySpec,
     Target,
     TargetManager,
 )
@@ -271,3 +274,63 @@ def test_query_way_with_several_keys_needs_all_of_them() -> None:
     assert match_query(upstream, both) == {Icao24: "780a3b", Callsign: "CES5101"}
     assert match_query(upstream, only_icao) == {Registration: "B-2"}   # 缺 Callsign，退到第二种
     assert match_query(upstream, neither) is None
+
+
+def test_one_adapter_serves_several_observed_points() -> None:
+    """一个上游服务多个观察点：fetch 按 spec.observed_point 分支；两个可观测目标各有自己的游标。"""
+
+    class Tanker(Target, frozen=True):
+        observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (Position, Fuel)
+        type: Literal["tanker"] = "tanker"
+        registration: Annotated[str, Registration]
+
+    class Provider(Adapter):
+        name = "provider"
+        observed_points = frozenset({Position, Fuel})
+        query_key_sets = (frozenset({Registration}),)
+
+        def __init__(self) -> None:
+            self.asked: list[str] = []
+
+        def fetch(
+            self, spec: QuerySpec, query: Query, since: datetime | None
+        ) -> list[FetchedRecord]:
+            self.asked.append(spec.observed_point)
+            observation: Observation = (
+                PositionObservation(lat=1, lon=2)
+                if spec.observed_point == Position.name
+                else FuelObservation(litres=500)
+            )
+            source_id = f"p#{spec.observed_point}"
+            return [FetchedRecord(observation=observation, occurred_at=at(1), source_id=source_id)]
+
+    provider = Provider()
+    registry = AdapterRegistry()
+    registry.register(provider)
+    manager = TargetManager(
+        InMemoryTargetRepository(), InMemoryObservableTargetRepository(), registry
+    )
+    manager.register_type(Tanker)
+    manager.upsert_target(Tanker(id="k1", name="x", registration="B-1"))
+    cursors = InMemoryCursorRepository()
+    collector = Collector(
+        manager, registry, cursors, InMemoryObservationRepository(), Dispatcher()
+    )
+
+    position, fuel = manager.get_observable("k1", "position"), manager.get_observable("k1", "fuel")
+    assert position.upstreams == fuel.upstreams == ("provider",)
+    at_position, at_fuel = Subscriber(), Subscriber()
+    position.subscribe(at_position, ["provider"])
+    fuel.subscribe(at_fuel, ["provider"])
+
+    collector.collect()
+    assert sorted(provider.asked) == ["fuel", "position"]
+    assert [e.observation for e in at_position.received] == [PositionObservation(lat=1, lon=2)]
+    assert [e.observation for e in at_fuel.received] == [FuelObservation(litres=500)]
+    assert cursors.get("k1:position", "provider") == at(1).isoformat()
+    assert cursors.get("k1:fuel", "provider") == at(1).isoformat()
+
+
+def test_adapter_must_serve_an_observed_point(env: Env) -> None:
+    with pytest.raises(TypeError, match="observed_points"):
+        env.registry.register(FakeAdapter("nothing", observed_points=frozenset()))
