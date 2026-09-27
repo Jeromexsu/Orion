@@ -9,7 +9,13 @@ from core.condition_engine.tree import BranchNode, ConditionNode, ConditionTree,
 from core.target import Observation
 
 ObservationTypes = Mapping[str, type[Observation]]
-"""可观测目标 ID（如 "t1:position"）→ 它产出的观测类（如 PositionObservation）。"""
+"""Observable target ID (e.g. "t1:position") -> the observation class it produces.
+
+Carries two things: the keys are the scope a condition may refer to (the observable
+targets the template declares), the values are the shape of each one's observations
+(the fields an evaluator's requires is checked against). Assembled by the template
+compiler from its observable declarations without creating any observable target.
+"""
 
 
 class ConditionCompiler:
