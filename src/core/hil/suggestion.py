@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class Proposal(BaseModel):
+    """要执行的操作：白名单动作名 + 作用对象 + 参数。"""
+
     model_config = ConfigDict(frozen=True)
 
     action: str                 # 只能是白名单里的核心公开方法名，如 "add_target"
@@ -15,6 +17,8 @@ class Proposal(BaseModel):
 
 
 class Suggestion(BaseModel):
+    """一条建议：谁提的、为什么、依据什么，以及提议的操作。"""
+
     model_config = ConfigDict(frozen=True)
 
     id: str = Field(default_factory=lambda: uuid4().hex)
