@@ -42,7 +42,9 @@ def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list
     （如「有订阅者不能删目标」「已发出的报告不能改」）。它是有自己数据的模块的入口，仓库注入在它身上，用仓库存取；
     规则在 manager 里，不在仓库里（`TargetManager` 管目标实例和可观测目标，`ParentEventManager`、`HilManager`、
     `ReportManager`）。没有自己数据的模块没有 manager。入口做的事能用一个动词说清时可以用动词名词化（`Collector`）。
-  - `*Registry`：管插件——一种插件的注册表，只有 `register` / `get` / 列出全部（外加注册时的声明检查）；启动时由
+  - `*Registry`：管插件——数据（模板 JSON、库里的记录）里只有名字，注册表把名字变回写框架时还不知道的插件。
+    要不要注册表只看数据里会不会出现它的名字：查询键只在代码里按类引用，所以没有；观察点在模板里按名字引用，
+    所以有（从目标类型的声明收集）。一种插件的注册表只有 `register` / `get` / 列出全部（外加注册时的声明检查）；启动时由
     bootstrap 注册，之后只读，注入给用它的一方。按它装的东西命名：目标类型的插件是类（`Aircraft`），所以叫
     `TargetTypeRegistry`，不叫 `TargetRegistry`（目标是这些类的实例，是数据，归 `TargetManager`）；其余插件是实例
     （`UpstreamAdapterRegistry`、`EvaluatorRegistry`、`HookRegistry`）。
