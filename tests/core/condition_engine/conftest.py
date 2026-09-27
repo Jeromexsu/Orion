@@ -28,9 +28,13 @@ def parse(raw: dict[str, Any]) -> ConditionDef:
 
 
 def compile_(
-    compiler: ConditionCompiler, raw: dict[str, Any], fields: dict[str, set[str]] | None = None
+    compiler: ConditionCompiler,
+    raw: dict[str, Any],
+    observation_types: dict[str, type[Observation]] | None = None,
 ) -> ConditionTree:
-    return compiler.compile(parse(raw), FIELDS if fields is None else fields)
+    return compiler.compile(
+        parse(raw), OBSERVATION_TYPES if observation_types is None else observation_types
+    )
 
 
 T0 = datetime(2026, 9, 26, tzinfo=UTC)
@@ -76,8 +80,22 @@ class Gt(Evaluator[GtCriteria]):
         return EvalResult(outcome=HIT if hit else MISS, extracted={"alt": value} if hit else {})
 
 
-# 可用目标及其字段：t1:position 有 lat/lon/alt；t2:position 只有 lat/lon
-FIELDS: dict[str, set[str]] = {"t1:position": {"lat", "lon", "alt"}, "t2:position": {"lat", "lon"}}
+class WithAltitude(Observation):
+    lat: float
+    lon: float
+    alt: float | None = None
+
+
+class WithoutAltitude(Observation):
+    lat: float
+    lon: float
+
+
+# 可引用的可观测目标及其观测类：t1:position 有 lat/lon/alt；t2:position 只有 lat/lon
+OBSERVATION_TYPES: dict[str, type[Observation]] = {
+    "t1:position": WithAltitude,
+    "t2:position": WithoutAltitude,
+}
 
 
 SQUARE = [(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0)]

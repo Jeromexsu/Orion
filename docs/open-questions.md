@@ -126,8 +126,8 @@ since 之前的不返回），等往外分插件任务时再搭。
   - `ObservationEnvelope` = 外壳：来源信息 + 具体观测实例，在管道里流动；持久化是后面单独的问题（见第 6 条）；
   - 条件树与判断方式接收外壳，判断方式按字段名读 `envelope.observation`，`requires` 字段须有值否则不适用；
   - 条件引擎依赖 target（`ObservationEnvelope`），无环；「动态数据」一词不再使用。
-- **条件引擎不再查询 target**：去掉设计文档的 `TargetResolver`。`ConditionCompiler.compile(definition, fields)`
-  由调用方传入「可观测目标 ID → 观测字段名」；`EventTemplate.compile()` 按可观测目标声明向 `TargetManager`
+- **条件引擎不再查询 target**：去掉设计文档的 `TargetResolver`。`ConditionCompiler.compile(condition_def, observation_types)`
+  由调用方传入「可观测目标 ID → 它产出的观测类」，字段由观测类自己描述（原为调用方拼好的字段名集合）；`EventTemplate.compile()` 按可观测目标声明向 `TargetManager`
   解析（目标、观察点存在，上游可用）并提取字段，所以条件只能引用已声明的观测、判断方式需要的字段必须存在。
   文档时代模板没有可观测目标声明，条件引擎只能自己去问 target；有了可观测目标声明，调用方手里已有这份信息。
 

@@ -17,7 +17,7 @@ from core.condition_engine import (
     EvaluatorRegistry,
     Outcome,
 )
-from core.target import ObservationEnvelope
+from core.target import Observation, ObservationEnvelope
 from tests.core.condition_engine.conftest import compile_, make_envelope
 
 outcomes = st.sampled_from([HIT, MISS, NOT_APPLICABLE])
@@ -48,7 +48,7 @@ def leaf(o: Outcome) -> dict[str, Any]:
 
 
 def run(definition: dict[str, Any]) -> Outcome:
-    return compile_(compiler, definition, {"t": set()}).evaluate(make_envelope("t"), {}).outcome
+    return compile_(compiler, definition, {"t": Observation}).evaluate(make_envelope("t"), {}).outcome
 
 
 @given(outcomes)

@@ -8,7 +8,7 @@ from core.event.definitions import OperatorMountDef, TemplateDef
 from core.event.errors import TemplateCompileError
 from core.event.template import CompiledObservable, CompiledRule, EventTemplate
 from core.operators import OperatorError, OperatorRegistry
-from core.target import TargetError, TargetManager
+from core.target import Observation, TargetError, TargetManager
 
 
 class TemplateCompiler:
@@ -28,15 +28,15 @@ class TemplateCompiler:
         """编译并校验整个模板，所有错误一次收集进 TemplateCompileError。
 
         分两个阶段：先只校验、不产生副作用（可观测目标声明用 TargetManager.inspect_observable 检查，
-        观察点返回的观测有哪些字段交给条件编译器）；全部通过后，才取得（必要时创建）可观测目标。
+        观察点产出的观测类交给条件编译器）；全部通过后，才取得（必要时创建）可观测目标。
         因此被拒绝的模板不会留下可观测目标。
         """
         errors: list[str] = []
-        fields_by_observable = self._check_observables(template_def, errors)
+        observation_types = self._check_observables(template_def, errors)
 
         def compile_tree(where: str, condition_def: ConditionDef) -> ConditionTree | None:
             try:
-                return self._condition_compiler.compile(condition_def, fields_by_observable)
+                return self._condition_compiler.compile(condition_def, observation_types)
             except ConditionCompileError as e:
                 errors.extend(f"{where}: {msg}" for msg in e.errors)
                 return None
@@ -82,12 +82,12 @@ class TemplateCompiler:
 
     def _check_observables(
         self, template_def: TemplateDef, errors: list[str]
-    ) -> dict[str, set[str]]:
-        """校验可观测目标声明（不创建可观测目标），返回「可观测目标 ID → 它的观测有哪些字段」。"""
-        fields_by_observable: dict[str, set[str]] = {}
+    ) -> dict[str, type[Observation]]:
+        """校验可观测目标声明（不创建可观测目标），返回「可观测目标 ID → 它产出的观测类」。"""
+        observation_types: dict[str, type[Observation]] = {}
         for o in template_def.observable_defs:
             where = f"observable_def {o.observable_id!r}"
-            if o.observable_id in fields_by_observable:
+            if o.observable_id in observation_types:
                 errors.append(f"{where}: duplicate")
                 continue
             try:
@@ -100,8 +100,8 @@ class TemplateCompiler:
             unavailable = sorted(set(o.upstreams) - set(available))
             if unavailable:
                 errors.append(f"{where}: upstreams {unavailable} not in available {list(available)}")
-            fields_by_observable[o.observable_id] = set(point.observation.model_fields)
-        return fields_by_observable
+            observation_types[o.observable_id] = point.observation
+        return observation_types
 
     def _compile_observables(self, template_def: TemplateDef) -> tuple[CompiledObservable, ...]:
         """全部校验通过后调用：取得（必要时创建）可观测目标，组装 runner 要订阅的项。"""

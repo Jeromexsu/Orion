@@ -7,7 +7,7 @@
 扩展点：plugins/condition_engine/ 下继承 Evaluator（一种判断方式）。
 """
 
-from core.condition_engine.compiler import ConditionCompiler, FieldsByObservable
+from core.condition_engine.compiler import ConditionCompiler, ObservationTypes
 from core.condition_engine.definitions import BranchDef, ConditionDef, LeafDef
 from core.condition_engine.errors import (
     ConditionCompileError,
@@ -36,7 +36,7 @@ __all__ = [
     "EvalResult",
     "Evaluator",
     "EvaluatorRegistry",
-    "FieldsByObservable",
+    "ObservationTypes",
     "HIT",
     "LeafDef",
     "MISS",

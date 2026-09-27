@@ -309,12 +309,15 @@ graph LR
 
 ```mermaid
 graph LR
-  CD["ConditionDef<br/>LeafDef / BranchDef（纯数据）"] -->|"ConditionCompiler.compile(def, fields_by_observable)"| CT["ConditionTree<br/>BranchNode / LeafNode"]
+  CD["ConditionDef<br/>LeafDef / BranchDef（纯数据）"] -->|"ConditionCompiler.compile(def, observation_types)"| CT["ConditionTree<br/>BranchNode / LeafNode"]
   CT -->|"evaluate(envelope, state)"| ER["EvalResult<br/>命中 / 未命中 / 不适用 + 新状态"]
   LN["LeafNode"] -->|调用| EV["Evaluator<br/>唯一扩展点"]
 ```
 
-- 编译时由调用方（`TemplateCompiler`）传入「可观测目标 → 它的观测有哪些字段」，条件只能引用已声明的观测。
+- 编译时由调用方（`TemplateCompiler`）传入「可观测目标 → 它产出的观测类」，字段由观测类自己描述。
+  编译要补上的是定义期间的缺口：叶子引用的可观测目标必须已声明，它的观测必须有判断方式要求的全部字段——
+  否则要到运行时才暴露（每条数据都「不适用」，条件永远不命中，也不报错）。
+  传观测类而不是可观测目标本身，是因为编译时可观测目标可能还没创建（被拒的模板不留下可观测目标）。
   引用范围在编译时就查完了，编译出的树不再对外暴露它引用了哪些可观测目标。
 - 求值是纯函数：状态由调用方保管（runner 保管开启条件的状态，`Event` 保管规则的状态），
   结果的 `state` 就是新状态（`None` 表示没变），调用方直接换上并在变了时持久化。
@@ -328,7 +331,7 @@ graph LR
 
 | 使用方 | 窗口 | 时机 |
 |---|---|---|
-| event · 模板编译器 | `ConditionCompiler.compile(condition_def, fields_by_observable)` | 编译时：定义 → 条件树；错误收集后一次抛出，每条带节点路径（如 `root/1/0`） |
+| event · 模板编译器 | `ConditionCompiler.compile(condition_def, observation_types)` | 编译时：定义 → 条件树；错误收集后一次抛出，每条带节点路径（如 `root/1/0`） |
 | event · runner / 子事件 | `ConditionTree.evaluate(envelope, state)` | 运行时：纯函数求值；结果的 `state` 是整棵树的新状态（`None` = 没变），调用方保管 |
 | bootstrap | `EvaluatorRegistry.register` | 启动时注册判断方式 |
 | 跨模块传递的纯数据 | `ConditionDef`（`LeafDef` / `BranchDef`）、`EvalResult`（`HIT` / `MISS` / `NOT_APPLICABLE`） | — |
