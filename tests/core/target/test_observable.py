@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from typing import ClassVar
 
 import pytest
 
@@ -13,6 +12,7 @@ from core.target import (
     TargetManager,
     UnsupportedObservedPointError,
     UnsupportedUpstreamError,
+    observed_point,
 )
 from plugins.observed_points.position import Position, PositionObservation
 from tests.core.target.conftest import Subscriber
@@ -66,9 +66,8 @@ class FuelObservation(Observation):
     litres: float
 
 
-class Fuel(ObservedPoint):
-    name: ClassVar[str] = "fuel"
-    observation: ClassVar[type[Observation]] = FuelObservation
+@observed_point("fuel", observation=FuelObservation)
+class Fuel(ObservedPoint): ...
 
 
 def test_constructor_validates_observed_point_and_upstreams(plane: Target) -> None:

@@ -25,10 +25,21 @@ from core.target.errors import (
 )
 from core.target.manager import TargetManager
 from core.target.observable import ObservableTarget, Subscriber, observable_key
-from core.target.observed_point import Observation, ObservedPoint, observed_point_name
-from core.target.query_key import QueryKey, query_key_name, validate_query_value
+from core.target.observed_point import (
+    Observation,
+    ObservedPoint,
+    observed_point,
+    observed_point_name,
+)
+from core.target.query_key import (
+    QueryKey,
+    provides,
+    query_key,
+    query_key_name,
+    validate_query_value,
+)
 from core.target.repository import ObservableTargetRepository, TargetRepository
-from core.target.target import Target, TargetRecord, type_name
+from core.target.target import Target, TargetRecord, target_type, type_name
 from core.target.upstream import UpstreamCatalog
 
 __all__ = [
@@ -57,8 +68,12 @@ __all__ = [
     "UnsupportedUpstreamError",
     "UpstreamCatalog",
     "observable_key",
+    "observed_point",
     "observed_point_name",
+    "provides",
+    "query_key",
     "query_key_name",
+    "target_type",
     "type_name",
     "validate_query_value",
 ]

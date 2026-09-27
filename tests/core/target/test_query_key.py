@@ -1,14 +1,14 @@
-from typing import Annotated, Any, ClassVar, Literal
 
 import pytest
 from pydantic import ValidationError
 
 from core.target import (
-    ObservedPoint,
     QueryKey,
     Target,
-    TargetManager,
+    provides,
+    query_key,
     query_key_name,
+    target_type,
     validate_query_value,
 )
 from plugins.observed_points.position import Position
@@ -39,20 +39,28 @@ def test_validate_query_value() -> None:
         validate_query_value(Icao24, "780A3B")
 
 
-def test_same_query_key_on_two_fields_rejected(manager: TargetManager) -> None:
-    class Twice(Target, frozen=True):
-        observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (Position,)
-        type: Literal["twice"] = "twice"
-        a: Annotated[str, Icao24]
-        b: Annotated[str, Icao24]
-
+def test_same_query_key_on_two_fields_rejected_at_declaration() -> None:
     with pytest.raises(TypeError, match="provided by both"):
-        manager.register_type(Twice)
+
+        @target_type("twice", observed_points=[Position])
+        class Twice(Target):  # pyright: ignore[reportUnusedClass]
+            a: str = provides(Icao24)
+            b: str = provides(Icao24)
 
 
-def test_query_key_must_declare_name() -> None:
-    class Nameless(QueryKey):
-        value_type: ClassVar[Any] = str
+def test_query_key_must_be_declared() -> None:
+    class Undeclared(QueryKey): ...
 
-    with pytest.raises(TypeError, match="must set name"):
-        query_key_name(Nameless)
+    with pytest.raises(TypeError, match="@query_key"):
+        query_key_name(Undeclared)
+
+
+def test_query_key_decorator() -> None:
+    @query_key("level", value_type=int)
+    class Level(QueryKey): ...
+
+    assert (Level.name, validate_query_value(Level, "3")) == ("level", 3)
+    with pytest.raises(TypeError, match="pattern only applies to str"):
+
+        @query_key("bad", pattern="x", value_type=int)
+        class Bad(QueryKey): ...  # pyright: ignore[reportUnusedClass]

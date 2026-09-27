@@ -1,4 +1,3 @@
-from typing import ClassVar, Literal
 
 import pytest
 from pydantic import ValidationError
@@ -17,6 +16,8 @@ from core.target import (
     UnknownObservedPointError,
     UnknownTargetTypeError,
     UnsupportedObservedPointError,
+    observed_point,
+    target_type,
     type_name,
 )
 from plugins.observed_points.position import Position
@@ -34,18 +35,15 @@ class DraughtObservation(Observation):
     metres: float
 
 
+@observed_point("draught", observation=DraughtObservation)
 class Draught(ObservedPoint):
     """船特有的观察点：吃水。"""
 
-    name: ClassVar[str] = "draught"
-    observation: ClassVar[type[Observation]] = DraughtObservation
 
-
-class Ship(Target, frozen=True):
+@target_type("ship", observed_points=[Position, Draught])
+class Ship(Target):
     """船和飞机共用 Position 观察点。"""
 
-    observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (Position, Draught)
-    type: Literal["ship"] = "ship"
     mmsi: str
 
 
@@ -68,13 +66,11 @@ def test_observed_point_name_clash_rejected(manager: TargetManager) -> None:
     class XObservation(Observation):
         x: float
 
-    class OtherPosition(ObservedPoint):
-        name: ClassVar[str] = "position"
-        observation: ClassVar[type[Observation]] = XObservation
+    @observed_point("position", observation=XObservation)
+    class OtherPosition(ObservedPoint): ...
 
-    class Car(Target, frozen=True):
-        observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (OtherPosition,)
-        type: Literal["car"] = "car"
+    @target_type("car", observed_points=[OtherPosition])
+    class Car(Target): ...
 
     with pytest.raises(DuplicateObservedPointError):
         manager.register_type(Car)
@@ -97,13 +93,23 @@ def test_shared_observed_point_across_types() -> None:
     assert (plane.upstreams, ship.upstreams) == (("adsb",), ("ais",))
 
 
-def test_subclass_must_narrow_type() -> None:
-    class Untyped(Target, frozen=True):
-        pass
+def test_target_type_must_be_declared() -> None:
+    class Undeclared(Target): ...
+
+    class Inherited(Aircraft): ...   # 只继承了父类的声明也不算
 
     assert type_name(Aircraft) == "aircraft"
-    with pytest.raises(TypeError):
-        type_name(Untyped)
+    for cls in (Undeclared, Inherited):
+        with pytest.raises(TypeError, match="@target_type"):
+            type_name(cls)
+
+
+def test_type_is_filled_from_declaration() -> None:
+    plane = Aircraft(id="a", name="x", registration="B-1")
+    assert plane.type == "aircraft"
+    assert Aircraft.model_validate(plane.model_dump()) == plane
+    with pytest.raises(ValidationError, match="type must be 'aircraft'"):
+        Aircraft(id="a", name="x", registration="B-1", type="ship")
 
 
 def test_attributes_are_validated_on_construction() -> None:

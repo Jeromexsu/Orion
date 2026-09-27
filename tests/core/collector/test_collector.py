@@ -1,5 +1,4 @@
 from datetime import UTC, datetime
-from typing import Annotated, Any, ClassVar, Literal
 
 import pytest
 
@@ -23,6 +22,10 @@ from core.target import (
     QuerySpec,
     Target,
     TargetManager,
+    observed_point,
+    provides,
+    query_key,
+    target_type,
 )
 from plugins.observed_points.position import Position, PositionObservation
 from plugins.query_keys.icao24 import Icao24
@@ -41,20 +44,17 @@ class FuelObservation(Observation):
     litres: float
 
 
-class Fuel(ObservedPoint):
-    name: ClassVar[str] = "fuel"
-    observation: ClassVar[type[Observation]] = FuelObservation
+@observed_point("fuel", observation=FuelObservation)
+class Fuel(ObservedPoint): ...
 
 
-class Mmsi(QueryKey):
-    name: ClassVar[str] = "mmsi"
-    value_type: ClassVar[Any] = str
+@query_key("mmsi", pattern=r"^\d{9}$")
+class Mmsi(QueryKey): ...
 
 
-class Ship(Target, frozen=True):
-    observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (Position,)
-    type: Literal["ship"] = "ship"
-    mmsi: Annotated[str, Mmsi]
+@target_type("ship", observed_points=[Position])
+class Ship(Target):
+    mmsi: str = provides(Mmsi)
 
 
 def at(minute: int) -> datetime:
@@ -253,16 +253,14 @@ def test_register_checks_adapter_declarations(env: Env) -> None:
 def test_query_way_with_several_keys_needs_all_of_them() -> None:
     """联立查询：一种查询方式要同时提供多个查询键，缺一个就不满足，退到下一种。"""
 
-    class Callsign(QueryKey):
-        name: ClassVar[str] = "callsign"
-        value_type: ClassVar[Any] = str
+    @query_key("callsign")
+    class Callsign(QueryKey): ...
 
-    class Flight(Target, frozen=True):
-        observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (Position,)
-        type: Literal["flight"] = "flight"
-        icao24: Annotated[str | None, Icao24] = None
-        callsign: Annotated[str | None, Callsign] = None
-        registration: Annotated[str | None, Registration] = None
+    @target_type("flight", observed_points=[Position])
+    class Flight(Target):
+        icao24: str | None = provides(Icao24, default=None)
+        callsign: str | None = provides(Callsign, default=None)
+        registration: str | None = provides(Registration, default=None)
 
     upstream = FakeAdapter(
         "strict", query_key_sets=(frozenset({Icao24, Callsign}), frozenset({Registration}))
@@ -279,10 +277,9 @@ def test_query_way_with_several_keys_needs_all_of_them() -> None:
 def test_one_adapter_serves_several_observed_points() -> None:
     """一个上游服务多个观察点：fetch 按 spec.observed_point 分支；两个可观测目标各有自己的游标。"""
 
-    class Tanker(Target, frozen=True):
-        observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (Position, Fuel)
-        type: Literal["tanker"] = "tanker"
-        registration: Annotated[str, Registration]
+    @target_type("tanker", observed_points=[Position, Fuel])
+    class Tanker(Target):
+        registration: str = provides(Registration)
 
     class Provider(Adapter):
         name = "provider"

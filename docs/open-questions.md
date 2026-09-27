@@ -158,7 +158,7 @@ since 之前的不返回），等往外分插件任务时再搭。
     存观察点名；`TargetManager` 从已注册目标类型收集观察点，重名报错。
 - **查询键（取代「同名属性字段含义一致」的约定）**：查询的输入也要有人负责，与观察点对称。
   - `QueryKey` 子类（如 `Icao24`）= 名字 + 取值的类型与格式，放在 `plugins/query_keys/`；
-  - 目标类型在提供它的字段上标注：`icao24: Annotated[str | None, Icao24] = None`；构造目标时按查询键校验取值；
+  - 目标类型在提供它的字段上关联：`icao24: str | None = provides(Icao24, default=None)`；构造目标时按查询键校验取值；
   - Adapter 声明 `query_key_sets`（支持的查询方式：多组查询键，按优先级）；按查询键类匹配，不看字段名；
     采用目标能提供的第一种，组装成 `query`（查询键 → 取值）；
   - 不在查询键范围内的，Adapter 拿不到：`QuerySpec` 只剩观察点（多观察点时分支用）和目标类型（仅兜底），
@@ -168,5 +168,8 @@ since 之前的不返回），等往外分插件任务时再搭。
 - **插件接口用基类，不用协议**：`Adapter`、`Operator` 与 `Evaluator` 一样是 ABC 基类，类属性的类型在基类里
   声明，插件直接赋值（`category = "progress"`），不必逐个标注，也不会踩「协议是只读属性、pyright 不认 ClassVar」的坑；
   注册时检查类属性是否都声明了。`FetchedRecord` 直接装观测实例（原为字段 dict），字段写错在 Adapter 里当场报错。
+- **声明用装饰器**：目标类型、观察点、查询键都用装饰器声明（`@target_type` / `@observed_point` / `@query_key`），
+  字段关联查询键用 `provides(...)`，插件作者不必写 `ClassVar` / `Annotated` / `Literal`；`type` 字段由类型名自动填写；
+  `Target` 的不可变写在 `model_config` 里，子类不必重复 `frozen=True`。装饰时就检查声明，写错在 import 时报错。
 - **上游归属**：可观测目标的上游列表由 `TargetManager` 问 `UpstreamCatalog` 得到，不由外部传入；
   订阅者 subscribe 时指定要哪些上游，可观测目标内部按上游路由。

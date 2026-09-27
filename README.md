@@ -86,7 +86,7 @@ sequenceDiagram
 
 | 类 | 是什么 | 由谁定义 |
 |---|---|---|
-| `Target` 子类（如 `Aircraft`） | 一类静态目标；实例是一个具体目标（如注册号 B-2447 的飞机）。声明可以在哪些观察点被观测（`observed_points`），并在字段上标注能提供哪些查询键（`Annotated[str, Registration]`） | 开发者（`plugins/target/`） |
+| `Target` 子类（如 `Aircraft`） | 一类静态目标；实例是一个具体目标（如注册号 B-2447 的飞机）。用 `@target_type("aircraft", observed_points=[Position])` 声明类型名和观察点，字段用 `provides(Registration)` 关联查询键 | 开发者（`plugins/target/`） |
 | `ObservedPoint` 子类（如 `Position`） | 观察点：名字 + 返回什么观测。与目标类型无关，可被多种目标共用 | 开发者（`plugins/observed_points/`） |
 | `Observation` 子类（如 `PositionObservation`） | 观测：观察点返回的数据，字段即形状 | 开发者（和观察点放在一起） |
 | `QueryKey` 子类（如 `Icao24`） | 查询键：拿什么去查一个目标，名字 + 取值的类型与格式 | 开发者（`plugins/query_keys/`） |
@@ -109,19 +109,34 @@ graph LR
 游标、订阅、路由都按（可观测目标, 上游）组织，可观测目标里已带观察点，所以同一上游的不同观察点互不干扰。
 上游不认识目标类型：同一个上游可以对飞机按 `Icao24`、对船按 `Mmsi` 查询。
 
+三种声明都用装饰器，插件作者不用写 `ClassVar` / `Annotated` / `Literal`：
+
+```python
+@observed_point("position", observation=PositionObservation)
+class Position(ObservedPoint): ...
+
+@query_key("icao24", pattern=r"^[0-9a-f]{6}$")
+class Icao24(QueryKey): ...
+
+@target_type("aircraft", observed_points=[Position])
+class Aircraft(Target):
+    registration: str = provides(Registration)            # 这个字段提供查询键 Registration
+    icao24: str | None = provides(Icao24, default=None)   # 可为空
+```
+
 观察点和查询键是目标类型与上游之间的两份契约，双方都 import 同一个类，不靠字段名字符串对齐：
 
 | 契约 | 方向 | 目标类型声明 | Adapter 声明 |
 |---|---|---|---|
 | 观察点 `ObservedPoint` | 输出：上游返回什么 | `observed_points = (Position,)` | `observed_points = frozenset({Position})` |
-| 查询键 `QueryKey` | 输入：上游拿什么去查 | `icao24: Annotated[str \| None, Icao24]` | `query_key_sets = (frozenset({Icao24}),)` |
+| 查询键 `QueryKey` | 输入：上游拿什么去查 | `icao24: str \| None = provides(Icao24, default=None)` | `query_key_sets = (frozenset({Icao24}),)` |
 
 输入这一侧的分工：
 
 | 谁 | 做什么 | 不知道什么 |
 |---|---|---|
 | 查询键 | 定义输入的词汇：每个查询键是一项输入（名字 + 取值格式），全部查询键就是输入的全部范围 | 上游、目标类型 |
-| 目标类型 | 把自己的字段映射进查询键（字段上 `Annotated` 标注）；字段为空的不算提供 | 上游 |
+| 目标类型 | 把自己的字段映射进查询键（`provides(...)`）；字段为空的不算提供 | 上游 |
 | Adapter | 在查询键范围里挑自己要的：`query_key_sets` 是几种可选的查询方式，每种是一组**联立**的查询键（要全部提供）；按优先级取第一种满足的。再把查询键翻译成上游 API 的参数名和格式（如 `Icao24` → `ICAO`、大写） | 目标类型、目标的字段名 |
 
 **不在查询键范围内的，Adapter 拿不到。** `fetch(spec, query, since)` 里：`query` 是 collector 为这个上游挑出的

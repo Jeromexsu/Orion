@@ -6,7 +6,7 @@
 
 | 术语 | 代码 | 含义 |
 |---|---|---|
-| 目标类型 | `Target` 的子类（如 `Aircraft`） | 一类静态目标，如飞机。由开发者用代码定义：类型名（`type` 的 Literal 默认值）、属性字段、可以在哪些观察点被观测（`observed_points`）、哪些字段提供哪些查询键（`Annotated` 标注） |
+| 目标类型 | `Target` 的子类（如 `Aircraft`） | 一类静态目标，如飞机。由开发者用代码定义：`@target_type(类型名, observed_points=[...])` 声明类型名和可以在哪些观察点被观测，字段用 `provides(查询键)` 关联查询键 |
 | 目标 | `Target` 子类的实例 | 一个具体的静态目标，如注册号 B-2447 的那架飞机 |
 | 观察点 | `ObservedPoint` 的子类（如 `Position`），名字如 `position` | 名字 + 它返回什么观测（`observation`）。与目标类型无关，多种目标类型可共用 |
 | 观测（observation） | `Observation` 的子类（如 `PositionObservation`） | 观察点观察之后返回的数据本身，字段就是观测的形状，如 `lat`、`lon` |

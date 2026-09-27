@@ -1,14 +1,8 @@
 """示例查询键：航空器注册号。"""
 
-from typing import Annotated, Any, ClassVar
-
-from pydantic import StringConstraints
-
-from core.target import QueryKey
+from core.target import QueryKey, query_key
 
 
+@query_key("registration", pattern=r"^\S+$")
 class Registration(QueryKey):
     """注册号，如 "B-2447"。"""
-
-    name: ClassVar[str] = "registration"
-    value_type: ClassVar[Any] = Annotated[str, StringConstraints(min_length=1)]

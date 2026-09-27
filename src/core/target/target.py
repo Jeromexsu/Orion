@@ -1,32 +1,43 @@
 """目标基类与持久化记录。"""
 
 import builtins
-from typing import Any, ClassVar, Self
+from collections.abc import Callable, Iterable
+from typing import Any, ClassVar, Self, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from core.target.observed_point import ObservedPoint
+from core.target.observed_point import ObservedPoint, observed_point_name
 from core.target.query_key import QueryKey, query_key_name, validate_query_value
 
 _BASE_FIELDS = frozenset({"id", "type", "name", "aliases"})
 
 
-class Target(BaseModel, frozen=True):
+class Target(BaseModel):
     """所有目标类型的基类。一个真实实体一条。
 
-    每种目标类型（如飞机）继承它，放在 plugins/target/ 下：
-    - 用 Literal 收窄 type 并给默认值，作为类型名：type: Literal["aircraft"] = "aircraft"
-    - 用普通字段声明属性字段（如注册号），构造时由 Pydantic 自动校验
-    - 用 observed_points 声明这类目标可以在哪些观察点被观测（观察点与目标类型无关，可共用）
-    - 在能提供查询键的字段上用 Annotated 标注查询键：icao24: Annotated[str | None, Icao24] = None；
-      上游按查询键（而不是字段名）判断能否查这个目标，取值在构造时按查询键校验
+    每种目标类型（如船）继承它，放在 plugins/target/ 下，用 @target_type 声明类型名和观察点：
+
+        @target_type("ship", observed_points=[Position, Draught])
+        class Ship(Target):
+            mmsi: str = provides(Mmsi)                      # 提供查询键 Mmsi
+            imo: str | None = provides(Imo, default=None)   # 提供查询键 Imo，可为空
+            flag: str | None = None                         # 普通属性
+
+    - 属性字段用普通字段声明，构造时由 Pydantic 自动校验；id / name / aliases / type 由基类提供；
+    - 能用来在上游认出目标的字段用 provides(...) 关联查询键，取值在构造时按查询键校验；
+      上游按查询键（而不是字段名）判断能否查这个目标；
+    - 观察点与目标类型无关，多种目标类型可共用。
 
     目标类型只由开发者通过代码定义和修改，不开放给用户在运行时配置。
     """
 
-    observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = ()
+    # 不可变；写在 model_config 里（而不是类参数 frozen=True），子类就不必重复声明
+    model_config = ConfigDict(frozen=True)
 
-    type: str                   # 类型名，子类用 Literal 收窄
+    type_name: ClassVar[str]                                       # 由 @target_type 设置
+    observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = ()  # 由 @target_type 设置
+
+    type: str = ""              # 类型名，构造时按 type_name 自动填写
     id: str
     name: str                   # 展示名，报告里用
     aliases: list[str] = Field(default_factory=list[str])
@@ -57,6 +68,18 @@ class Target(BaseModel, frozen=True):
             for key, field_name in self.query_key_fields().items()
             if (value := getattr(self, field_name)) is not None
         }
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_type(cls, data: Any) -> Any:
+        """type 不用手写：按 @target_type 声明的类型名自动填上；写了但不一致则拒绝。"""
+        if isinstance(data, dict):
+            name = type_name(cls)
+            data = {**data}  # pyright: ignore[reportUnknownVariableType]
+            data.setdefault("type", name)
+            if data["type"] != name:
+                raise ValueError(f"type must be {name!r}, got {data['type']!r}")
+        return data  # pyright: ignore[reportUnknownVariableType]
 
     @model_validator(mode="after")
     def _validate_query_values(self) -> Self:
@@ -100,12 +123,37 @@ class TargetRecord(BaseModel):
     attributes: dict[str, Any] = Field(default_factory=dict[str, Any])
 
 
+T = TypeVar("T", bound=Target)
+
+
+def target_type(
+    name: str, *, observed_points: Iterable[type[ObservedPoint]]
+) -> Callable[[type[T]], type[T]]:
+    """声明一个目标类型：类型名 + 可以在哪些观察点被观测。
+
+    装饰时就检查声明：类型名非空、观察点声明完整、查询键关联合法，不合格抛 TypeError。
+    """
+
+    def decorate(cls: type[T]) -> type[T]:
+        if not name:
+            raise TypeError(f"{cls.__name__}: target type name must not be empty")
+        points = tuple(observed_points)
+        for point in points:
+            observed_point_name(point)
+        cls.type_name = name
+        cls.observed_points = points
+        cls.query_key_fields()
+        return cls
+
+    return decorate
+
+
 def type_name(target_class: type[Target]) -> str:
-    """读出子类的类型名（type 字段的默认值）。"""
-    default = target_class.model_fields["type"].default
-    if not isinstance(default, str) or not default:
+    """读出类型名。没有用 @target_type 声明（包括只继承了父类声明的）抛 TypeError。"""
+    name = target_class.__dict__.get("type_name")
+    if not isinstance(name, str):
         raise TypeError(
-            f"{target_class.__name__} must narrow `type` with a Literal default, "
-            'e.g. type: Literal["aircraft"] = "aircraft"'
+            f"{target_class.__name__} must be declared with @target_type, "
+            'e.g. @target_type("ship", observed_points=[Position])'
         )
-    return default
+    return name
