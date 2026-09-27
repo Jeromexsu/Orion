@@ -75,6 +75,13 @@ def test_attributes_are_validated_on_construction() -> None:
     }
 
 
+def test_record_round_trip() -> None:
+    plane = Aircraft(id="t1", name="x", registration="B-1", icao24="780a3b", aliases=["A"])
+    record = plane.to_record()
+    assert record.attributes == {"registration": "B-1", "icao24": "780a3b"}
+    assert Aircraft.from_record(record) == plane
+
+
 def test_parse_dispatches_on_type(manager: TargetManager) -> None:
     target = manager.parse({"type": "aircraft", "id": "t1", "name": "x", "registration": "B-1"})
     assert isinstance(target, Aircraft)

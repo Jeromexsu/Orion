@@ -98,7 +98,7 @@ class Target(BaseModel):
         return self.model_dump(exclude=set(_BASE_FIELDS))
 
     def to_record(self) -> "TargetRecord":
-        """转成与类型无关的持久化记录：子类属性字段收进 attributes。"""
+        """转成与类型无关的持久化记录：子类属性字段收进 attributes。from_record 是它的逆操作。"""
         return TargetRecord(
             id=self.id,
             type=self.type,
@@ -107,11 +107,30 @@ class Target(BaseModel):
             attributes=self.attributes(),
         )
 
+    @classmethod
+    def from_record(cls, record: "TargetRecord") -> Self:
+        """Rebuild the target from its type-agnostic record; the inverse of to_record.
+
+        Call it on the target type named by record.type (looked up in TargetTypeRegistry).
+
+        Raises:
+            pydantic.ValidationError: If the stored attributes no longer fit the type.
+        """
+        return cls.model_validate(
+            {
+                "type": record.type,
+                "id": record.id,
+                "name": record.name,
+                "aliases": record.aliases,
+                **record.attributes,
+            }
+        )
+
 
 class TargetRecord(BaseModel):
     """目标的持久化形态：与具体类型无关，持久化层不需要认识插件。
 
-    由 TargetManager 按 type 还原成对应的 Target 子类。
+    按 type 找到对应的 Target 子类，再用它的 from_record 还原。
     """
 
     model_config = ConfigDict(frozen=True)

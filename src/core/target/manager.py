@@ -77,13 +77,5 @@ class TargetManager:
     # ------------------------------------------------------------ 内部
 
     def _restore(self, record: TargetRecord) -> Target:
-        """持久化记录 → 对应的 Target 子类。"""
-        return self._target_type_registry.get(record.type).model_validate(
-            {
-                "type": record.type,
-                "id": record.id,
-                "name": record.name,
-                "aliases": record.aliases,
-                **record.attributes,
-            }
-        )
+        """持久化记录 → 对应的 Target 子类（按 type 找类，格式由 Target.from_record 负责）。"""
+        return self._target_type_registry.get(record.type).from_record(record)
