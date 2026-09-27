@@ -151,6 +151,33 @@ class Aircraft(Target):
 `query` 是 UpstreamAdapter 得到目标信息的唯一途径：UpstreamAdapter 看不到目标本身、目标类型和字段名。挑查询方式的
 `choose_query` 是基类方法，只接收目标能提供的查询键；判断可用上游和实际采集都用它，两处结果一致。
 
+#### target 的窗口与扩展点
+
+target 装两类东西：**静态的定义与契约**（看什么、凭什么认出目标）和**运行时的枢纽**（谁在看——可观测目标的发布订阅）。
+collector 与 event 互不认识，只在可观测目标这里会合。
+
+对外的窗口（按使用方）：
+
+| 使用方 | 窗口 | 用来做什么 |
+|---|---|---|
+| bootstrap | `TargetManager.register_type` | 启动时注册目标类型（顺带收集观察点、检查查询键关联） |
+| API 层（待建） | `TargetManager.parse` / `upsert_target` / `get_target` / `find_by_alias` / `remove_target` | 目标的增删改查；`parse` 把 JSON 按 `type` 还原成对应的目标类型 |
+| event · 父事件 | `TargetManager.get_target` | 确认目标存在、取展示名 |
+| event · 模板编译器 | `TargetManager.inspect_observable` / `get_observable` | 先只检查（不创建），全部通过后取得 / 创建可观测目标 |
+| event · runner | `ObservableTarget.subscribe` / `unsubscribe`；回调 `Subscriber.on_observation` | 按上游订阅；收观测 |
+| collector | `TargetManager.active_observables`；`ObservableTarget.active_upstreams` / `accepts` / `publish`；`Target.query_values` | 找要采集的可观测目标和上游；检查观测类型；发布；取目标能提供的查询键 |
+
+要别人提供的：`UpstreamCatalog`（collector 的 `UpstreamAdapterRegistry` 实现，bootstrap 注入）、`TargetRepository`、
+`ObservableTargetRepository`（持久化层实现）。
+
+扩展点有三个，都用装饰器声明（写法见上文）：
+
+| 扩展点 | 放在 | 声明什么 |
+|---|---|---|
+| 目标类型 `@target_type` | `plugins/target/` | 类型名、属性字段、能在哪些观察点被观测；字段用 `provides(查询键)` 关联查询键 |
+| 观察点 `@observed_point` | `plugins/observed_points/` | 名字 + 返回什么观测（`Observation` 子类，字段即形状） |
+| 查询键 `@query_key` | `plugins/query_keys/` | 名字 + 取值格式（`pattern` 或 `value_type`） |
+
 ### collector：采集
 
 对外的窗口（按使用方）：
