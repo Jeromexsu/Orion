@@ -9,9 +9,12 @@ logger = logging.getLogger(__name__)
 
 
 class Collector:
-    """遍历活跃的 ObservableTarget，拉取 → 校验 → 去重 → 落库 → 分发。
+    """Collects observations for active observable targets from their upstreams.
 
-    由进程内调度器定时调用 collect()。
+    For each active upstream of each active observable target: choose a query,
+    fetch through the upstream adapter, check the observation class, drop
+    duplicates, store, advance the cursor; then publish through the observable
+    target. collect() is called periodically by the in-process scheduler.
     """
 
     def __init__(
@@ -27,9 +30,16 @@ class Collector:
         self._observation_repository = observation_repository
 
     def collect(self) -> list[ObservationEnvelope]:
-        """对所有活跃的可观测目标采集一轮，返回本轮新落库的观测。
+        """Run one collection round over all active observable targets.
 
-        写观测库、推进游标、分发给订阅者。单个目标或上游失败只记日志，不影响其他。
+        Active observable targets (at least one subscriber) are asked from the
+        TargetManager; each is collected with collect_one, which stores and
+        publishes its new observations. An observable target that raises is logged
+        and skipped without affecting the others. Called periodically by the
+        in-process scheduler.
+
+        Returns:
+            Newly stored envelopes of this round, grouped per observable target.
         """
         collected: list[ObservationEnvelope] = []
         for observable in self._target_manager.active_observables():
