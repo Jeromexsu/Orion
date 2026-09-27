@@ -182,10 +182,6 @@ class TargetManager:
         self._observable_target_repository.upsert(observable)
         return observable
 
-    def find_observable(self, observable_id: str) -> ObservableTarget | None:
-        """按 ID 查内存里已存在的 ObservableTarget；不存在返回 None，不创建。"""
-        return self._live.get(observable_id)
-
     def active_observables(self) -> list[ObservableTarget]:
         """subscribers() 非空的 ObservableTarget，collector 只采集这些。"""
         return [o for o in self._live.values() if o.is_active]

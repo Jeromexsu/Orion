@@ -148,10 +148,14 @@ class Env:
         self._seq = count()
 
     def make_targets(self) -> TargetManager:
-        """新的 TargetManager 共用同一个目标仓库——模拟重启时内存状态清空。"""
+        """新的 TargetManager 共用同一个目标仓库——模拟重启时内存状态清空。
+
+        可观测目标仓库每次新建，记在 observable_repo 上，测试据此检查有没有创建可观测目标。
+        """
+        self.observable_repo = InMemoryObservableTargetRepository()
         targets = TargetManager(
             self.target_repo,
-            InMemoryObservableTargetRepository(),
+            self.observable_repo,
             StaticUpstreamCatalog({("aircraft", "position"): ["adsb", "radar"]}),
         )
         targets.register_type(Aircraft)

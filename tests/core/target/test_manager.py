@@ -182,7 +182,6 @@ def test_inspect_observable_does_not_create(
 ) -> None:
     point, upstreams = manager.inspect_observable(plane.id, "position")
     assert (point, upstreams) == (Position, ("adsb",))
-    assert manager.find_observable("t1:position") is None
     assert observables.items == {}
     with pytest.raises(UnknownObservedPointError):
         manager.inspect_observable(plane.id, "fuel")
@@ -243,4 +242,3 @@ def test_remove_target_clears_observables(
     manager.remove_target(plane.id)
     assert plane.id not in targets.items
     assert obs.id not in observables.items
-    assert manager.find_observable(obs.id) is None
