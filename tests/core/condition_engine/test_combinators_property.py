@@ -30,7 +30,7 @@ class FixedCriteria(BaseModel):
 
 
 @evaluator()
-class Fixed(Evaluator[FixedCriteria]):
+class Fixed(Evaluator[FixedCriteria, Observation]):
 
     def evaluate(
         self,

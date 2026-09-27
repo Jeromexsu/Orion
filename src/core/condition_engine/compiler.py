@@ -13,7 +13,7 @@ DeclaredObservables = Mapping[str, type[Observation]]
 
 Carries two things: the keys are the scope a condition may refer to (the observable
 targets the template declares), the values are the shape of each one's observations
-(the fields an evaluator's requires is checked against). Assembled by the template
+(checked against each evaluator's observation_model). Assembled by the template
 compiler from its observable declarations without creating any observable target.
 """
 
@@ -38,7 +38,8 @@ class ConditionCompiler:
 
         Closes the definition-time gap between a leaf, its evaluator and the observable
         target it refers to: the observable target must be declared, and the observation
-        it produces must have every field the evaluator requires. Has no side effects.
+        class it produces must be the evaluator's observation_model (or a subclass). Has
+        no side effects.
 
         Args:
             condition_def: The parsed condition definition.
@@ -104,8 +105,8 @@ class ConditionCompiler:
             1. The evaluator named by op exists. If not, stops here: the remaining
                checks need the evaluator.
             2. The observable target the leaf refers to is one the template declares.
-            3. The observation that observable target produces has every field the
-               evaluator requires.
+            3. The observation class that observable target produces is the evaluator's
+               observation_model or a subclass of it.
             4. The criteria are valid against the evaluator's criteria_model (shape
                and values, e.g. an area needs at least 3 points).
 
@@ -134,11 +135,12 @@ class ConditionCompiler:
             errors.append(f"{path}: unknown observable {leaf_def.observable!r}")
             ok = False
         else:
-            # check that the observation has every field the evaluator requires
-            missing = set(evaluator.requires) - set(observation_type.model_fields)
-            if missing:
+            # check that the observation is what the evaluator requires
+            required = evaluator.observation_model
+            if not issubclass(observation_type, required):
                 errors.append(
-                    f"{path}: observable {leaf_def.observable!r} lacks fields {sorted(missing)}"
+                    f"{path}: observable {leaf_def.observable!r} produces "
+                    f"{observation_type.__name__}, {leaf_def.op!r} needs {required.__name__}"
                 )
                 ok = False
         # validate the criteria against the evaluator's criteria_model

@@ -386,16 +386,18 @@ graph LR
 扩展点只有一个：继承 `Evaluator` 并用 `@evaluator` 声明，放在 `plugins/condition_engine/`——一种判断方式：
 
 ```python
-@evaluator(requires={"lat", "lon"})
-class OnEnter(Evaluator[OnEnterCriteria]):
-    def evaluate(self, observation, occurred_at, state, criteria): ...
+@evaluator()
+class OnEnter(Evaluator[OnEnterCriteria, PositionObservation]):   # 判定标准模型、要求的观测类
+    def evaluate(self, observation: PositionObservation, occurred_at, state, criteria):
+        position = (observation.lat, observation.lon)                 # 有类型，不按字段名取
+        ...
 ```
 
 | 声明 / 实现 | 含义 |
 |---|---|
 | `op` | 模板里叶子的 `op` 引用它。默认类名首字母小写（`OnEnter` → `"onEnter"`），缩写开头的类名用 `op=` 指定 |
-| `requires` | 需要观测里有值的字段名；缺失或为空时叶子直接返回「不适用」，不调用判断方式 |
-| 判定标准模型 | 取泛型参数（`Evaluator[OnEnterCriteria]`），编译时用它校验叶子的 `criteria`；也可 `criteria=` 指定 |
+| 要求的观测类 | 第二个泛型参数（`PositionObservation`）。编译时检查叶子引用的可观测目标产出的观测类是它的子类，两边靠 import 同一个类对齐，不靠字段名；可为空的字段（如 `altitude_m`）为空时由判断方式自己返回「不适用」。多个观察点要共用一种判断方式时，把共同字段提成能力基类，要求那个基类 |
+| 判定标准模型 | 第一个泛型参数（`OnEnterCriteria`），编译时用它校验叶子的 `criteria` |
 | `evaluate(observation, occurred_at, state, criteria)` | 判断；只拿观测（副本）和发生时间，拿不到来源信息（upstream / source_id / raw）；不改传入的 `state`（只读），把本叶子的**完整**新状态放进结果的 `state`（不是变化量；没变就不填）；返回「不适用」时不得带 `state` |
 
 示例见 `plugins/condition_engine/on_enter.py`（进入区域，有状态）。

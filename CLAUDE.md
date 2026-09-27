@@ -59,7 +59,7 @@ def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list
 ## 插件
 
 目标类型、观察点、查询键、判断方式、上游适配器、钩子都用装饰器声明（`@target_type` / `@observed_point` / `@query_key` /
-`@evaluator` / `@upstream_adapter` / `@hook`，字段用 `provides(...)`）。判断方式同时继承 `Evaluator[判定标准模型]`，
+`@evaluator` / `@upstream_adapter` / `@hook`，字段用 `provides(...)`）。判断方式同时继承 `Evaluator[判定标准模型, 观测类]`（要求一个观测类，不写字段名），
 `op` 默认类名首字母小写；上游适配器继承 `UpstreamAdapter`，上游名默认类名去掉 Adapter 后缀、首字母小写。
 钩子继承 `Hook[参数模型]` 并用 `@hook(mount_points=..., scopes=..., proposes=...)` 声明，`name` 默认类名首字母小写；
 直接作用只能是 `external` / `event`，父事件和目标只能提议（`proposes=True`）；对外输出通道构造时注入。

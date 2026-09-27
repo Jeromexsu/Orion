@@ -18,7 +18,8 @@ from core.condition_engine import (
     evaluator,
 )
 from core.observation import Observation
-from plugins.condition_engine.on_enter import OnEnter
+from plugins.condition_engine.on_enter import OnEnter, OnEnterCriteria
+from plugins.observed_points.position import PositionObservation
 from tests.core.condition_engine.conftest import (
     SQUARE,
     T0,
@@ -72,7 +73,11 @@ def test_semantic_errors_are_collected_with_paths(compiler: ConditionCompiler) -
     errors = info.value.errors
     assert any(e.startswith("root/0: unknown evaluator op") for e in errors)
     assert any(e.startswith("root/1: unknown observable") for e in errors)
-    assert any(e.startswith("root/2: observable 't2:position' lacks fields ['alt']") for e in errors)
+    assert any(
+        e.startswith("root/2: observable 't2:position' produces PositionObservation")
+        and e.endswith("'gt' needs WithAltitude")
+        for e in errors
+    )
     assert any(e.startswith("root/3: invalid criteria") for e in errors)
     assert any(e.startswith("root/4: 'not' takes exactly one child") for e in errors)
 
@@ -88,7 +93,7 @@ def test_empty_combinator_rejected(compiler: ConditionCompiler) -> None:
 def test_irrelevant_data_is_not_applicable(compiler: ConditionCompiler) -> None:
     tree = compile_(compiler, op("not", gt(100)))
     assert tree.evaluate(make_envelope("t2:position", lat=1, lon=1), {}).outcome == NOT_APPLICABLE
-    # 字段不全也是不适用
+    # 高度为空：判断方式自己返回不适用
     assert tree.evaluate(make_envelope("t1:position", lat=1, lon=1), {}).outcome == NOT_APPLICABLE
 
 
@@ -106,7 +111,7 @@ def test_stateful_leaf_returns_new_tree_state(compiler: ConditionCompiler) -> No
     entered = tree.evaluate(make_envelope("t1:position", lat=5, lon=5), state)
     assert entered.outcome == HIT
     assert entered.extracted == {"entered_at": {"lat": 5.0, "lon": 5.0}}
-    assert entered.trace[0]["fields"] == {"lat": 5, "lon": 5}
+    assert entered.trace[0]["observation"]["lat"] == 5
     assert entered.state == {"root": {"inside": True}}
     assert entered.state is not None
     state = entered.state
@@ -161,8 +166,8 @@ class RecentCriteria(BaseModel):
     count: int
 
 
-@evaluator(requires={"lat"})
-class RecentCount(Evaluator[RecentCriteria]):
+@evaluator()
+class RecentCount(Evaluator[RecentCriteria, Observation]):
     """示例：滑动窗口。最近 hours 小时内的观测达到 count 条即命中——状态记的是 N 轮，不只上一轮。"""
 
 
@@ -181,8 +186,8 @@ class RecentCount(Evaluator[RecentCriteria]):
         )
 
 
-@evaluator(requires={"alt"})
-class Spy(Evaluator[GtCriteria]):
+@evaluator()
+class Spy(Evaluator[GtCriteria, Observation]):
     """记录收到的观测和发生时间。"""
 
 
@@ -236,14 +241,14 @@ def test_state_can_hold_a_sliding_window() -> None:
 
 
 def test_evaluator_decorator_defaults_and_overrides() -> None:
-    assert (OnEnter.op, OnEnter.requires, OnEnter.criteria_model.__name__) == (
+    assert (OnEnter.op, OnEnter.criteria_model, OnEnter.observation_model) == (
         "onEnter",
-        frozenset({"lat", "lon"}),
-        "OnEnterCriteria",
+        OnEnterCriteria,
+        PositionObservation,
     )
 
     @evaluator(op="httpCheck")
-    class HTTPCheck(Evaluator[GtCriteria]):
+    class HTTPCheck(Evaluator[GtCriteria, Observation]):
         def evaluate(
             self,
         observation: Observation,
@@ -253,15 +258,24 @@ def test_evaluator_decorator_defaults_and_overrides() -> None:
     ) -> EvalResult:
             return EvalResult(outcome=MISS)
 
-    assert (HTTPCheck.op, HTTPCheck.requires, HTTPCheck.criteria_model) == (
+    assert (HTTPCheck.op, HTTPCheck.criteria_model, HTTPCheck.observation_model) == (
         "httpCheck",
-        frozenset(),
         GtCriteria,
+        Observation,
     )
 
 
+def test_evaluator_needs_both_generic_arguments() -> None:
+    with pytest.raises(TypeError, match="Evaluator\\[SomeCriteria, SomeObservation\\]"):
+
+        @evaluator()
+        class Untyped(Evaluator):  # type: ignore[type-arg]  # pyright: ignore
+            def evaluate(self, observation, occurred_at, state, criteria):  # type: ignore  # pyright: ignore
+                return EvalResult(outcome=MISS)
+
+
 def test_undeclared_evaluator_rejected_at_register() -> None:
-    class Bare(Evaluator[GtCriteria]):
+    class Bare(Evaluator[GtCriteria, Observation]):
         def evaluate(
             self,
         observation: Observation,

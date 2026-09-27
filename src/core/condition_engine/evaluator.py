@@ -1,7 +1,7 @@
 """The evaluator extension point: the Evaluator base class and what it returns (EvalResult)."""
 
 from abc import ABC, abstractmethod
-from collections.abc import Callable, Iterable, Mapping, Set
+from collections.abc import Callable, Mapping
 from datetime import datetime
 from typing import Any, ClassVar, Generic, Literal, TypeVar, get_args, get_origin
 
@@ -36,16 +36,19 @@ class EvalResult(BaseModel):
 
 
 C = TypeVar("C", bound=BaseModel)
+O = TypeVar("O", bound=Observation)
 
 
-class Evaluator(ABC, Generic[C]):
+class Evaluator(ABC, Generic[C, O]):
     """一种判断方式（叶子条件）。每种一个子类，放在 plugins/condition_engine/ 下，用 @evaluator 声明：
 
-        @evaluator(requires={"lat", "lon"})
-        class OnEnter(Evaluator[OnEnterCriteria]):
+        @evaluator()
+        class OnEnter(Evaluator[OnEnterCriteria, PositionObservation]):
             def evaluate(self, observation, occurred_at, state, criteria): ...
 
-    op 默认是类名首字母小写（OnEnter → "onEnter"）；criteria_model 取泛型参数（OnEnterCriteria）。
+    op 默认是类名首字母小写（OnEnter → "onEnter"）；criteria_model、observation_model 取两个泛型参数。
+    判断方式要求一个观测类（不是一串字段名）：模板编译时检查叶子引用的可观测目标产出的观测类是它的子类，
+    两边靠 import 同一个类对齐。多个观察点要共用一种判断方式时，把共同的字段提成能力基类，要求那个基类。
 
     规则：
     - 不得修改传入的 state（只读视图）；新状态放进结果的 state 返回——本叶子的**完整**新状态，
@@ -54,13 +57,13 @@ class Evaluator(ABC, Generic[C]):
     """
 
     op: ClassVar[str]                           # 由 @evaluator 设置；模板里叶子的 op 引用它
-    requires: ClassVar[Set[str]]                # 由 @evaluator 设置；需要观测里有值的字段名
-    criteria_model: ClassVar[type[BaseModel]]   # 由 @evaluator 设置；判定标准的形状
+    criteria_model: ClassVar[type[BaseModel]]       # 由 @evaluator 设置；判定标准的形状
+    observation_model: ClassVar[type[Observation]]  # 由 @evaluator 设置；要求的观测类（或其子类）
 
     @abstractmethod
     def evaluate(
         self,
-        observation: Observation,
+        observation: O,
         occurred_at: datetime,
         state: Mapping[str, Any],
         criteria: C,
@@ -71,8 +74,9 @@ class Evaluator(ABC, Generic[C]):
         Where it came from (upstream, source_id, raw) is deliberately not passed.
 
         Args:
-            observation: The observation (a copy). Fields in requires are guaranteed to
-                have values; read them by name (getattr(observation, "lat")).
+            observation: The observation (a copy), an instance of observation_model, so
+                its fields are typed. An optional field that is None is the evaluator's
+                to handle (usually by returning not applicable).
             occurred_at: When the observation happened (not when it was processed).
             state: This leaf's state as last returned (empty on first call); read-only.
                 May hold anything (e.g. a sliding window); keep its size bounded.
@@ -86,48 +90,46 @@ class Evaluator(ABC, Generic[C]):
         ...
 
 
-E = TypeVar("E", bound=Evaluator[Any])
+E = TypeVar("E", bound=Evaluator[Any, Any])
 
 
-def evaluator(
-    *,
-    requires: Iterable[str] = (),
-    op: str | None = None,
-    criteria: type[BaseModel] | None = None,
-) -> Callable[[type[E]], type[E]]:
+def evaluator(*, op: str | None = None) -> Callable[[type[E]], type[E]]:
     """Declare an evaluator.
 
+    The criteria model and the required observation class are the two generic arguments
+    of the base (Evaluator[OnEnterCriteria, PositionObservation]).
+
     Args:
-        requires: Observation fields that must have a value; otherwise the leaf is not
-            applicable and the evaluator is not called.
         op: Name templates refer to it by. Defaults to the class name with its first
             letter lowered (OnEnter -> "onEnter"); pass it for names starting with an
             acronym.
-        criteria: The criteria model. Defaults to the generic argument of the base
-            (Evaluator[OnEnterCriteria] -> OnEnterCriteria).
 
     Raises:
-        TypeError: If the criteria model can be neither given nor inferred.
+        TypeError: If the class does not subclass Evaluator[SomeCriteria, SomeObservation].
     """
 
     def decorate(cls: type[E]) -> type[E]:
-        model = criteria if criteria is not None else _criteria_argument(cls)
-        if model is None:
+        arguments = _generic_arguments(cls)
+        if arguments is None:
             raise TypeError(
-                f"{cls.__name__}: subclass Evaluator[SomeCriteria] or pass criteria=..."
+                f"{cls.__name__}: subclass Evaluator[SomeCriteria, SomeObservation]"
             )
         cls.op = op if op is not None else cls.__name__[:1].lower() + cls.__name__[1:]
-        cls.requires = frozenset(requires)
-        cls.criteria_model = model
+        cls.criteria_model, cls.observation_model = arguments
         return cls
 
     return decorate
 
 
-def _criteria_argument(cls: type[Any]) -> type[BaseModel] | None:
+def _generic_arguments(cls: type[Any]) -> tuple[type[BaseModel], type[Observation]] | None:
     for base in getattr(cls, "__orig_bases__", ()):
         if get_origin(base) is Evaluator:
-            (argument,) = get_args(base)
-            if isinstance(argument, type) and issubclass(argument, BaseModel):
-                return argument
+            criteria, observation = get_args(base)
+            if (
+                isinstance(criteria, type)
+                and issubclass(criteria, BaseModel)
+                and isinstance(observation, type)
+                and issubclass(observation, Observation)
+            ):
+                return criteria, observation
     return None

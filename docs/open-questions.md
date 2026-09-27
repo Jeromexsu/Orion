@@ -75,31 +75,6 @@ since 之前的不返回），等往外分插件任务时再搭。
 - 是否也开放给 hil（能提议的钩子提议「开启本周期」，经分析师确认），即加入白名单动作；
 - 记录谁、为什么手动开启，便于审计。
 
-### 10. 判断方式的 `requires` 靠字段名对齐观测
-
-**发现于**：审阅 `OnEnter` 时。**状态**：已记下，暂不改；出现第二个观察点并需要复用同一判断方式时再做。
-
-`Evaluator.requires` 是字段名字符串（如 `{"lat", "lon"}`），编写者得知道观测里字段恰好叫这个名字。写错不会静默——
-模板编译时报 `lacks fields`——但不同观察点对同一语义命名不同（`lat` / `latitude`）时，判断方式无法复用。
-
-可能的做法：仿照查询键，用观测的公共基类表达「能力」：
-
-```python
-class HasPosition(Observation):          # 能力：有经纬度
-    lat: float
-    lon: float
-
-class PositionObservation(HasPosition): ...
-class OnEnter(Evaluator[...]):
-    requires = HasPosition               # 要求一个类，不是一串字段名
-```
-
-编译时改为 `issubclass(观测类, HasPosition)`，靠 import 对齐；判断方式里可把观测当 `HasPosition` 用，类型检查器看得懂。
-待定点：
-- 能力怎么划分（位置、高度、速度……），划错了改起来费事；
-- 通用型判断方式（如「某字段大于某值」）字段名在判定标准里，需另加编译时检查（判定标准里的字段存在于观测类）；
-- 可为空字段（`altitude_m: float | None`）继承只保证「有这个字段」，运行时「为空则不适用」的检查仍要保留。
-
 ### 11. 按上游调整判断的可信度
 
 **发现于**：收窄 `Evaluator.evaluate` 签名时（不再传观测外壳）。**状态**：已记下，有需要时再做。
@@ -152,6 +127,13 @@ class RadarAdapter(UpstreamAdapter): ...
 
 ## 已决
 
+- **判断方式要求一个观测类，不写字段名**（原待决第 10 条「`requires` 靠字段名对齐观测」）：
+  `Evaluator[判定标准模型, 观测类]`，两个都从泛型参数读出（`criteria_model` / `observation_model`），`requires` 去掉；
+  编译时检查 `issubclass(可观测目标产出的观测类, observation_model)`，靠 import 同一个类对齐；判断方式里观测是有类型的
+  （`observation.lat`，不再 `getattr`）。叶子运行时对不是该类的观测返回「不适用」（兜底，编译已排除）；可为空字段由
+  判断方式自己判空返回「不适用」。「不同观察点命名不同」的顾虑被削弱：观察点本就与目标类型无关、被共用。
+  以后若另一个观察点也要用同一判断方式，把共同字段提成能力基类（如 `HasPosition`），判断方式改为要求那个基类——
+  判断方式内部不用改。
 - **上游能不能用是模板编译的事，不是可观测目标的事**：可观测目标早已不存、不校验上游，`UpstreamCatalog` 只是借
   observable 给模板编译器转手（event 不能依赖 collector）。按「接口定义在使用方」挪到 event（`core/event/upstream.py`），
   `TemplateCompiler` 注入 `TargetManager` + `UpstreamCatalog` 自己检查：读目标、`Target.find_observed_point` 找观察点、

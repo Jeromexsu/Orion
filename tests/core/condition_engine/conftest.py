@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, TypeAdapter
 from core.condition_engine import (
     HIT,
     MISS,
+    NOT_APPLICABLE,
     ConditionCompiler,
     ConditionDef,
     ConditionTree,
@@ -19,6 +20,7 @@ from core.condition_engine import (
 )
 from core.observation import Observation, ObservationEnvelope
 from plugins.condition_engine.on_enter import OnEnter
+from plugins.observed_points.position import PositionObservation
 
 _condition_def: TypeAdapter[ConditionDef] = TypeAdapter(ConditionDef)
 
@@ -51,11 +53,12 @@ class AnyObservation(Observation):
 
 
 def make_envelope(observable_id: str, at: float = 0, **fields: Any) -> ObservationEnvelope:
-    """测试辅助：构造一条观测外壳。at 是相对 T0 的小时数。"""
+    """测试辅助：构造一条观测外壳。at 是相对 T0 的小时数；观测类按可观测目标声明取（未声明的用 AnyObservation）。"""
+    observation_class = DECLARED_OBSERVABLES.get(observable_id, AnyObservation)
     return ObservationEnvelope(
         observable_id=observable_id,
         upstream="test",
-        observation=AnyObservation(**fields),
+        observation=observation_class(**fields),
         occurred_at=T0 + timedelta(hours=at),
         source_id=f"test#{next(_seq)}",
     )
@@ -66,38 +69,33 @@ class GtCriteria(BaseModel):
     value: float
 
 
-@evaluator(requires={"alt"})
-class Gt(Evaluator[GtCriteria]):
-    """无状态测试用判断：fields[field] > value。"""
+class WithAltitude(PositionObservation):
+    """位置 + 一个可为空的高度。"""
 
-
-    def evaluate(
-        self,
-    observation: Observation,
-    occurred_at: datetime,
-    state: Mapping[str, Any],
-    criteria: GtCriteria,
-) -> EvalResult:
-        value = getattr(observation, criteria.field)
-        hit = value > criteria.value
-        return EvalResult(outcome=HIT if hit else MISS, extracted={"alt": value} if hit else {})
-
-
-class WithAltitude(Observation):
-    lat: float
-    lon: float
     alt: float | None = None
 
 
-class WithoutAltitude(Observation):
-    lat: float
-    lon: float
+@evaluator()
+class Gt(Evaluator[GtCriteria, WithAltitude]):
+    """无状态测试用判断：alt > value。高度为空时不适用——可为空的字段由判断方式自己处理。"""
+
+    def evaluate(
+        self,
+        observation: WithAltitude,
+        occurred_at: datetime,
+        state: Mapping[str, Any],
+        criteria: GtCriteria,
+    ) -> EvalResult:
+        if observation.alt is None:
+            return EvalResult(outcome=NOT_APPLICABLE)
+        hit = observation.alt > criteria.value
+        return EvalResult(outcome=HIT if hit else MISS, extracted={"alt": observation.alt} if hit else {})
 
 
-# 可引用的可观测目标及其观测类：t1:position 有 lat/lon/alt；t2:position 只有 lat/lon
+# 可引用的可观测目标及其观测类：t1:position 有高度；t2:position 只是位置
 DECLARED_OBSERVABLES: dict[str, type[Observation]] = {
     "t1:position": WithAltitude,
-    "t2:position": WithoutAltitude,
+    "t2:position": PositionObservation,
 }
 
 

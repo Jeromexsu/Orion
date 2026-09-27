@@ -7,7 +7,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from core.condition_engine import HIT, MISS, EvalResult, Evaluator, evaluator
-from core.observation import Observation
+from plugins.observed_points.position import PositionObservation
 
 Point = tuple[float, float]                 # (lat, lon)
 Polygon = list[Point]
@@ -36,19 +36,19 @@ class OnEnterCriteria(BaseModel):
     initial_as_enter: bool = False   # 首次观测就在区域内是否算“进入”
 
 
-@evaluator(requires={"lat", "lon"})
-class OnEnter(Evaluator[OnEnterCriteria]):
+@evaluator()
+class OnEnter(Evaluator[OnEnterCriteria, PositionObservation]):
     """上一次在区域外、这一次在区域内 → 命中。状态里记住上一次是否在区域内。"""
 
     def evaluate(
         self,
-        observation: Observation,
+        observation: PositionObservation,
         occurred_at: datetime,
         state: Mapping[str, Any],
         criteria: OnEnterCriteria,
     ) -> EvalResult:
         """命中时 extracted 带进入时的位置；每次都返回新的 inside 状态。"""
-        position = (float(getattr(observation, "lat")), float(getattr(observation, "lon")))
+        position = (observation.lat, observation.lon)
         inside = point_in_polygon(position, criteria.area)
         was_inside: bool | None = state.get("inside")
 

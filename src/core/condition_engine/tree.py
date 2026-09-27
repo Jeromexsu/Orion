@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from collections.abc import Mapping, Set
+from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Any, Literal
 
@@ -48,11 +48,12 @@ class ConditionNode(ABC):
 class LeafNode(ConditionNode):
     """叶子：一个可观测目标 + 一种判断方式 + 已解析的参数。
 
-    观测不属于这个可观测目标，或缺少判断方式需要的字段时，返回“不适用”，不调用判断方式。
+    观测不属于这个可观测目标，或不是判断方式要求的观测类时，返回“不适用”，不调用判断方式
+    （后者编译时已排除，这里只是兜底）。
     """
 
     def __init__(
-        self, path: str, observable: str, evaluator: Evaluator[Any], criteria: BaseModel
+        self, path: str, observable: str, evaluator: Evaluator[Any, Any], criteria: BaseModel
     ) -> None:
         super().__init__(path)
         self.observable = observable
@@ -62,12 +63,11 @@ class LeafNode(ConditionNode):
     def evaluate(
         self, envelope: ObservationEnvelope, state: TreeState
     ) -> tuple[EvalResult, _Changes]:
-        requires: Set[str] = self.evaluator.requires
         observation = envelope.observation
-        if envelope.observable_id != self.observable or any(
-            getattr(observation, f, None) is None for f in requires
+        if envelope.observable_id != self.observable or not isinstance(
+            observation, self.evaluator.observation_model
         ):
-            # 不是这个叶子的可观测目标，或需要的字段缺失 / 为空（如没有高度的观测）
+            # 不是这个叶子的可观测目标，或不是判断方式要求的观测类
             return EvalResult(outcome=NOT_APPLICABLE), {}
 
         old_state = dict(state.get(self.path, {}))
@@ -84,7 +84,7 @@ class LeafNode(ConditionNode):
             "observable": self.observable,
             "outcome": result.outcome,
             "occurred_at": envelope.occurred_at.isoformat(),
-            "fields": {f: getattr(observation, f) for f in sorted(requires)},
+            "observation": observation.model_dump(),
         }
         # 判断方式返回的是本叶子的新状态；“不适用”不得改状态，和旧状态相同也不算变
         changes: _Changes = (
