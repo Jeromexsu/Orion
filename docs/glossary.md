@@ -10,8 +10,8 @@
 | 目标 | `Target` 子类的实例 | 一个具体的静态目标，如注册号 B-2447 的那架飞机 |
 | 观察点 | `ObservedPoint` 的子类（如 `Position`），名字如 `position` | 名字 + 它返回什么观测（`observation`）。与目标类型无关，多种目标类型可共用 |
 | 观测（observation） | `Observation` 的子类（如 `PositionObservation`） | 观察点观察之后返回的数据本身，字段就是观测的形状，如 `lat`、`lon` |
-| 上游 | `upstream` | 数据来源，如 `adsb`；由 collector 的一个 Adapter 实现，声明服务哪个观察点、查询需要目标提供哪些字段（`required_fields`） |
-| 可观测目标（obs） | `ObservableTarget` | 封装好的「具体目标 + 一个观察点」，ID 形如 `t1:position`；持有全部可用上游（服务该观察点且目标能提供查询字段的上游）和订阅关系，全局唯一，由 `TargetManager` 创建 |
+| 上游 | `upstream` | 数据来源，如 `adsb`；由 collector 的一个 Adapter 实现，声明服务哪个观察点、支持哪些查询方式（`query_field_sets`：多组字段，目标满足其一即可） |
+| 可观测目标（obs） | `ObservableTarget` | 封装好的「具体目标 + 一个观察点」，ID 形如 `t1:position`；持有全部可用上游（服务该观察点且目标满足其某种查询方式的上游）和订阅关系，全局唯一，由 `TargetManager` 创建 |
 | 订阅 | `ObservableTarget.acquire(订阅者, 上游集合)` | 订阅者指定要哪些上游；可观测目标按上游把数据路由给订阅者 |
 | 观测外壳 | `ObservationEnvelope` | 一次观测连同来源信息：`observable_id`、`upstream`、`observation`（观测实例）、`occurred_at`、`source_id`、`raw`。collector 产出，在采集 → 分发 → 条件判断的管道里流动 |
 

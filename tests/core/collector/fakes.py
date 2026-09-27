@@ -11,12 +11,12 @@ class FakeAdapter:
         self,
         name: str,
         observed_point: type[ObservedPoint] = Position,
-        required_fields: frozenset[str] = frozenset({"registration"}),
+        query_field_sets: tuple[frozenset[str], ...] = (frozenset({"registration"}),),
         records: list[FetchedRecord] | None = None,
     ) -> None:
         self.name = name
         self.observed_point = observed_point
-        self.required_fields = required_fields
+        self.query_field_sets = query_field_sets
         self.records = records or []
         self.specs: list[QuerySpec] = []
         self.fail = False

@@ -4,7 +4,7 @@ from datetime import datetime
 from pydantic import ValidationError
 
 from core.collector.dispatcher import Dispatcher
-from core.collector.registry import AdapterRegistry
+from core.collector.registry import AdapterRegistry, match_query_fields
 from core.collector.repository import CursorRepository, ObservationRepository
 from core.target import ObservableTarget, ObservationEnvelope, TargetManager
 
@@ -54,10 +54,19 @@ class Collector:
             self._dispatcher.dispatch(observable, envelope)
         return new
 
-    def _collect_upstream(self, observable: ObservableTarget, upstream: str) -> list[ObservationEnvelope]:
+    def _collect_upstream(
+        self, observable: ObservableTarget, upstream: str
+    ) -> list[ObservationEnvelope]:
+        adapter = self._adapter_registry.get(upstream)
+        query_fields = match_query_fields(adapter, observable.target)
+        if query_fields is None:
+            # 目标记录更新后可能不再满足这个上游的任何查询方式
+            logger.warning("%s no longer satisfies any query of %s", observable.id, upstream)
+            return []
         cursor = self._cursors.get(observable.id, upstream)
-        spec = observable.query_spec(datetime.fromisoformat(cursor) if cursor else None)
-        records = self._adapter_registry.get(upstream).fetch(spec)
+        since = datetime.fromisoformat(cursor) if cursor else None
+        spec = observable.query_spec(query_fields, since)
+        records = adapter.fetch(spec)
 
         new: list[ObservationEnvelope] = []
         for record in sorted(records, key=lambda r: r.occurred_at):

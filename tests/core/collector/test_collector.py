@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 import pytest
 
@@ -10,12 +10,14 @@ from core.collector import (
     DuplicateAdapterError,
     FetchedRecord,
     UnknownAdapterError,
+    match_query_fields,
 )
 from core.target import (
     ObservableTarget,
     Observation,
     ObservationEnvelope,
     ObservedPoint,
+    Target,
     TargetManager,
 )
 from plugins.observed_points.position import Position, PositionObservation
@@ -82,13 +84,40 @@ def test_registry_is_upstream_catalog(env: Env) -> None:
         env.registry.get("nope")
 
 
-def test_upstreams_match_by_required_fields(env: Env) -> None:
-    env.registry.register(FakeAdapter("mode-s", required_fields=frozenset({"icao24"})))
+def test_upstreams_match_by_query_field_sets(env: Env) -> None:
+    env.registry.register(FakeAdapter("mode-s", query_field_sets=(frozenset({"icao24"}),)))
     no_icao = env.manager.get_target("t1")
     with_icao = Aircraft(id="t2", name="y", registration="B-1", icao24="780abc")
     # 查询要 icao24：没有这个值的目标用不了这个上游
     assert env.registry.upstreams_for(no_icao, Position) == ["adsb"]
     assert env.registry.upstreams_for(with_icao, Position) == ["adsb", "mode-s"]
+
+
+def test_one_upstream_several_query_ways() -> None:
+    """同一个上游对不同目标用不同的查询方式：飞机按 icao24，船按 mmsi——上游不认识目标类型。"""
+
+    class Ship(Target, frozen=True):
+        observed_points: ClassVar[tuple[type[ObservedPoint], ...]] = (Position,)
+        type: Literal["ship"] = "ship"
+        mmsi: str
+
+    tracker = FakeAdapter(
+        "global-track", query_field_sets=(frozenset({"icao24"}), frozenset({"mmsi"}))
+    )
+    plane = Aircraft(id="a1", name="x", registration="B-1", icao24="780abc")
+    ship = Ship(id="s1", name="y", mmsi="412000000")
+    bare_plane = Aircraft(id="a2", name="z", registration="B-2")
+
+    assert match_query_fields(tracker, plane) == {"icao24"}
+    assert match_query_fields(tracker, ship) == {"mmsi"}
+    assert match_query_fields(tracker, bare_plane) is None
+
+
+def test_query_spec_carries_matched_query(env: Env) -> None:
+    env.observable().acquire(Subscriber(), ["adsb"])
+    env.collector.collect()
+    (spec,) = env.adsb.specs
+    assert spec.query == {"registration": "B-2447"}
 
 
 def test_inactive_observables_are_not_collected(env: Env) -> None:

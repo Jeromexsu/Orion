@@ -13,9 +13,10 @@ class QuerySpec(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    type: str                   # 目标类型
+    type: str                   # 目标类型（Adapter 的查询逻辑确实依赖类型时可读它，匹配规则不看它）
     observed_point: str         # 观察点名，如 "position"
-    attributes: dict[str, Any]  # 目标属性
+    query: dict[str, Any]       # 这次采用的查询方式及其取值，如 {"mmsi": "412000000"}
+    attributes: dict[str, Any]  # 目标全部属性
     aliases: list[str] = Field(default_factory=list[str])
     since: datetime | None = None
 

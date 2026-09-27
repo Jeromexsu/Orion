@@ -21,8 +21,8 @@ class FetchedRecord(BaseModel):
 class Adapter(Protocol):
     """一个上游一个实现，放在 plugins/collector/ 下。
 
-    Adapter 不关心目标类型，只关心观察点和查询所需的字段——不同目标类型只要能提供这些字段，
-    就能用同一个 Adapter 观测。
+    Adapter 不关心目标类型，只关心观察点和查询方式——不同目标类型只要能满足其中一种查询方式，
+    就能用同一个 Adapter 观测。查询逻辑确实依赖类型时，可在 fetch 里读 QuerySpec.type 兜底。
     """
 
     @property
@@ -36,8 +36,13 @@ class Adapter(Protocol):
         ...
 
     @property
-    def required_fields(self) -> frozenset[str]:
-        """查询需要目标提供的字段（如 icao24）。目标这些字段都有值，才能用这个上游观测它。"""
+    def query_field_sets(self) -> tuple[frozenset[str], ...]:
+        """支持的查询方式，按优先级排列；每种是一组需要目标提供的字段。
+
+        目标满足其中任意一组（这些字段都有值），就能用这个上游观测它；采用第一组满足的，
+        取值放进 QuerySpec.query。例如 (frozenset({"icao24"}), frozenset({"mmsi"}))：
+        有 ICAO 地址的按它查，有 MMSI 的按它查——Adapter 不需要认识目标类型。
+        """
         ...
 
     def fetch(self, spec: QuerySpec) -> Sequence[FetchedRecord]:

@@ -118,8 +118,10 @@ Adapter 契约测试基类（检查返回的 fields 符合观察点、source_id 
 - **观察点（取代「关注点」与「动态数据 schema」）**：观察点与目标类型解耦，不同目标类型可共用。
   - `ObservedPoint` 子类（如 `Position`）就是观测 `fields` 的 schema，放在 `plugins/observed_points/`；
   - 目标类型用 `observed_points` 声明可以在哪些观察点被观测（取代原 `focuses`）；
-  - Adapter 声明 `observed_point`（服务哪个观察点）和 `required_fields`（查询需要目标提供的字段），不再引用目标类型；
-    可用上游 = 服务该观察点、且 `required_fields` 在目标上都有值的 Adapter（按字段名匹配）；
+  - Adapter 声明 `observed_point`（服务哪个观察点）和 `query_field_sets`（支持的查询方式：多组字段，按优先级），
+    不再引用目标类型；可用上游 = 服务该观察点、且目标满足其任意一种查询方式（该组字段都有值）的 Adapter；
+    采用第一种满足的查询方式，取值放进 `QuerySpec.query`。同一上游因此能对不同目标类型用不同字段查询
+    （如飞机按 icao24、船按 mmsi）。查询逻辑确实依赖目标类型时，Adapter 可在 fetch 里读 `QuerySpec.type` 兜底；
   - 约定：同名属性字段在所有目标类型里含义必须一致；若将来出现冲突，再引入有类型的能力接口；
   - `ObservableTarget(target, observed_point, upstreams)`；`QuerySpec.observed_point`、`ObservationDef.observed_point`
     存观察点名；`TargetManager` 从已注册目标类型收集观察点，重名报错。

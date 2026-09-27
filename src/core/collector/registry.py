@@ -25,11 +25,18 @@ class AdapterRegistry:
 
     # UpstreamCatalog
     def upstreams_for(self, target: Target, observed_point: type[ObservedPoint]) -> list[str]:
-        """服务该观察点、且查询所需字段目标都有值的上游（按字段名匹配）。"""
-        values = target.model_dump()
+        """服务该观察点、且目标满足其某种查询方式的上游。"""
         return [
             a.name
             for a in self._adapters.values()
-            if a.observed_point is observed_point
-            and all(values.get(f) is not None for f in a.required_fields)
+            if a.observed_point is observed_point and match_query_fields(a, target) is not None
         ]
+
+
+def match_query_fields(adapter: Adapter, target: Target) -> frozenset[str] | None:
+    """按优先级找出目标满足的第一种查询方式（按字段名匹配，字段须有值）；都不满足返回 None。"""
+    values = target.model_dump()
+    for fields in adapter.query_field_sets:
+        if all(values.get(f) is not None for f in fields):
+            return fields
+    return None
