@@ -2,16 +2,13 @@
 
 from collections.abc import Mapping
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any
 
 from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import BaseModel
 
 from core.condition_engine import (
-    HIT,
-    MISS,
-    NOT_APPLICABLE,
     ConditionCompiler,
     EvalResult,
     Evaluator,
@@ -22,11 +19,11 @@ from core.condition_engine import (
 from core.observation import Observation
 from tests.core.condition_engine.conftest import compile_, make_envelope
 
-outcomes = st.sampled_from([HIT, MISS, NOT_APPLICABLE])
+outcomes = st.sampled_from(list(Outcome))
 
 
 class FixedCriteria(BaseModel):
-    outcome: Literal["命中", "未命中", "不适用"]
+    outcome: Outcome
 
 
 @evaluator()
@@ -73,5 +70,5 @@ def test_de_morgan(xs: list[Outcome]) -> None:
 def test_not_applicable_is_neutral(xs: list[Outcome]) -> None:
     for op in ("all", "any"):
         base = run({"kind": "branch", "op": op, "children": [leaf(x) for x in xs]})
-        padded = run({"kind": "branch", "op": op, "children": [leaf(x) for x in xs] + [leaf(NOT_APPLICABLE)]})
+        padded = run({"kind": "branch", "op": op, "children": [leaf(x) for x in xs] + [leaf(Outcome.NOT_APPLICABLE)]})
         assert base == padded

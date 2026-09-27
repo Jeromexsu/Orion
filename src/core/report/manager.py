@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from core.report.errors import ReportLockedError, ReportNotFoundError
-from core.report.report import DRAFT, EDITING, SENT, Report
+from core.report.report import Report, ReportStatus
 from core.report.repository import ReportRepository
 
 
@@ -41,7 +41,7 @@ class ReportManager:
             source=source,
             title=title,
             content=content,
-            status=DRAFT,
+            status=ReportStatus.DRAFT,
             version=1,
             updated_at=_now(),
         )
@@ -58,7 +58,7 @@ class ReportManager:
         drafts = [
             r
             for r in self._report_repository.list_by_parent(parent_id)
-            if r.source == source and r.status == DRAFT
+            if r.source == source and r.status == ReportStatus.DRAFT
         ]
         latest = max(drafts, key=lambda r: r.updated_at, default=None)
         if latest is None:
@@ -77,10 +77,10 @@ class ReportManager:
             ReportLockedError: If it was already sent.
         """
         current = self.get(report_id)
-        if current.status == SENT:
+        if current.status == ReportStatus.SENT:
             raise ReportLockedError(f"{report_id} was already sent")
         title = title if title is not None else current.title
-        report = self._bump(current, title=title, content=content, status=EDITING)
+        report = self._bump(current, title=title, content=content, status=ReportStatus.EDITING)
         self._report_repository.upsert(report)
         return report
 
@@ -91,9 +91,9 @@ class ReportManager:
             ReportLockedError: If it was already sent.
         """
         current = self.get(report_id)
-        if current.status == SENT:
+        if current.status == ReportStatus.SENT:
             raise ReportLockedError(f"{report_id} was already sent")
-        report = current.model_copy(update={"status": SENT, "updated_at": _now()})
+        report = current.model_copy(update={"status": ReportStatus.SENT, "updated_at": _now()})
         self._report_repository.upsert(report)
         return report
 

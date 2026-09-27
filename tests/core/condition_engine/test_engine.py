@@ -6,15 +6,13 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from core.condition_engine import (
-    HIT,
-    MISS,
-    NOT_APPLICABLE,
     ConditionCompileError,
     ConditionCompiler,
     DuplicateEvaluatorError,
     EvalResult,
     Evaluator,
     EvaluatorRegistry,
+    Outcome,
     evaluator,
 )
 from core.observation import Observation
@@ -92,9 +90,9 @@ def test_empty_combinator_rejected(compiler: ConditionCompiler) -> None:
 
 def test_irrelevant_data_is_not_applicable(compiler: ConditionCompiler) -> None:
     tree = compile_(compiler, op("not", gt(100)))
-    assert tree.evaluate(make_envelope("t2:position", lat=1, lon=1), {}).outcome == NOT_APPLICABLE
+    assert tree.evaluate(make_envelope("t2:position", lat=1, lon=1), {}).outcome == Outcome.NOT_APPLICABLE
     # 高度为空：判断方式自己返回不适用
-    assert tree.evaluate(make_envelope("t1:position", lat=1, lon=1), {}).outcome == NOT_APPLICABLE
+    assert tree.evaluate(make_envelope("t1:position", lat=1, lon=1), {}).outcome == Outcome.NOT_APPLICABLE
 
 
 def test_stateful_leaf_returns_new_tree_state(compiler: ConditionCompiler) -> None:
@@ -102,14 +100,14 @@ def test_stateful_leaf_returns_new_tree_state(compiler: ConditionCompiler) -> No
     state: dict[str, dict[str, Any]] = {}
 
     outside = tree.evaluate(make_envelope("t1:position", lat=20, lon=20), state)
-    assert outside.outcome == MISS
+    assert outside.outcome == Outcome.MISS
     assert outside.state == {"root": {"inside": False}}
     assert state == {}  # 纯函数：不改入参
     assert outside.state is not None
     state = outside.state
 
     entered = tree.evaluate(make_envelope("t1:position", lat=5, lon=5), state)
-    assert entered.outcome == HIT
+    assert entered.outcome == Outcome.HIT
     assert entered.extracted == {"entered_at": {"lat": 5.0, "lon": 5.0}}
     assert entered.trace[0]["observation"]["lat"] == 5
     assert entered.state == {"root": {"inside": True}}
@@ -117,7 +115,7 @@ def test_stateful_leaf_returns_new_tree_state(compiler: ConditionCompiler) -> No
     state = entered.state
 
     staying = tree.evaluate(make_envelope("t1:position", lat=6, lon=6), state)
-    assert staying.outcome == MISS
+    assert staying.outcome == Outcome.MISS
     assert staying.state is None  # 还在区域内：状态没变
 
 
@@ -125,20 +123,20 @@ def test_not_applicable_keeps_state(compiler: ConditionCompiler) -> None:
     tree = compile_(compiler, enter())
     state = {"root": {"inside": True}}
     other = tree.evaluate(make_envelope("t2:position", lat=20, lon=20), state)
-    assert other.outcome == NOT_APPLICABLE
+    assert other.outcome == Outcome.NOT_APPLICABLE
     assert other.state is None
 
 
 def test_initial_as_enter(compiler: ConditionCompiler) -> None:
     tree = compile_(compiler, enter(initial_as_enter=True))
-    assert tree.evaluate(make_envelope("t1:position", lat=5, lon=5), {}).outcome == HIT
+    assert tree.evaluate(make_envelope("t1:position", lat=5, lon=5), {}).outcome == Outcome.HIT
 
 
 def test_combinators_never_short_circuit(compiler: ConditionCompiler) -> None:
     # any 的第一个子节点已命中，第二个有状态叶子仍然要更新
     tree = compile_(compiler, op("any", gt(0), enter()))
     result = tree.evaluate(make_envelope("t1:position", lat=5, lon=5, alt=100), {})
-    assert result.outcome == HIT
+    assert result.outcome == Outcome.HIT
     assert result.state == {"root/1": {"inside": True}}
     assert [t["path"] for t in result.trace] == ["root/0", "root/1"]
 
@@ -147,7 +145,7 @@ def test_not_applicable_is_neutral_in_all(compiler: ConditionCompiler) -> None:
     tree = compile_(compiler, op("all", gt(10), enter(observable="t2:position")))
     # 只有 t1 的数据：t2 的叶子不适用，不拖累 all
     result = tree.evaluate(make_envelope("t1:position", lat=50, lon=50, alt=100), {})
-    assert result.outcome == HIT
+    assert result.outcome == Outcome.HIT
     assert result.extracted == {"alt": 100}
 
 
@@ -182,7 +180,7 @@ class RecentCount(Evaluator[RecentCriteria, Observation]):
         window = [*state.get("window", []), now.isoformat()]
         window = [t for t in window if datetime.fromisoformat(t) > now - timedelta(hours=criteria.hours)]
         return EvalResult(
-            outcome=HIT if len(window) >= criteria.count else MISS, state={"window": window}
+            outcome=Outcome.HIT if len(window) >= criteria.count else Outcome.MISS, state={"window": window}
         )
 
 
@@ -202,7 +200,7 @@ class Spy(Evaluator[GtCriteria, Observation]):
     criteria: GtCriteria,
 ) -> EvalResult:
         self.seen.append((observation, occurred_at))
-        return EvalResult(outcome=MISS)
+        return EvalResult(outcome=Outcome.MISS)
 
 
 def test_evaluator_gets_a_copy_with_time() -> None:
@@ -236,7 +234,7 @@ def test_state_can_hold_a_sliding_window() -> None:
             state = result.state
         outcomes.append(result.outcome)
     # 第 3 条时 24h 内有 3 条；50h 时窗口只剩它自己；65h 时 50/60/65 三条
-    assert outcomes == [MISS, MISS, HIT, MISS, MISS, HIT]
+    assert outcomes == [Outcome.MISS, Outcome.MISS, Outcome.HIT, Outcome.MISS, Outcome.MISS, Outcome.HIT]
     assert len(state["root"]["window"]) == 3
 
 
@@ -256,7 +254,7 @@ def test_evaluator_decorator_defaults_and_overrides() -> None:
         state: Mapping[str, Any],
         criteria: GtCriteria,
     ) -> EvalResult:
-            return EvalResult(outcome=MISS)
+            return EvalResult(outcome=Outcome.MISS)
 
     assert (HTTPCheck.op, HTTPCheck.criteria_model, HTTPCheck.observation_model) == (
         "httpCheck",
@@ -271,7 +269,7 @@ def test_evaluator_needs_both_generic_arguments() -> None:
         @evaluator()
         class Untyped(Evaluator):  # type: ignore[type-arg]  # pyright: ignore
             def evaluate(self, observation, occurred_at, state, criteria):  # type: ignore  # pyright: ignore
-                return EvalResult(outcome=MISS)
+                return EvalResult(outcome=Outcome.MISS)
 
 
 def test_undeclared_evaluator_rejected_at_register() -> None:
@@ -283,7 +281,7 @@ def test_undeclared_evaluator_rejected_at_register() -> None:
         state: Mapping[str, Any],
         criteria: GtCriteria,
     ) -> EvalResult:
-            return EvalResult(outcome=MISS)
+            return EvalResult(outcome=Outcome.MISS)
 
     with pytest.raises(TypeError, match="@evaluator"):
         EvaluatorRegistry().register(Bare())

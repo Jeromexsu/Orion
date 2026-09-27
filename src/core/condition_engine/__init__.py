@@ -16,9 +16,6 @@ from core.condition_engine.errors import (
     UnknownEvaluatorError,
 )
 from core.condition_engine.evaluator import (
-    HIT,
-    MISS,
-    NOT_APPLICABLE,
     EvalResult,
     Evaluator,
     Outcome,
@@ -39,10 +36,7 @@ __all__ = [
     "EvaluatorRegistry",
     "evaluator",
     "DeclaredObservables",
-    "HIT",
     "LeafDef",
-    "MISS",
-    "NOT_APPLICABLE",
     "BranchDef",
     "Outcome",
     "TreeState",

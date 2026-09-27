@@ -1,14 +1,17 @@
 """Reports and their statuses."""
 
 from datetime import datetime
-from typing import Literal
+from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict
 
-DRAFT = "草稿"          # 机器可写
-EDITING = "编辑中"      # 分析师接手，机器不再写
-SENT = "已发出"         # 定稿，任何人不再改
-ReportStatus = Literal["草稿", "编辑中", "已发出"]
+
+class ReportStatus(StrEnum):
+    """报告的状态：草稿 →（分析师接手）编辑中 →（发出）已发出。"""
+
+    DRAFT = "draft"         # 草稿：机器可写
+    EDITING = "editing"     # 编辑中：分析师接手，机器不再写
+    SENT = "sent"           # 已发出：定稿，任何人不再改
 
 
 class Report(BaseModel):

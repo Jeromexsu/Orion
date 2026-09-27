@@ -3,7 +3,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
-from core.condition_engine import HIT
+from core.condition_engine import Outcome
 from core.event.errors import TemplateVersionError
 from core.event.event import Event
 from core.event.repository import TemplateRef
@@ -146,7 +146,7 @@ class EventRunner:
         # there is no active event
         if self._active is None:
             # open condition not triggered, return
-            if opened.outcome != HIT:
+            if opened.outcome != Outcome.HIT:
                 return
             # open condition triggered, open a new event for this cycle
             self._active = Event.open(

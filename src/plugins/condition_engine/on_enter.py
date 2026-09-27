@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from core.condition_engine import HIT, MISS, EvalResult, Evaluator, evaluator
+from core.condition_engine import EvalResult, Evaluator, Outcome, evaluator
 from plugins.observed_points.position import PositionObservation
 
 Point = tuple[float, float]                 # (lat, lon)
@@ -54,7 +54,7 @@ class OnEnter(Evaluator[OnEnterCriteria, PositionObservation]):
 
         entered = inside and (criteria.initial_as_enter if was_inside is None else not was_inside)
         return EvalResult(
-            outcome=HIT if entered else MISS,
+            outcome=Outcome.HIT if entered else Outcome.MISS,
             extracted={"entered_at": {"lat": position[0], "lon": position[1]}} if entered else {},
             state={"inside": inside},
         )

@@ -1,12 +1,10 @@
 import pytest
 
 from core.report import (
-    DRAFT,
-    EDITING,
-    SENT,
     ReportLockedError,
     ReportManager,
     ReportNotFoundError,
+    ReportStatus,
 )
 from tests.core.report.fakes import InMemoryReportRepository
 
@@ -19,7 +17,7 @@ def reports() -> ReportManager:
 def test_write_always_creates_a_draft(reports: ReportManager) -> None:
     r1 = reports.write("p1", "closeReport", "告警", "v1")
     r2 = reports.write("p1", "closeReport", "告警", "v2")
-    assert (r1.status, r1.version, r1.source) == (DRAFT, 1, "closeReport")
+    assert (r1.status, r1.version, r1.source) == (ReportStatus.DRAFT, 1, "closeReport")
     assert r1.id != r2.id
 
 
@@ -35,7 +33,7 @@ def test_roll_overwrites_only_its_own_source(reports: ReportManager) -> None:
 def test_roll_starts_a_new_draft_once_an_analyst_edits(reports: ReportManager) -> None:
     d = reports.roll("p1", "digest", "日报", "machine")
     edited = reports.edit(d.id, "human")
-    assert (edited.status, edited.version) == (EDITING, 2)
+    assert (edited.status, edited.version) == (ReportStatus.EDITING, 2)
     again = reports.roll("p1", "digest", "日报", "machine again")
     assert again.id != d.id and reports.get(d.id).content == "human"
 
@@ -43,7 +41,7 @@ def test_roll_starts_a_new_draft_once_an_analyst_edits(reports: ReportManager) -
 def test_send_freezes_the_report(reports: ReportManager) -> None:
     r = reports.write("p1", "digest", "日报", "x")
     sent = reports.send(r.id)
-    assert sent.status == SENT and sent.version == r.version
+    assert sent.status == ReportStatus.SENT and sent.version == r.version
     for action in (lambda: reports.edit(r.id, "y"), lambda: reports.send(r.id)):
         with pytest.raises(ReportLockedError):
             action()

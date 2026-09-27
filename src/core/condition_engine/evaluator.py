@@ -3,16 +3,20 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Mapping
 from datetime import datetime
-from typing import Any, ClassVar, Generic, Literal, TypeVar, get_args, get_origin
+from enum import StrEnum
+from typing import Any, ClassVar, Generic, TypeVar, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.observation import Observation
 
-HIT = "命中"
-MISS = "未命中"
-NOT_APPLICABLE = "不适用"
-Outcome = Literal["命中", "未命中", "不适用"]
+
+class Outcome(StrEnum):
+    """三值结果，不是 bool——「不适用」是为了 not / any 不会因为无关数据误判。"""
+
+    HIT = "hit"                         # 命中
+    MISS = "miss"                       # 未命中
+    NOT_APPLICABLE = "not_applicable"   # 不适用：不是这个叶子关心的数据
 
 
 class EvalResult(BaseModel):
@@ -26,7 +30,6 @@ class EvalResult(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    # 三值，不是 bool——“不适用”是为了 not/any 不会因为无关数据误判
     outcome: Outcome
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)  # 规则类恒为 1.0
     extracted: dict[str, Any] = Field(default_factory=dict[str, Any])  # 命中的关键词、地点、时间窗口

@@ -3,7 +3,7 @@ from typing import Any
 
 import pytest
 
-from core.condition_engine import HIT, EvalResult
+from core.condition_engine import EvalResult, Outcome
 from core.hil import Proposal, ProposalOrigin
 from core.hooks import (
     DuplicateHookError,
@@ -63,7 +63,7 @@ RULE_HIT = RuleHitOccasion(
         occurred_at=datetime(2026, 9, 26, tzinfo=UTC),
         source_id="adsb#1",
     ),
-    result=EvalResult(outcome=HIT),
+    result=EvalResult(outcome=Outcome.HIT),
 )
 
 

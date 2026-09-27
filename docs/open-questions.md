@@ -116,7 +116,6 @@ class RadarAdapter(UpstreamAdapter): ...
 ### 8. 其他（随审阅推进逐条确认）
 
 - 模板 ID 全局还是按父事件区分（现为全局：`TemplateRepository` 只按 template_id 存取）。
-- `EvalResult.outcome`、`Report.status` 的中文字面值是否对外改为英文枚举。
 - 父事件级钩子：已去掉 `Level`（原「父事件级」挂载没有任何触发点）；真需要时按那时的需求重新设计挂载点和触发。
 - 校准钩子的挂载点（设计文档待办）。
 - 异步执行钩子：只声明了 `external` 作用域的钩子不改监控状态，可以入队异步执行（`Event._run_hooks` 里的 TODO）；
@@ -143,6 +142,10 @@ class RadarAdapter(UpstreamAdapter): ...
 
 ## 已决
 
+- **固定取值一律用 `StrEnum`**（原第 8 条「`EvalResult.outcome`、`Report.status` 的中文字面值是否改为英文枚举」）：
+  `MountPoint`、`Scope`、`Outcome`（`hit` / `miss` / `not_applicable`）、`ReportStatus`（`draft` / `editing` / `sent`）。
+  代码里用成员、不写字符串（pyright 会拦下直接写的字符串）；值是英文字符串，模板 JSON / 存库照旧是字符串，
+  展示给人的中文由前端映射。原来的模块级常量 `HIT` / `DRAFT` 等去掉。
 - **判断方式要求一个观测类，不写字段名**（原待决第 10 条「`requires` 靠字段名对齐观测」）：
   `Evaluator[判定标准模型, 观测类]`，两个都从泛型参数读出（`criteria_model` / `observation_model`），`requires` 去掉；
   编译时检查 `issubclass(可观测目标产出的观测类, observation_model)`，靠 import 同一个类对齐；判断方式里观测是有类型的

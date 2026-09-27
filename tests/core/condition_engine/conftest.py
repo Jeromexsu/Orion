@@ -7,15 +7,13 @@ import pytest
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 from core.condition_engine import (
-    HIT,
-    MISS,
-    NOT_APPLICABLE,
     ConditionCompiler,
     ConditionDef,
     ConditionTree,
     EvalResult,
     Evaluator,
     EvaluatorRegistry,
+    Outcome,
     evaluator,
 )
 from core.observation import Observation, ObservationEnvelope
@@ -87,9 +85,9 @@ class Gt(Evaluator[GtCriteria, WithAltitude]):
         criteria: GtCriteria,
     ) -> EvalResult:
         if observation.alt is None:
-            return EvalResult(outcome=NOT_APPLICABLE)
+            return EvalResult(outcome=Outcome.NOT_APPLICABLE)
         hit = observation.alt > criteria.value
-        return EvalResult(outcome=HIT if hit else MISS, extracted={"alt": observation.alt} if hit else {})
+        return EvalResult(outcome=Outcome.HIT if hit else Outcome.MISS, extracted={"alt": observation.alt} if hit else {})
 
 
 # 可引用的可观测目标及其观测类：t1:position 有高度；t2:position 只是位置

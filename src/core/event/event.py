@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from core.condition_engine import HIT
+from core.condition_engine import Outcome
 from core.event.errors import EventClosedError
 from core.event.repository import EventRecord
 from core.event.runtime import EventRuntime
@@ -166,7 +166,7 @@ class Event:
             result = rule.tree.evaluate(envelope, state)
             if result.state is not None:
                 self._condition_state[rule.name] = result.state
-            if result.outcome == HIT:
+            if result.outcome == Outcome.HIT:
                 self._run_hooks(rule.mounts, RuleHitOccasion(envelope=envelope, result=result))
 
         self._run_hooks(

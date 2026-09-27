@@ -6,9 +6,6 @@ from typing import Any, Literal
 from pydantic import BaseModel
 
 from core.condition_engine.evaluator import (
-    HIT,
-    MISS,
-    NOT_APPLICABLE,
     EvalResult,
     Evaluator,
     Outcome,
@@ -68,7 +65,7 @@ class LeafNode(ConditionNode):
             observation, self.evaluator.observation_model
         ):
             # 不是这个叶子的可观测目标，或不是判断方式要求的观测类
-            return EvalResult(outcome=NOT_APPLICABLE), {}
+            return EvalResult(outcome=Outcome.NOT_APPLICABLE), {}
 
         old_state = dict(state.get(self.path, {}))
         leaf_state = MappingProxyType(dict(old_state))
@@ -89,7 +86,7 @@ class LeafNode(ConditionNode):
         # 判断方式返回的是本叶子的新状态；“不适用”不得改状态，和旧状态相同也不算变
         changes: _Changes = (
             {self.path: dict(result.state)}
-            if result.outcome != NOT_APPLICABLE
+            if result.outcome != Outcome.NOT_APPLICABLE
             and result.state is not None
             and result.state != old_state
             else {}
@@ -132,18 +129,18 @@ class BranchNode(ConditionNode):
         return result, changes
 
     def _combine(self, results: list[EvalResult]) -> tuple[Outcome, float, dict[str, Any]]:
-        applicable = [r for r in results if r.outcome != NOT_APPLICABLE]
-        hits = [r for r in applicable if r.outcome == HIT]
-        misses = [r for r in applicable if r.outcome == MISS]
+        applicable = [r for r in results if r.outcome != Outcome.NOT_APPLICABLE]
+        hits = [r for r in applicable if r.outcome == Outcome.HIT]
+        misses = [r for r in applicable if r.outcome == Outcome.MISS]
 
         if self.op == "not":
             r = results[0]
-            if r.outcome == NOT_APPLICABLE:
-                return NOT_APPLICABLE, 1.0, {}
-            return (MISS if r.outcome == HIT else HIT), r.confidence, {}
+            if r.outcome == Outcome.NOT_APPLICABLE:
+                return Outcome.NOT_APPLICABLE, 1.0, {}
+            return (Outcome.MISS if r.outcome == Outcome.HIT else Outcome.HIT), r.confidence, {}
 
         if not applicable:
-            return NOT_APPLICABLE, 1.0, {}
+            return Outcome.NOT_APPLICABLE, 1.0, {}
 
         extracted: dict[str, Any] = {}
         for r in hits:
@@ -151,13 +148,13 @@ class BranchNode(ConditionNode):
 
         if self.op == "all":
             if misses:
-                return MISS, max(r.confidence for r in misses), {}
-            return HIT, min(r.confidence for r in hits), extracted
+                return Outcome.MISS, max(r.confidence for r in misses), {}
+            return Outcome.HIT, min(r.confidence for r in hits), extracted
 
         # any
         if hits:
-            return HIT, max(r.confidence for r in hits), extracted
-        return MISS, min(r.confidence for r in misses), {}
+            return Outcome.HIT, max(r.confidence for r in hits), extracted
+        return Outcome.MISS, min(r.confidence for r in misses), {}
 
 
 class ConditionTree:

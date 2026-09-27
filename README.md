@@ -396,7 +396,7 @@ graph LR
 | event · 模板编译器 | `ConditionCompiler.compile(condition_def, declared_observables)` | 编译时：定义 → 条件树；错误收集后一次抛出，每条带节点路径（如 `root/1/0`） |
 | event · runner / 子事件 | `ConditionTree.evaluate(envelope, state)` | 运行时：纯函数求值；结果的 `state` 是整棵树的新状态（`None` = 没变），调用方保管 |
 | bootstrap | `EvaluatorRegistry.register` | 启动时注册判断方式 |
-| 跨模块传递的纯数据 | `ConditionDef`（`LeafDef` / `BranchDef`）、`EvalResult`（`HIT` / `MISS` / `NOT_APPLICABLE`） | — |
+| 跨模块传递的纯数据 | `ConditionDef`（`LeafDef` / `BranchDef`）、`EvalResult`（`Outcome.HIT` / `MISS` / `NOT_APPLICABLE`） | — |
 
 依赖：observation（只看观测和观测外壳，不关心目标）。
 
