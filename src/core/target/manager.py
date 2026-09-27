@@ -124,15 +124,16 @@ class TargetManager:
 
     # ------------------------------------------------------------ 可观测目标
 
-    def get_observable(self, target_id: str, observed_point: str) -> ObservableTarget:
-        """取（必要时创建）唯一的 ObservableTarget。observed_point 是观察点名。
+    def inspect_observable(
+        self, target_id: str, observed_point: str
+    ) -> tuple[type[ObservedPoint], tuple[str, ...]]:
+        """只查询、不创建：返回 (观察点, 可用上游)。检查与 get_observable 相同，不通过时抛同样的异常。
 
-        上游列表由这里问 UpstreamCatalog 得到；调用方随后自行 acquire(referencer, upstreams)。
+        给只需要校验的调用方（如模板编译）用，避免为最终被拒绝的模板创建可观测目标。
         """
-        key = observable_key(target_id, observed_point)
-        live = self._live.get(key)
+        live = self._live.get(observable_key(target_id, observed_point))
         if live is not None:
-            return live
+            return live.observed_point, live.upstreams
 
         point = self.get_observed_point(observed_point)
         target = self.get_target(target_id)
@@ -143,8 +144,20 @@ class TargetManager:
         upstreams = self._upstreams.upstreams_for(target, point)
         if not upstreams:
             raise NoUpstreamError(f"no upstream can observe {target_id} at {observed_point!r}")
+        return point, tuple(upstreams)
 
-        observable = ObservableTarget(target, point, upstreams)
+    def get_observable(self, target_id: str, observed_point: str) -> ObservableTarget:
+        """取（必要时创建）唯一的 ObservableTarget。observed_point 是观察点名。
+
+        上游列表由这里问 UpstreamCatalog 得到；调用方随后自行 acquire(referencer, upstreams)。
+        """
+        key = observable_key(target_id, observed_point)
+        live = self._live.get(key)
+        if live is not None:
+            return live
+
+        point, upstreams = self.inspect_observable(target_id, observed_point)
+        observable = ObservableTarget(self.get_target(target_id), point, upstreams)
         self._live[key] = observable
         self._observables.upsert(observable)
         return observable

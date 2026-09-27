@@ -26,6 +26,12 @@ def test_observables_are_compiled_once(env: Env) -> None:
     assert compiled.upstreams == {"adsb", "radar"}
 
 
+def test_failed_compile_creates_no_observable(env: Env) -> None:
+    with pytest.raises(TemplateCompileError):
+        compile_(env, template(threshold=0))  # 可观测目标声明合法，但算子参数非法
+    assert env.targets.find_observable("t1:position") is None
+
+
 def test_open_condition_is_required(env: Env) -> None:
     raw = template()
     del raw["open_condition_def"]

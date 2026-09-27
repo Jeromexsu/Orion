@@ -170,6 +170,17 @@ def test_get_observable_is_singleton(
     assert observables.items[a.id] is a
 
 
+def test_inspect_observable_does_not_create(
+    manager: TargetManager, plane: Target, observables: InMemoryObservableTargetRepository
+) -> None:
+    point, upstreams = manager.inspect_observable(plane.id, "position")
+    assert (point, upstreams) == (Position, ("adsb",))
+    assert manager.find_observable("t1:position") is None
+    assert observables.items == {}
+    with pytest.raises(UnknownObservedPointError):
+        manager.inspect_observable(plane.id, "fuel")
+
+
 def test_get_observable_errors(manager: TargetManager, plane: Target) -> None:
     with pytest.raises(TargetNotFoundError):
         manager.get_observable("missing", "position")
