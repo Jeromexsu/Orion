@@ -24,7 +24,7 @@ class Collector:
         dispatcher: Dispatcher,
     ) -> None:
         self._target_manager = target_manager
-        self._adapter_registry = upstream_adapter_registry
+        self._upstream_adapter_registry = upstream_adapter_registry
         self._cursor_repository = cursor_repository
         self._observation_repository = observation_repository
         self._dispatcher = dispatcher
@@ -61,8 +61,25 @@ class Collector:
     def _collect_upstream(
         self, observable: ObservableTarget, upstream: str
     ) -> list[ObservationEnvelope]:
+        """Collect new observations of one observable target from one upstream.
+
+        Stores them in the observation repository and advances the cursor of this
+        (observable target, upstream) pair. Does not dispatch: collect_one dispatches
+        once all upstreams of the observable target are done. Skips records already
+        stored (same source_id) and records whose observation does not match the
+        observable target's observed point.
+
+        Args:
+            observable: The observable target to collect for.
+            upstream: Name of the upstream adapter to query.
+
+        Returns:
+            Newly stored envelopes, sorted by occurred_at. Empty if the target of
+            this observable target no longer provides the query keys of any query
+            way of this upstream (e.g. after the target record was updated).
+        """
         # get upstream adapter
-        adapter = self._adapter_registry.get(upstream)
+        adapter = self._upstream_adapter_registry.get(upstream)
 
         # build query based on target fields required by upstream adapter
         query = adapter.choose_query(observable.target.query_values())

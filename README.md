@@ -25,6 +25,8 @@ uv run pyright        # 类型检查（core 六个模块 strict）
 uv run lint-imports   # 模块依赖边界
 ```
 
+代码约定（docstring 风格、命名、插件写法）见 [CLAUDE.md](CLAUDE.md)。
+
 ## 架构
 
 ### 模块依赖
