@@ -143,9 +143,9 @@ class EventRunner:
             self._active = Event.open(
                 self._parent_id,
                 self._template,
+                envelope.occurred_at.year,   # 周期：触发开启的这条观测发生的年份
                 self._runtime,
                 self.target_names,
-                cycle=envelope.occurred_at.year,
             )
 
         # hand over to the active event, then save it
@@ -232,5 +232,5 @@ class EventRunner:
                 )
             )
             return None
-        return Event(record, self._template, self._runtime, self.target_names)
+        return Event.restore(record, self._template, self._runtime, self.target_names)
 

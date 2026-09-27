@@ -31,26 +31,30 @@ class Event:
 
     def __init__(
         self,
-        record: EventRecord,
+        event_id: str,
+        parent_id: str,
         template: EventTemplate,
+        cycle: int,
         runtime: EventRuntime,
         target_names: Callable[[], Mapping[str, str]],
+        *,
+        opened_at: datetime,
+        status: dict[str, Any] | None = None,
+        condition_state: dict[str, dict[str, Any]] | None = None,
+        closed_at: datetime | None = None,
+        close_reason: str | None = None,
     ) -> None:
-        if (record.template_id, record.template_version) != (template.id, template.version):
-            raise ValueError(
-                f"event {record.id} does not belong to template {template.id} v{template.version}"
-            )
-        self._id = record.id
-        self._parent_id = record.parent_id
+        self._id = event_id
+        self._parent_id = parent_id
         self._template = template
+        self._cycle = cycle
         self._runtime = runtime
         self._target_names = target_names
-        self._status: dict[str, Any] = dict(record.status)
-        self._condition_state: dict[str, dict[str, Any]] = dict(record.condition_state)
-        self._cycle = record.cycle
-        self._opened_at = record.opened_at
-        self._closed_at = record.closed_at
-        self._close_reason = record.close_reason
+        self._opened_at = opened_at
+        self._status: dict[str, Any] = status or {}
+        self._condition_state: dict[str, dict[str, Any]] = condition_state or {}
+        self._closed_at = closed_at
+        self._close_reason = close_reason
         self._in_status_hooks = False
 
     @classmethod
@@ -58,24 +62,43 @@ class Event:
         cls,
         parent_id: str,
         template: EventTemplate,
+        cycle: int,
         runtime: EventRuntime,
         target_names: Callable[[], Mapping[str, str]],
-        cycle: int,
     ) -> "Event":
         """新建子事件并跑 created 钩子，返回它。不写库（由 runner 存档）。"""
-        record = EventRecord(
-            id=uuid4().hex,
-            parent_id=parent_id,
-            template_id=template.id,
-            template_version=template.version,
-            cycle=cycle,
-            status={},
-            condition_state={},
-            opened_at=_now(),
+        event = cls(
+            uuid4().hex, parent_id, template, cycle, runtime, target_names, opened_at=_now()
         )
-        event = cls(record, template, runtime, target_names)
         event._run_hooks(template.hooks_at("created"), Trigger(mount_point="created"))
         return event
+
+    @classmethod
+    def restore(
+        cls,
+        record: EventRecord,
+        template: EventTemplate,
+        runtime: EventRuntime,
+        target_names: Callable[[], Mapping[str, str]],
+    ) -> "Event":
+        """重启恢复：从记录还原状态，不跑钩子、不写库。记录必须属于这个模板版本，否则抛 ValueError。"""
+        if (record.template_id, record.template_version) != (template.id, template.version):
+            raise ValueError(
+                f"event {record.id} does not belong to template {template.id} v{template.version}"
+            )
+        return cls(
+            record.id,
+            record.parent_id,
+            template,
+            record.cycle,
+            runtime,
+            target_names,
+            opened_at=record.opened_at,
+            status=dict(record.status),
+            condition_state=dict(record.condition_state),
+            closed_at=record.closed_at,
+            close_reason=record.close_reason,
+        )
 
     # ------------------------------------------------------------ 只读
 
