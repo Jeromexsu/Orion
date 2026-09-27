@@ -38,6 +38,7 @@ from core.event.repository import (
 from core.event.runner import EventRunner
 from core.event.runtime import EventRuntime, ParentEventServices
 from core.event.template import CompiledObservable, CompiledRule, EventTemplate
+from core.event.upstream import UpstreamCatalog
 
 __all__ = [
     "CompiledObservable",
@@ -69,4 +70,5 @@ __all__ = [
     "TemplateRepository",
     "TemplateScopeError",
     "TemplateVersionError",
+    "UpstreamCatalog",
 ]

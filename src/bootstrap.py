@@ -101,10 +101,7 @@ def build_app(repos: Repositories) -> App:
     target_type_registry = TargetTypeRegistry()
     target_type_registry.register(Aircraft)
     target_manager = TargetManager(target_type_registry, repos.target_repository)
-    observable_target_factory = ObservableTargetFactory(
-        target_manager,
-        upstream_adapter_registry,
-    )
+    observable_target_factory = ObservableTargetFactory(target_manager)
 
     collector = Collector(
         target_manager,
@@ -131,7 +128,11 @@ def build_app(repos: Repositories) -> App:
             target_manager=target_manager,
             template_repository=repos.template_repository,
             template_compiler=TemplateCompiler(
-                condition_compiler, MountCompiler(hook_registry), observable_target_factory
+                condition_compiler,
+                MountCompiler(hook_registry),
+                target_manager,
+                upstream_adapter_registry,
+                observable_target_factory,
             ),
             report_manager=report_manager,
         ),

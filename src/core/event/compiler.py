@@ -7,10 +7,11 @@ from core.condition_engine import (
 from core.event.definitions import TemplateDef
 from core.event.errors import TemplateCompileError
 from core.event.template import CompiledObservable, CompiledRule, EventTemplate
+from core.event.upstream import UpstreamCatalog
 from core.hooks import Mount, MountCompileError, MountCompiler
-from core.observable import ObservableError, ObservableTargetFactory
+from core.observable import ObservableTargetFactory
 from core.observation import Observation
-from core.target import TargetError
+from core.target import TargetError, TargetManager
 
 
 class TemplateCompiler:
@@ -20,16 +21,20 @@ class TemplateCompiler:
         self,
         condition_compiler: ConditionCompiler,
         mount_compiler: MountCompiler,
+        target_manager: TargetManager,
+        upstream_catalog: UpstreamCatalog,
         observable_target_factory: ObservableTargetFactory,
     ) -> None:
         self._condition_compiler = condition_compiler
         self._mount_compiler = mount_compiler
+        self._target_manager = target_manager
+        self._upstream_catalog = upstream_catalog
         self._observable_target_factory = observable_target_factory
 
     def compile(self, template_def: TemplateDef) -> EventTemplate:
         """编译并校验整个模板，所有错误一次收集进 TemplateCompileError。
 
-        分两个阶段：先只校验、不产生副作用（可观测目标声明用 ObservableTargetFactory.inspect_observable 检查，
+        分两个阶段：先只校验、不产生副作用（可观测目标声明只读目标、问 UpstreamCatalog 检查，
         观察点产出的观测类交给条件编译器）；全部通过后，才取得（必要时创建）可观测目标。
         因此被拒绝的模板不会留下可观测目标。
         """
@@ -80,11 +85,17 @@ class TemplateCompiler:
                 errors.append(f"{where}: duplicate")
                 continue
             try:
-                point, available = self._observable_target_factory.inspect_observable(
-                    o.target_id, o.observed_point
-                )
-            except (TargetError, ObservableError) as e:
+                target = self._target_manager.get_target(o.target_id)
+            except TargetError as e:
                 errors.append(f"{where}: {e}")
+                continue
+            point = type(target).find_observed_point(o.observed_point)
+            if point is None:
+                errors.append(f"{where}: {target.type} has no observed point {o.observed_point!r}")
+                continue
+            available = self._upstream_catalog.upstreams_for(target, point)
+            if not available:
+                errors.append(f"{where}: no upstream can observe it")
                 continue
             unavailable = sorted(set(o.upstreams) - set(available))
             if unavailable:

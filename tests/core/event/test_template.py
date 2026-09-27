@@ -2,9 +2,13 @@ from typing import Any
 
 import pytest
 
-from core.event import EventTemplate, TemplateCompileError, TemplateDef
+from core.condition_engine import ConditionCompiler, EvaluatorRegistry
+from core.event import EventTemplate, TemplateCompileError, TemplateCompiler, TemplateDef
+from core.hooks import MountCompiler
+from plugins.condition_engine.on_enter import OnEnter
 from plugins.hooks.count_hits import CountHitsParams
 from tests.core.event.conftest import Env, enter, mount, template
+from tests.core.event.fakes import StaticUpstreamCatalog
 
 
 def compile_(env: Env, raw: dict[str, Any]) -> EventTemplate:
@@ -91,3 +95,20 @@ def test_observable_defs_are_resolved(env: Env) -> None:
     assert any("observable_def 't1:position': upstreams ['satellite'] not in available" in e for e in errors)
     assert any(e.startswith("observable_def 'ghost:position': ") for e in errors)
     assert any(e.startswith("observable_def 't2:fuel': ") for e in errors)
+    assert any("observable_def 't2:fuel': aircraft has no observed point 'fuel'" in e for e in errors)
+
+
+def test_observable_without_upstream_rejected(env: Env) -> None:
+    evaluators = EvaluatorRegistry()
+    evaluators.register(OnEnter())
+    compiler = TemplateCompiler(
+        ConditionCompiler(evaluators),
+        MountCompiler(env.hook_registry),
+        env.targets,
+        StaticUpstreamCatalog({}),                  # 没有任何上游能观测
+        env.observables,
+    )
+    with pytest.raises(TemplateCompileError) as info:
+        compiler.compile(TemplateDef.model_validate(template()))
+    assert any("no upstream can observe it" in e for e in info.value.errors)
+    assert env.observables.observables() == []

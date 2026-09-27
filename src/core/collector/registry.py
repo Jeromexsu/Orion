@@ -5,7 +5,7 @@ from core.target import Target
 
 
 class UpstreamAdapterRegistry:
-    """UpstreamAdapter 注册表。结构化地实现 target 的 UpstreamCatalog。"""
+    """UpstreamAdapter 注册表。结构化地实现 event 的 UpstreamCatalog（模板编译时校验上游）。"""
 
     def __init__(self) -> None:
         self._adapters: dict[str, UpstreamAdapter] = {}

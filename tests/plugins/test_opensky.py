@@ -66,9 +66,7 @@ def test_collector_end_to_end() -> None:
     target_types = TargetTypeRegistry()
     target_types.register(Aircraft)
     manager = TargetManager(target_types, InMemoryTargetRepository())
-    observables = ObservableTargetFactory(
-        manager, registry
-    )
+    observables = ObservableTargetFactory(manager)
     manager.upsert_target(
         Aircraft(id="t1", name="MU5101", registration="B-2447", icao24="780a3b")
     )
@@ -77,7 +75,7 @@ def test_collector_end_to_end() -> None:
     )
 
     observable = observables.get_observable("t1", "position")
-    assert observables.inspect_observable("t1", "position")[1] == ("openSky",)
+    assert registry.upstreams_for(manager.get_target("t1"), Position) == ["openSky"]
     sub = Subscriber()
     observable.subscribe(sub, ["openSky"])
 

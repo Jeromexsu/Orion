@@ -143,7 +143,8 @@ graph LR
 ```
 
 可用上游 = 服务该观察点、且目标能提供其某种查询方式要的全部查询键（字段有值）的 UpstreamAdapter。
-每次用到都按目标当前的查询键现算（`ObservableTargetFactory.inspect_observable`），目标更新后自然生效。
+只在模板编译时用到：`TemplateCompiler` 按目标当前的查询键问 `UpstreamCatalog`（event 定义、collector 实现）现算，
+校验模板里写的上游都能用。可观测目标本身不关心上游能不能用。
 一个上游 = 一个数据提供方，可以服务多个观察点（`fetch` 按 `observed_point` 分支）；模板里写的上游名就是提供方的名字。
 游标、订阅、路由都按（可观测目标, 上游）组织，可观测目标里已带观察点，所以同一上游的不同观察点互不干扰。
 上游不认识目标类型：同一个上游可以对飞机按 `Icao24`、对船按 `Mmsi` 查询。
@@ -198,7 +199,7 @@ class Aircraft(Target):
 | bootstrap | `TargetTypeRegistry.register` | 启动时注册目标类型（检查声明和查询键关联），注册表注入 `TargetManager` / `ObservableTargetFactory` |
 | API 层（待建） | `TargetManager.parse` / `upsert_target` / `get_target` / `find_by_alias` / `remove_target` | 目标的增删改查；`parse` 把 JSON 按 `type` 还原成对应的目标类型 |
 | event · 父事件 | `TargetManager.get_target` | 确认目标存在、取展示名 |
-| event · 模板编译器 | `ObservableTargetFactory.inspect_observable` / `get_observable` | 先只检查（不创建），全部通过后取得 / 创建可观测目标 |
+| event · 模板编译器 | `TargetManager.get_target` + `Target.find_observed_point`；`ObservableTargetFactory.get_observable` | 先只读目标、在它类型里找观察点来检查（不碰工厂、不创建），全部通过后取得 / 创建可观测目标 |
 | event · runner | `ObservableTarget.subscribe` / `unsubscribe`；回调 `Subscriber.on_observation` | 按上游订阅；收观测 |
 | collector | `ObservableTargetFactory.active_observables`；`ObservableTarget.active_upstreams` / `accepts` / `publish`；`TargetManager.get_target` + `Target.query_values` | 找要采集的可观测目标和上游；检查观测类型；发布；采集时按 `target_id` 取当前的目标及其查询键 |
 
@@ -206,8 +207,7 @@ class Aircraft(Target):
 
 - target：`TargetRepository`（持久化层实现）。target 不知道谁在引用它：别的模块只按 ID 引用、用到时现读，
   取不到就当目标已不存在（collector 记日志跳过）。删除目标改为归档见 open-questions。
-- observable：`UpstreamCatalog`（collector 的 `UpstreamAdapterRegistry` 实现）。可观测目标纯运行时、不存库：
-  重启后 event 重新编译模板、重新订阅时再建。
+- observable：无。可观测目标纯运行时、不存库：重启后 event 重新编译模板、重新订阅时再建；不管上游能不能用。
 
 扩展点有三个，都用装饰器声明（写法见上文）：
 
@@ -225,7 +225,7 @@ class Aircraft(Target):
 |---|---|---|
 | `Collector.collect()` | 调度器 | 运行时，定时：对全部活跃可观测目标采集一轮 |
 | `Collector.collect_one(observable)` | 调度器 / 以后的「手动刷新」 | 运行时，按需：立即采集一个可观测目标 |
-| `UpstreamAdapterRegistry.upstreams_for()`（即 observable 的 `UpstreamCatalog`） | `ObservableTargetFactory` | 运行时，查可观测目标时问「哪些上游能观测它」（按当前的目标现算）。observable 只认协议，bootstrap 注入 |
+| `UpstreamAdapterRegistry.upstreams_for()`（即 event 的 `UpstreamCatalog`） | `TemplateCompiler` | 模板编译时问「哪些上游能观测这个目标」（按当前的目标现算），校验模板里写的上游。event 只认协议，bootstrap 注入 |
 | `UpstreamAdapterRegistry.register()` | bootstrap | 启动时注册全部上游适配器 |
 
 要别人提供的（collector 定义接口，持久化层实现）：`CursorRepository`（每个（可观测目标, 上游）一个游标）、
@@ -490,7 +490,7 @@ Django 的 `apps.get_model` 是一回事；加上「按名字创建对象」就�
 | 数据里的名字 | 注册表 | 查到的插件 | 谁查 |
 |---|---|---|---|
 | 目标记录 / JSON 的 `type`（`"aircraft"`） | `TargetTypeRegistry` | 目标类型（类，如 `Aircraft`） | `TargetManager`：还原记录、解析 JSON |
-| 模板里的 `upstreams`（`"opensky"`） | `UpstreamAdapterRegistry` | 上游适配器（实例） | `Collector`、`ObservableTargetFactory`（经 `UpstreamCatalog`） |
+| 模板里的 `upstreams`（`"opensky"`） | `UpstreamAdapterRegistry` | 上游适配器（实例） | `Collector`、`TemplateCompiler`（经 `UpstreamCatalog`） |
 | 条件叶子的 `op`（`"onEnter"`） | `EvaluatorRegistry` | 判断方式（实例） | `ConditionCompiler` |
 | 挂载的 `hook`（`"countHits"`） | `HookRegistry` | 钩子（实例） | `MountCompiler` |
 
@@ -512,7 +512,7 @@ core 里反复出现的几条原则，都有通用的名字：
 | 原则 | 在这里的做法 | 通用说法 |
 |---|---|---|
 | **按身份引用，不持有别人的对象** | `ObservableTarget` 只存 `target_id`，用到目标时向 `TargetManager` 现读；父事件的命名空间也只存目标 ID | DDD：聚合之间按身份引用（reference other aggregates by identity） |
-| **一份数据只存一处，派生的现算** | 可用上游按目标当前的查询键现算，不存快照；子事件的钩子状态、条件状态各存一处 | 单一数据源（single source of truth）；不做反规范化缓存 |
+| **一份数据只存一处，派生的现算** | 可用上游在模板编译时按目标当前的查询键现算，不存快照；子事件的钩子状态、条件状态各存一处 | 单一数据源（single source of truth）；不做反规范化缓存 |
 | **同一身份在内存里只有一个对象** | `ObservableTargetFactory` 保证每个（目标, 观察点）只有一个 `ObservableTarget` | 标识映射（Identity Map，Fowler《企业应用架构模式》）；享元工厂（FlyweightFactory，GoF） |
 | **按上游路由的发布 / 订阅** | runner 按上游订阅可观测目标，collector 采集后由可观测目标 `publish` | 观察者模式；消息系统的 topic / subscription |
 | **接口定义在使用方** | `UpstreamCatalog`、`ProposalSink`、`ReportWriter`、各 `*Repository` 由用它的模块定义，提供方结构化实现，bootstrap 装配 | 依赖倒置（DIP）；端口与适配器（六边形架构） |

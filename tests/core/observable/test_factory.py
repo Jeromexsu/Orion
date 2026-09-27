@@ -1,7 +1,6 @@
 import pytest
 
 from core.observable import (
-    NoUpstreamError,
     ObservableTargetFactory,
     UnsupportedObservedPointError,
 )
@@ -14,24 +13,16 @@ from core.target import (
 from plugins.observed_points.position import Position
 from plugins.query_keys.registration import Registration
 from plugins.target.aircraft import Aircraft
-from tests.core.observable.fakes import (
-    StaticUpstreamCatalog,
-    Subscriber,
-)
+from tests.core.observable.fakes import Subscriber
 from tests.core.target.fakes import InMemoryTargetRepository, Ship
 
 
-def make(
-    table: dict[tuple[str, str], list[str]], *types: type[Target]
-) -> tuple[TargetManager, ObservableTargetFactory]:
+def make(*types: type[Target]) -> tuple[TargetManager, ObservableTargetFactory]:
     target_types = TargetTypeRegistry()
     for t in types:
         target_types.register(t)
     targets = TargetManager(target_types, InMemoryTargetRepository())
-    observables = ObservableTargetFactory(
-        targets, StaticUpstreamCatalog(table)
-    )
-    return targets, observables
+    return targets, ObservableTargetFactory(targets)
 
 
 def test_get_observable_is_singleton(
@@ -45,47 +36,27 @@ def test_get_observable_is_singleton(
     assert observable_factory.observables() == [a]
 
 
-def test_inspect_observable_does_not_create(
-    observable_factory: ObservableTargetFactory, plane: Target
-) -> None:
-    point, upstreams = observable_factory.inspect_observable(plane.id, "position")
-    assert (point, upstreams) == (Position, ("adsb",))
-    assert observable_factory.observables() == []
-    with pytest.raises(UnsupportedObservedPointError):
-        observable_factory.inspect_observable(plane.id, "fuel")
-
-
 def test_get_observable_errors(
     observable_factory: ObservableTargetFactory, target_types: TargetTypeRegistry, plane: Target
 ) -> None:
     with pytest.raises(TargetNotFoundError):
         observable_factory.get_observable("missing", "position")
-    with pytest.raises(UnsupportedObservedPointError):     # 没有哪种类型有这个观察点
+    with pytest.raises(UnsupportedObservedPointError):     # 飞机没有这个观察点
         observable_factory.get_observable(plane.id, "fuel")
     target_types.register(Ship)
     with pytest.raises(UnsupportedObservedPointError):  # 吃水是船的观察点，飞机不能被这样观测
         observable_factory.get_observable(plane.id, "draught")
 
 
-def test_get_observable_without_upstream() -> None:
-    targets, observables = make({}, Aircraft)
-    targets.upsert_target(Aircraft(id="t1", name="x", registration="B"))
-    with pytest.raises(NoUpstreamError):
-        observables.get_observable("t1", "position")
-
-
 def test_shared_observed_point_across_types() -> None:
-    targets, observables = make(
-        {("aircraft", "position"): ["adsb"], ("ship", "position"): ["ais"]}, Aircraft, Ship
-    )
+    targets, observables = make(Aircraft, Ship)
     targets.upsert_target(Aircraft(id="a1", name="x", registration="B-1"))
     targets.upsert_target(Ship(id="s1", name="y", mmsi="412000000"))
 
     plane = observables.get_observable("a1", "position")
     ship = observables.get_observable("s1", "position")
     assert plane.observed_point is ship.observed_point is Position
-    assert observables.inspect_observable("a1", "position")[1] == ("adsb",)
-    assert observables.inspect_observable("s1", "position")[1] == ("ais",)
+    assert plane is not ship
 
 
 def test_active_observables_follow_subscribers(

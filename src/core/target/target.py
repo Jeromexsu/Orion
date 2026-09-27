@@ -98,6 +98,15 @@ class Target(BaseModel):
         """子类声明的属性字段（不含基类字段），持久化用。"""
         return self.model_dump(exclude=set(_BASE_FIELDS))
 
+    @classmethod
+    def find_observed_point(cls, name: str) -> builtins.type[ObservedPoint] | None:
+        """The observed point of this target type with this name; None if it has none.
+
+        Names are resolved within the type only: a template always names an observed
+        point together with a target, so no global table of observed points is needed.
+        """
+        return next((p for p in cls.observed_points if p.name == name), None)
+
     def to_record(self) -> TargetRecord:
         """转成与类型无关的持久化记录：子类属性字段收进 attributes。from_record 是它的逆操作。"""
         return TargetRecord(

@@ -1,7 +1,10 @@
+from collections.abc import Sequence
 from typing import Any
 
 from core.event import EventRecord, ParentEventRecord, TemplateDef
 from core.hil import Proposal
+from core.observation import ObservedPoint
+from core.target import Target
 
 
 class InMemoryParentEventRepository:
@@ -89,3 +92,14 @@ class InMemoryRunnerStateRepository:
 
     def remove(self, parent_id: str, template_id: str) -> None:
         self.items.pop((parent_id, template_id), None)
+
+
+class StaticUpstreamCatalog:
+    def __init__(self, table: dict[tuple[str, str], list[str]]) -> None:
+        self.table = table
+
+    def upstreams_for(
+        self, target: Target, observed_point: type[ObservedPoint]
+    ) -> Sequence[str]:
+        """table 按 (目标类型名, 观察点名) 配置。"""
+        return self.table.get((target.type, observed_point.name), [])

@@ -32,8 +32,8 @@ from tests.core.event.fakes import (
     InMemoryRunnerStateRepository,
     InMemoryTemplateRepository,
     RecordingSink,
+    StaticUpstreamCatalog,
 )
-from tests.core.observable.fakes import StaticUpstreamCatalog
 from tests.core.report.fakes import InMemoryReportRepository
 from tests.core.target.fakes import InMemoryTargetRepository
 
@@ -114,10 +114,7 @@ class Env:
         target_types = TargetTypeRegistry()
         target_types.register(Aircraft)
         targets = TargetManager(target_types, self.target_repo)
-        observables = ObservableTargetFactory(
-            targets,
-            StaticUpstreamCatalog({("aircraft", "position"): ["adsb", "radar"]}),
-        )
+        observables = ObservableTargetFactory(targets)
         return targets, observables
 
     def make_services(
@@ -131,6 +128,8 @@ class Env:
             template_compiler=TemplateCompiler(
                 ConditionCompiler(evaluator_registry),
                 MountCompiler(self.hook_registry),
+                targets,
+                StaticUpstreamCatalog({("aircraft", "position"): ["adsb", "radar"]}),
                 observables,
             ),
             report_manager=self.reports,

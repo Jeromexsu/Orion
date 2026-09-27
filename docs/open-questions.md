@@ -147,6 +147,11 @@ class RadarAdapter(UpstreamAdapter): ...
 
 ## 已决
 
+- **上游能不能用是模板编译的事，不是可观测目标的事**：可观测目标早已不存、不校验上游，`UpstreamCatalog` 只是借
+  observable 给模板编译器转手（event 不能依赖 collector）。按「接口定义在使用方」挪到 event（`core/event/upstream.py`），
+  `TemplateCompiler` 注入 `TargetManager` + `UpstreamCatalog` 自己检查：读目标、`Target.find_observed_point` 找观察点、
+  问可用上游——不碰工厂，所以被拒的模板不会留下可观测目标。`inspect_observable`、`NoUpstreamError` 去掉（没有上游
+  成为模板编译错误的一条）；`ObservableTargetFactory` 只需要 `TargetManager`，只剩取或创建、列出。
 - **可观测目标不存库，`ObservableTargetManager` 改名 `ObservableTargetFactory`**（原待决第 2 条「`ObservableTargetRepository` 是否保留」）：
   仓库只写不读，重启靠 event 重新编译模板、重新订阅；可观测目标只剩目标 ID + 观察点，都能从模板推出来——去掉。
   没了存库和生命周期，它就不是 manager，而是单例工厂（享元模式的 FlyweightFactory：按键取共享实例，没有就创建）。
@@ -159,7 +164,7 @@ class RadarAdapter(UpstreamAdapter): ...
 - **target 拆成 observation / target / observable 三个模块**：
   - observation（零依赖）：观察点、观测、观测外壳——观测长什么样，与目标无关。
   - target（→ observation）：目标类型、目标实例、查询键、`TargetTypeRegistry`、`TargetManager`。
-  - observable（→ target、observation）：`ObservableTarget`、单例表 `ObservableTargetFactory`、`UpstreamCatalog`、
+  - observable（→ target、observation）：`ObservableTarget`、单例表 `ObservableTargetFactory`、`UpstreamCatalog`（后挪到 event）、
     `ObservableTargetRepository`（后来去掉，见「可观测目标不存库」）。可观测目标是对目标的引用（只存 ID）+ 观察点 + 订阅，不是目标的增强版。
   - 删目标时「有没有人在用」一度做成 `TargetReferrer`（删前逐个问引用方），后来去掉：被引用方不该负责跨聚合的规则，
     而且现在没有任何地方会删目标。`remove_target` 只删记录；引用方按 ID 取不到就跳过（collector 记日志）。

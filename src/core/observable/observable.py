@@ -74,7 +74,7 @@ class ObservableTarget:
         """订阅指定上游。同一订阅者再次 subscribe 会用新的上游集合替换旧的。只改内存，不写库。
 
         不检查上游是否可用：那取决于当时的目标，由调用方事先查（模板编译时经
-        ObservableTargetFactory.inspect_observable）；采集时目标已不满足的上游由 collector 跳过。
+        event 的 TemplateCompiler）；采集时目标已不满足的上游由 collector 跳过。
         上游为空抛 UnsupportedUpstreamError。
         """
         wanted = frozenset(upstreams)

@@ -72,9 +72,7 @@ class Env:
         target_types = TargetTypeRegistry()
         target_types.register(Aircraft)
         self.manager = TargetManager(target_types, InMemoryTargetRepository())
-        self.observables = ObservableTargetFactory(
-            self.manager, self.registry
-        )
+        self.observables = ObservableTargetFactory(self.manager)
         self.manager.upsert_target(Aircraft(id="t1", name="x", registration="B-2447"))
         self.cursors = InMemoryCursorRepository()
         self.observations = InMemoryObservationRepository()
@@ -95,7 +93,7 @@ def test_registry_is_upstream_catalog(env: Env) -> None:
     plane = env.manager.get_target("t1")
     assert env.registry.upstreams_for(plane, Position) == ["adsb"]
     assert env.registry.upstreams_for(plane, Fuel) == []
-    assert env.observables.inspect_observable("t1", "position")[1] == ("adsb",)
+    assert env.registry.upstreams_for(env.manager.get_target("t1"), Position) == ["adsb"]
     with pytest.raises(DuplicateUpstreamAdapterError):
         env.registry.register(FakeUpstreamAdapter("adsb"))
     with pytest.raises(UnknownUpstreamAdapterError):
@@ -115,10 +113,10 @@ def test_available_upstreams_follow_the_current_target(env: Env) -> None:
     """可观测目标不缓存目标：目标补上 icao24 后，可用上游随之变化，同一个可观测目标照用。"""
     env.registry.register(FakeUpstreamAdapter("mode-s", query_key_sets=(frozenset({Icao24}),)))
     obs = env.observable()
-    assert env.observables.inspect_observable("t1", "position")[1] == ("adsb",)
+    assert env.registry.upstreams_for(env.manager.get_target("t1"), Position) == ["adsb"]
 
     env.manager.upsert_target(Aircraft(id="t1", name="x", registration="B-2447", icao24="780abc"))
-    assert env.observables.inspect_observable("t1", "position")[1] == ("adsb", "mode-s")
+    assert env.registry.upstreams_for(env.manager.get_target("t1"), Position) == ["adsb", "mode-s"]
     assert env.observable() is obs
 
 
@@ -239,7 +237,7 @@ def test_only_subscribed_upstreams_are_fetched_and_routed(env: Env) -> None:
     radar = FakeUpstreamAdapter("radar")
     env.registry.register(radar)
     obs = env.observable()
-    assert env.observables.inspect_observable("t1", "position")[1] == ("adsb", "radar")
+    assert env.registry.upstreams_for(env.manager.get_target("t1"), Position) == ["adsb", "radar"]
 
     adsb_only, both = Subscriber(), Subscriber()
     obs.subscribe(adsb_only, ["adsb"])
@@ -328,9 +326,7 @@ def test_one_adapter_serves_several_observed_points() -> None:
     target_types = TargetTypeRegistry()
     target_types.register(Tanker)
     manager = TargetManager(target_types, InMemoryTargetRepository())
-    observables = ObservableTargetFactory(
-        manager, registry
-    )
+    observables = ObservableTargetFactory(manager)
     manager.upsert_target(Tanker(id="k1", name="x", registration="B-1"))
     cursors = InMemoryCursorRepository()
     collector = Collector(
@@ -339,8 +335,8 @@ def test_one_adapter_serves_several_observed_points() -> None:
 
     position = observables.get_observable("k1", "position")
     fuel = observables.get_observable("k1", "fuel")
-    assert observables.inspect_observable("k1", "position")[1] == ("provider",)
-    assert observables.inspect_observable("k1", "fuel")[1] == ("provider",)
+    tanker = manager.get_target("k1")
+    assert registry.upstreams_for(tanker, Position) == registry.upstreams_for(tanker, Fuel) == ["provider"]
     assert (position.target_id, fuel.target_id) == ("k1", "k1")
     at_position, at_fuel = Subscriber(), Subscriber()
     position.subscribe(at_position, ["provider"])

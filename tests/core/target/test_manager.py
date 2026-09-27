@@ -15,7 +15,7 @@ from core.target import (
 )
 from plugins.observed_points.position import Position
 from plugins.target.aircraft import Aircraft
-from tests.core.target.fakes import InMemoryTargetRepository, Ship
+from tests.core.target.fakes import Draught, InMemoryTargetRepository, Ship
 
 # ---------------------------------------------------------------- 类型
 
@@ -73,6 +73,12 @@ def test_attributes_are_validated_on_construction() -> None:
         "registration": "B-1",
         "icao24": None,
     }
+
+
+def test_observed_points_are_found_within_the_type() -> None:
+    assert Ship.find_observed_point("draught") is Draught
+    assert Ship.find_observed_point("position") is Position
+    assert Aircraft.find_observed_point("draught") is None   # 吃水是船的观察点
 
 
 def test_record_round_trip() -> None:
