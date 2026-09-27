@@ -41,7 +41,7 @@ from tests.core.target.fakes import (
 
 SQUARE = [(0.0, 0.0), (0.0, 10.0), (10.0, 10.0), (10.0, 0.0)]
 ALL_MOUNTS: frozenset[MountPoint] = frozenset(
-    {"created", "closed", "pre", "rule_hit", "status_updated", "post"}
+    {"created", "closed", "pre", "rule_hit", "post"}
 )
 
 
@@ -61,14 +61,6 @@ class Recorder(Hook[NoParams]):
 
     def run(self, params: NoParams, ctx: HookContext, occasion: Occasion) -> None:
         self.log.calls.append((self.name, occasion.mount_point))
-
-
-@hook(mount_points={"status_updated"}, scopes={"event"})
-class Echo(Hook[NoParams]):
-    """直接作用于子事件，挂在 status_updated：再次 update_status 用来验证不会无限递归。"""
-
-    def run(self, params: NoParams, ctx: HookContext, occasion: Occasion) -> None:
-        ctx.event.update_status({"echoed": int(ctx.state.get("echoed", 0)) + 1})
 
 
 @hook(mount_points={"pre"}, proposes=True)
@@ -104,7 +96,7 @@ class Env:
         self.drafts = InMemoryDraftRepository()
         self.reports = ReportManager(self.drafts)
         self.hook_registry = HookRegistry()
-        for hook in (CountHits(), Recorder(self.log), Echo(), Spotter(), Boom(), CloseReport(self.reports)):
+        for hook in (CountHits(), Recorder(self.log), Spotter(), Boom(), CloseReport(self.reports)):
             self.hook_registry.register(hook)
 
         self.sink = RecordingSink()
@@ -168,8 +160,14 @@ class Env:
         )
 
 
-def mount(hook: str, mount_point: str, **params: Any) -> dict[str, Any]:
-    return {"hook": hook, "mount_point": mount_point, "params": params}
+def mount(
+    hook: str, *at: str, rules: list[str] | None = None, name: str | None = None, **params: Any
+) -> dict[str, Any]:
+    """A MountDef as JSON: mounted at the mount points in at and on the rules in rules."""
+    raw: dict[str, Any] = {"hook": hook, "at": list(at), "rules": rules or [], "params": params}
+    if name is not None:
+        raw["name"] = name
+    return raw
 
 
 def enter(observable: str = "t1:position", initial: bool = False) -> dict[str, Any]:
@@ -202,10 +200,9 @@ def template(
             {
                 "name": "enter",
                 "condition_def": enter(observable, initial=True),
-                "mount_defs": [mount("countHits", "rule_hit", threshold=threshold)],
             }
         ],
-        "mount_defs": mounts or [],
+        "mount_defs": [mount("countHits", rules=["enter"], threshold=threshold), *(mounts or [])],
     }
 
 

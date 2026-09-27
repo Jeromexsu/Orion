@@ -116,12 +116,12 @@ def test_open_condition_gates_instances(env: Env) -> None:
     instance = runner.active
     assert instance is not None
     assert instance.cycle == 2026
-    assert instance.status == {"hits": 1}
+    assert instance.hook_state == {"countHits": {"hits": 1}}
     assert env.runner_states.get("p1", "enter-zone") == {"root": {"inside": True}}
 
 
 def test_lifecycle_and_open_state_during_run(env: Env) -> None:
-    parent = make_parent(env, threshold=3, mounts=[mount("recorder", m) for m in ("created", "closed")])
+    parent = make_parent(env, threshold=3, mounts=[mount("recorder", "created", "closed")])
     runner = parent.runner("enter-zone")
     runner.on_observation(env.envelope(*OUTSIDE))
     runner.on_observation(env.envelope(*INSIDE))  # 开启，hits=1
@@ -155,15 +155,20 @@ def test_unsubscribed_data_ignored(env: Env) -> None:
     assert runner.active is None and runner.open_state == {}
 
 
-def test_status_hook_recursion_is_bounded(env: Env) -> None:
-    parent = make_parent(env, threshold=5, mounts=[mount("echo", "status_updated")])
+def test_hook_state_is_kept_per_mount(env: Env) -> None:
+    """同一个钩子挂两次（名字不同），各记各的；一个挂载挂在多处，状态只有一份。"""
+    parent = make_parent(
+        env,
+        threshold=5,
+        mounts=[mount("countHits", rules=["enter"], name="again", threshold=5)],
+    )
     runner = parent.runner("enter-zone")
     open_cycle(env, runner)
     runner.on_observation(env.envelope(*OUTSIDE))
     runner.on_observation(env.envelope(*INSIDE))
     active = runner.active
     assert active is not None
-    assert active.status == {"hits": 2, "echoed": 2}
+    assert active.hook_state == {"countHits": {"hits": 2}, "again": {"hits": 2}}
 
 
 def test_proposals_flow_to_sink(env: Env) -> None:
@@ -263,13 +268,13 @@ def test_restore(env: Env) -> None:
     assert restored.template.version == 1
     assert restored.pending is not None and restored.pending.version == 2
     assert restored.active is not None and restored.active.id == active.id
-    assert restored.active.status == {"hits": 1}
+    assert restored.active.hook_state == {"countHits": {"hits": 1}}
     assert restored.open_state == {"root": {"inside": True}}
 
     # 规则的条件状态也恢复了：仍在区域内不算再次进入，hits 不变
     # （若状态丢失，首次观测按 initial_as_enter=True 会误判为进入，hits 变成 2）
     restored.on_observation(env.envelope(6, 6))
-    assert restored.active.status == {"hits": 1}
+    assert restored.active.hook_state == {"countHits": {"hits": 1}}
 
 
 def test_restore_failure_is_isolated(env: Env) -> None:
@@ -282,7 +287,7 @@ def test_restore_failure_is_isolated(env: Env) -> None:
 def test_close_request_waits_for_the_rest_of_the_observation(env: Env) -> None:
     """countHits 在 rule_hit 请求关闭；post 钩子照样跑完，之后才关闭。"""
     parent = make_parent(
-        env, threshold=1, mounts=[mount("recorder", m) for m in ("post", "closed")]
+        env, threshold=1, mounts=[mount("recorder", "post", "closed")]
     )
     runner = parent.runner("enter-zone")
     runner.on_observation(env.envelope(20, 20))
@@ -293,12 +298,13 @@ def test_close_request_waits_for_the_rest_of_the_observation(env: Env) -> None:
 
 
 def test_undeclared_capability_is_isolated(env: Env) -> None:
-    """没声明 scopes={"event"} 的钩子碰 ctx.event 会出错，但只影响它自己：状态不变、别的钩子照跑。"""
+    """没声明 scopes={"event"} 的钩子碰 ctx.event 会出错，但只影响它自己：不关闭、状态不变、别的钩子照跑。"""
 
     @hook(mount_points={"pre"})
     class Sneaky(Hook[NoParams]):
-        def run(self, params: NoParams, ctx: HookContext, occasion: Occasion) -> None:
-            ctx.event.update_status({"sneaky": True})
+        def run(self, params: NoParams, ctx: HookContext, occasion: Occasion) -> dict[str, Any]:
+            ctx.event.close("sneaky")
+            return {"sneaky": True}
 
     env.hook_registry.register(Sneaky())
     parent = make_parent(env, mounts=[mount("sneaky", "pre"), mount("recorder", "pre")])
@@ -306,5 +312,5 @@ def test_undeclared_capability_is_isolated(env: Env) -> None:
     runner.on_observation(env.envelope(20, 20))
     runner.on_observation(env.envelope(5, 5))
     assert runner.active is not None
-    assert "sneaky" not in runner.active.status
+    assert "sneaky" not in runner.active.hook_state
     assert env.log.calls == [("recorder", "pre")]

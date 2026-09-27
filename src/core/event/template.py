@@ -16,7 +16,7 @@ class CompiledObservable:
 
 
 class CompiledRule:
-    """编译后的规则：规则名 + 条件树 + 命中时跑的挂载（rule_hit）。"""
+    """编译后的规则：规则名 + 条件树 + 命中时跑的挂载（rules 里列了这条规则的挂载，按声明顺序）。"""
 
     def __init__(self, name: str, tree: ConditionTree, mounts: tuple[Mount, ...]) -> None:
         self.name = name
@@ -79,5 +79,5 @@ class EventTemplate:
         return self._template_def.target_ids
 
     def mounts_at(self, mount_point: MountPoint) -> tuple[Mount, ...]:
-        """挂在某个挂载点上的模板级挂载，按声明顺序（rule_hit 挂在各规则上）。"""
-        return tuple(m for m in self._mounts if m.mount_point == mount_point)
+        """at 里有这个挂载点的挂载，按声明顺序（rule_hit 的挂载在各规则上）。"""
+        return tuple(m for m in self._mounts if mount_point in m.at)

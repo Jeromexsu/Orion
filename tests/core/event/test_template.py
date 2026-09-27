@@ -42,16 +42,17 @@ def test_open_condition_is_required(env: Env) -> None:
 
 
 def test_compile_collects_errors(env: Env) -> None:
-    raw = template(mounts=[mount("countHits", "rule_hit"), mount("nope", "post")])
+    raw = template(
+        mounts=[
+            mount("countHits", "rule_hit"),     # 和默认那个重名；rule_hit 不能写在 at
+            mount("nope", "post"),
+            mount("recorder", rules=["ghost"]),
+            mount("recorder", name="idle"),     # 哪儿都没挂
+        ]
+    )
     raw["observable_defs"].append(dict(raw["observable_defs"][0]))
     raw["open_condition_def"] = enter("t2:position")  # 未在可观测目标声明里
-    raw["rule_defs"].append(
-        {
-            "name": "enter",
-            "condition_def": enter("ghost:position"),
-            "mount_defs": [mount("recorder", "post")],
-        }
-    )
+    raw["rule_defs"].append({"name": "enter", "condition_def": enter("ghost:position")})
     with pytest.raises(TemplateCompileError) as info:
         compile_(env, raw)
     errors = info.value.errors
@@ -60,9 +61,19 @@ def test_compile_collects_errors(env: Env) -> None:
     assert any(e.startswith("open_condition_def: root: unknown observable 't2:position'") for e in errors)
     assert any("duplicate rule names ['enter']" in e for e in errors)
     assert any(e.startswith("rule 'enter': root: unknown observable") for e in errors)
-    assert any("rule mounts must be at 'rule_hit'" in e for e in errors)
-    assert any("mount 0: 'rule_hit' mounts belong on a rule" in e for e in errors)
-    assert any(e.startswith("mount 1: ") and "nope" in e for e in errors)
+    assert any("duplicate mount names ['countHits']" in e for e in errors)
+    assert any("mount 'countHits': 'rule_hit' is not a place of its own" in e for e in errors)
+    assert any(e.startswith("mount 'nope': unknown hook") for e in errors)
+    assert any("mount 'recorder': unknown rules ['ghost']" in e for e in errors)
+    assert any("mount 'idle': mounted nowhere" in e for e in errors)
+
+
+def test_one_mount_runs_at_several_places(env: Env) -> None:
+    t = compile_(env, template(mounts=[mount("closeReport", "closed", rules=["enter"])]))
+    (report,) = t.mounts_at("closed")
+    assert report.name == "closeReport"
+    assert [m.name for m in t.rules[0].mounts] == ["countHits", "closeReport"]
+    assert t.rules[0].mounts[1] is report       # 同一个挂载，同一份状态
 
 
 def test_invalid_mount_params(env: Env) -> None:

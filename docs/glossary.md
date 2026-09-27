@@ -32,13 +32,14 @@
 | 子事件 | `Event` | 模板的一次运行（一个周期）；同一模板同时最多一个 |
 | 周期 | `cycle` | 子事件的周期标识：触发开启的那条数据发生的年份。子事件是以年为周期重复发生的事情 |
 | 开启条件 | `open_condition_def` / `EventTemplate.open_tree` | 无活跃子事件时命中才开新子事件 |
-| 规则 | `RuleDef` / `CompiledRule` | 子事件运行期间逐条评估的条件，命中时触发挂在它上面的钩子 |
+| 规则 | `RuleDef` / `CompiledRule` | 子事件运行期间逐条评估的条件，命中时跑 `rules` 里列了它的挂载 |
 | 钩子 | `Hook`（用 `@hook` 声明） | 挂在子事件生命周期上的动作；按「作用域 × 是否提议」声明能做什么 |
 | 作用域 | `Scope`：`external` / `event` / `parent` / `target` | 钩子影响哪一块。直接作用只开放 `external`（系统外部）和 `event`（子事件）；`parent`（父事件）/ `target`（目标）只能提议 |
 | 提议 | `proposes=True` → `ctx.propose(...)` | 交给 hil，分析师确认后才执行；影响哪个作用域由提议的动作决定 |
-| 挂载 | `MountDef`（定义）/ `Mount`（编译后，`MountCompiler`） | 在某个挂载点挂一个钩子，带参数；编译成持有钩子实例和有类型参数的 `Mount` |
-| 调用时机 | `Occasion`（`CreatedOccasion` / `ObservationOccasion` / `RuleHitOccasion` / `StatusUpdatedOccasion` / `ClosedOccasion`） | 钩子为什么被调用：在哪个挂载点、当时发生了什么 |
-| 钩子上下文 | `HookContext` | 钩子运行时拿到的：只读信息，以及声明过的能力（`ctx.event`、`ctx.propose`）；参数不在里面，单独传给 `run` |
+| 挂载 | `MountDef`（定义）/ `Mount`（编译后，`MountCompiler`） | 把一个钩子挂在一处或多处（`at` 里的挂载点 + `rules` 里各规则的 `rule_hit`），带参数；按名字（默认钩子名）在模板内唯一 |
+| 钩子状态 | `Event.hook_state`：挂载名 → 状态 | 每个挂载一份，`run` 返回新状态来改，不需要作用域；和条件状态（规则名 → 状态）对照 |
+| 调用时机 | `Occasion`（`CreatedOccasion` / `ObservationOccasion` / `RuleHitOccasion` / `ClosedOccasion`） | 钩子为什么被调用：在哪个挂载点、当时发生了什么 |
+| 钩子上下文 | `HookContext` | 钩子运行时拿到的：本挂载的状态副本、只读信息，以及声明过的能力（`ctx.event`、`ctx.propose`）；参数不在里面，单独传给 `run` |
 
 ## 条件（condition_engine）
 

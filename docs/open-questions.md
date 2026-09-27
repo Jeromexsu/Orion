@@ -139,25 +139,6 @@ class RadarAdapter(UpstreamAdapter): ...
 - 合并方式（相乘 / 取小）；组合节点（all / any）对可信度的合并规则是否要随之调整；
 - 同一观察点的不同观测（如有无高度）是否也影响可信度。
 
-### 12. 子事件的 `status` 是没有结构的公共箩筐
-
-现状：`Event` 的 `status` 是 `dict[str, Any]`。声明了 `scopes={"event"}` 的钩子经 `ctx.event.update_status(patch)` 往里写
-任意键，所有钩子都能从 `ctx.state`（副本）读到。它存进子事件记录，由汇总报告、关闭报告原样输出。条件状态另放在
-`condition_state`，钩子看不到，不在此列。
-
-问题：
-- **键会撞**：两条规则各挂一个 `countHits`，共用 `"hits"`，会互相覆盖，而且没人察觉。
-- **靠字符串耦合**：一个钩子写 `"hits"`，另一个钩子或报告读 `"hits"`，中间没有声明。和第 10 条 `requires` 靠字段名对齐是同一类问题。
-- **没有结构**：报告、前端、以后的 API 都不知道里面有什么，只能整个 dict 输出。
-
-可能的方向：
-- A. **按挂载分区**：每个挂载只读写自己那一格，读别人的要显式声明。解决撞键，但挂载需要稳定标识（规则名 + 序号？模板改版后会变）。
-- B. **钩子声明状态模型**：像参数一样用 Pydantic 模型声明自己那份状态，`ctx` 给出有类型的状态，写入时校验；配合 A 分区。
-- C. **模板声明业务状态**：面向人的业务字段（如「阶段：预警 / 确认 / 结束」）由模板定义，钩子只能写声明过的字段，报告按它展示。
-
-倾向：把钩子自己的「工作状态」（计数器、滑动窗口）和面向人的「业务状态」分开，前者走 B，后者走 C。
-目前只有 `countHits` 一个钩子写状态，还感觉不到痛；等出现第二、三个会改状态的钩子时再定。
-
 ### 8. 其他（随审阅推进逐条确认）
 
 - 模板 ID 全局还是按父事件区分（现为全局：`TemplateRepository` 只按 template_id 存取）。
@@ -171,6 +152,17 @@ class RadarAdapter(UpstreamAdapter): ...
 
 ## 已决
 
+- **钩子状态按挂载分区**（原待决第 12 条「`status` 是没有结构的公共箩筐」）：
+  - 原来的 `status` 其实是钩子存状态用的，和条件状态是一对，按对照补齐：条件状态按规则名分、判断方式返回新状态；
+    钩子状态（`hook_state`）按挂载名分、`Hook.run` 返回新状态（`None` 不变）。钩子之间互相看不到，撞键问题消失。
+  - 存自己的状态不需要作用域；`event` 作用域只剩请求关闭（`ctx.event.close`），`update_status` 去掉。
+  - 去掉 `status_updated` 挂载点：没有公共状态可反应。钩子之间不再靠状态键配合；要配合就写成一个钩子，
+    **一个挂载挂在多处**：`MountDef(hook, name, at, rules, params)`，`at` 列挂载点、`rules` 列规则（在其 `rule_hit`
+    跑），几处共用这一份状态。规则不再自带挂载（`RuleDef.mount_defs` 去掉）。代码层面表达能力不降，代价是配合
+    从模板挪到代码：模板里不能再拼两个靠状态配合的小钩子。
+  - 挂载名默认钩子名，模板内唯一（同一钩子挂两次要起不同的 `name`）；引用的规则必须存在——由模板编译器查。
+  - `ClosedOccasion` 带上关闭原因；`closeReport` 改为挂在 `rule_hit` + `closed` 的示例。
+  - 面向人的业务状态（如「阶段：预警 / 确认」）没有做；真需要时由模板声明，另成一块，不和钩子状态混。
 - **统一命名：钩子（hook）、挂载（mount）、提议（proposal）**：
   - 算子（operator）一律改叫钩子：`core/hooks`、`plugins/hooks`、`Hook` / `@hook` / `HookContext` / `HookRegistry`。
   - 挂载的定义和编译产物挪进 hooks（原来在 event）：`MountDef`（原 `OperatorMountDef`，字段 `hook` 原 `operator`）→
@@ -188,7 +180,7 @@ class RadarAdapter(UpstreamAdapter): ...
     `parent` / `target` 只能经提议——`@hook` 声明时就拒绝。condition 不是作用域（无状态，条件状态由求值推进，
     外部不该碰）；collector 的游标、观测也不开放。
   - 声明：`@hook(mount_points=..., scopes=..., proposes=...)`，`name` 默认类名首字母小写，参数模型取泛型参数
-    `Hook[CountHitsParams]`。上下文 `HookContext` 按声明组装：`ctx.event`（`update_status`、`close`）要
+    `Hook[CountHitsParams]`。上下文 `HookContext` 按声明组装：`ctx.event`（`update_status`、`close`；`update_status` 后来去掉，见上条）要
     `scopes={"event"}`，`ctx.propose` 要 `proposes=True`，用了没声明的能力抛 `UndeclaredCapabilityError`；只读信息
     （参数、状态副本、目标名、父事件 / 子事件 ID）始终都有。对外输出通道构造时注入，不进上下文。
     去掉 `Category`（推进 = `scopes={"event"}`，发现 / 校正 = `proposes=True`，输出 = `scopes={"external"}`）和 `Level`。
@@ -201,7 +193,7 @@ class RadarAdapter(UpstreamAdapter): ...
 
 - **钩子的调用时机 `Occasion`**（原 `Trigger`）：它只是一条记录——钩子这次在哪个挂载点、因为什么被调用，附带当时的数据；
   按挂载点分类型组成可辨识联合（以 `mount_point` 区分），字段不再是「可能为 None」：`CreatedOccasion` /
-  `ObservationOccasion`（pre、post：envelope）/ `RuleHitOccasion`（envelope + result）/ `StatusUpdatedOccasion`（patch）/
+  `ObservationOccasion`（pre、post：envelope）/ `RuleHitOccasion`（envelope + result）/ `StatusUpdatedOccasion`（patch，后来随 `status_updated` 去掉）/
   `ClosedOccasion`；`run(occasion, ctx)`，钩子用 `match` / `isinstance` 分支。`MountPoint` 挪到 `hook.py`，
   `trigger.py` 改为 `occasion.py`（`Category` / `Level` 后来去掉，见下条「钩子按作用域 × 是否提议声明」）。
   与原设想不同：「只挂 `rule_hit` 的钩子直接声明只收 `RuleHitOccasion`」没有做——子类收窄参数类型违反覆写规则

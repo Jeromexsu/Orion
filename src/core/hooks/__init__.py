@@ -34,7 +34,6 @@ from core.hooks.occasion import (
     ObservationOccasion,
     Occasion,
     RuleHitOccasion,
-    StatusUpdatedOccasion,
 )
 from core.hooks.registry import HookRegistry
 from core.hooks.sink import ProposalSink
@@ -59,7 +58,6 @@ __all__ = [
     "HookRegistry",
     "RuleHitOccasion",
     "Scope",
-    "StatusUpdatedOccasion",
     "ProposalSink",
     "UndeclaredCapabilityError",
     "UnknownHookError",

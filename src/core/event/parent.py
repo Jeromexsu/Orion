@@ -188,7 +188,7 @@ class ParentEvent:
             closed = sum(1 for r in runner.history() if r.closed_at is not None)
             active = runner.active
             state = (
-                f"{active.cycle} 周期进行中 {dict(active.status)}" if active else "未开启"
+                f"{active.cycle} 周期进行中 {dict(active.hook_state)}" if active else "未开启"
             )
             pending = f"（v{runner.pending.version} 待下个周期生效）" if runner.pending else ""
             lines.append(

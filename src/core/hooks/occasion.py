@@ -5,7 +5,7 @@ set (no Optional). Pydantic so an occasion can later travel with an async output
 through a queue.
 """
 
-from typing import Annotated, Any, Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -40,28 +40,19 @@ class RuleHitOccasion(BaseModel):
     result: EvalResult          # the hit rule's evaluation result
 
 
-class StatusUpdatedOccasion(BaseModel):
-    """The event's status was updated by a hook with the event scope."""
-
-    model_config = ConfigDict(frozen=True)
-
-    mount_point: Literal["status_updated"] = "status_updated"
-    patch: dict[str, Any]       # what was merged into the status
-
-
 class ClosedOccasion(BaseModel):
     """The event is being closed."""
 
     model_config = ConfigDict(frozen=True)
 
     mount_point: Literal["closed"] = "closed"
+    reason: str                 # why it closes, e.g. "converged"
 
 
 Occasion = Annotated[
     CreatedOccasion
     | ObservationOccasion
     | RuleHitOccasion
-    | StatusUpdatedOccasion
     | ClosedOccasion,
     Field(discriminator="mount_point"),
 ]

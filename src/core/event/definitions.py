@@ -26,13 +26,12 @@ class ObservableDef(BaseModel):
 
 
 class RuleDef(BaseModel):
-    """规则：子事件运行期间，条件命中时跑哪些钩子。"""
+    """规则：子事件运行期间逐条评估的条件。命中时跑哪些钩子由挂载的 rules 引用它决定。"""
 
     model_config = ConfigDict(frozen=True)
 
     name: str                   # 模板内唯一，条件状态按它分组
     condition_def: ConditionDef
-    mount_defs: list[MountDef] = Field(default_factory=list[MountDef])  # 只能挂 rule_hit
 
 
 class TemplateDef(BaseModel):
@@ -50,7 +49,7 @@ class TemplateDef(BaseModel):
     # 开启条件：无活跃子事件时命中才开新子事件（runner 在运行期间也持续评估以保持状态最新）
     open_condition_def: ConditionDef
     rule_defs: list[RuleDef] = Field(min_length=1)
-    # 子事件级挂载：created / closed / pre / status_updated / post（rule_hit 挂在规则上）
+    # 挂载：每个挂载一份钩子状态，可以同时挂在多个挂载点（at）和多条规则的 rule_hit 上（rules）
     mount_defs: list[MountDef] = Field(default_factory=list[MountDef])
 
     @property

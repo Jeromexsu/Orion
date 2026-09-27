@@ -11,8 +11,8 @@ from core.hooks.occasion import Occasion
 
 # 挂载点是核心结构事实，固定这几个：
 #   生命周期 created / closed · 数据进入 pre（不算条件，启发钩子专用）
-#   条件命中 rule_hit · 状态变更后 status_updated · 后置 post
-MountPoint = Literal["created", "closed", "pre", "rule_hit", "status_updated", "post"]
+#   条件命中 rule_hit · 后置 post
+MountPoint = Literal["created", "closed", "pre", "rule_hit", "post"]
 
 # 作用域：钩子影响哪一块。external 是系统外部（报告、通知）；event / parent / target 是监控运行状态
 Scope = Literal["external", "event", "parent", "target"]
@@ -46,14 +46,20 @@ class Hook(ABC, Generic[P]):
     params_model: ClassVar[type[BaseModel]]         # 由 @hook 设置；挂载参数的形状
 
     @abstractmethod
-    def run(self, params: P, ctx: HookContext, occasion: Occasion) -> None:
+    def run(self, params: P, ctx: HookContext, occasion: Occasion) -> dict[str, Any] | None:
         """Run once. Exceptions are isolated and logged by the event.
 
         Args:
             params: This mount's parameters, validated against params_model at compile time.
-            ctx: Read-only information about the event, and the capabilities it declared.
+            ctx: This mount's state (a copy), read-only information about the event, and
+                the capabilities it declared.
             occasion: Why it is being run — the mount point and what happened there;
                 match on its type to get the fields that mount point always has.
+
+        Returns:
+            The mount's new state, which the event stores in place of the old one;
+            None to leave it unchanged. One mount has one state across every place it is
+            mounted, so a hook mounted at several places can carry what it saw between them.
         """
         ...
 

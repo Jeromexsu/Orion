@@ -41,5 +41,5 @@ def test_collect_drives_sub_event_to_close() -> None:
 
     (record,) = env.events.history("p1", "enter-zone")
     assert record.close_reason == "converged"
-    assert record.status == {"hits": 2}   # 关闭是请求出来的，不再写进状态
+    assert record.hook_state == {"countHits": {"hits": 2}}
     assert record.cycle == 2026

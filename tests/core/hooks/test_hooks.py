@@ -30,11 +30,10 @@ class FakeEvent:
     """记录经 EventHandle 做的事。"""
 
     def __init__(self) -> None:
-        self.patches: list[dict[str, Any]] = []
         self.close_reasons: list[str] = []
 
     def handle(self) -> EventHandle:
-        return EventHandle(self.patches.append, self.close_reasons.append)
+        return EventHandle(self.close_reasons.append)
 
 
 def context(
@@ -70,7 +69,7 @@ RULE_HIT = RuleHitOccasion(
 def test_undeclared_capabilities_raise() -> None:
     ctx = context()
     with pytest.raises(UndeclaredCapabilityError, match="scopes"):
-        ctx.event.update_status({"x": 1})
+        ctx.event.close("x")
     with pytest.raises(UndeclaredCapabilityError, match="proposes"):
         ctx.propose(Proposal(source="x", reason="y", action="add_target"))
 
@@ -80,12 +79,10 @@ def test_declared_capabilities_reach_the_event_and_the_sink() -> None:
     proposals: list[Proposal] = []
     ctx = context(event=event.handle(), propose=proposals.append)
 
-    ctx.event.update_status({"hits": 1})
     ctx.event.close("converged")
     proposal = Proposal(source="x", reason="y", action="add_target")
     ctx.propose(proposal)
 
-    assert event.patches == [{"hits": 1}]
     assert event.close_reasons == ["converged"]
     assert proposals == [proposal]
 
@@ -160,18 +157,19 @@ def test_mount_compiles_to_the_hook_with_typed_params() -> None:
     compiler = MountCompiler(registry)
 
     mount = compiler.compile(
-        MountDef(hook="countHits", mount_point="rule_hit", params={"threshold": 3})
+        MountDef(hook="countHits", rules=["enter", "leave"], params={"threshold": 3})
     )
+    assert mount.name == "countHits"            # 默认用钩子名
     assert mount.hook is registry.get("countHits")
     assert mount.params == CountHitsParams(threshold=3)
+    assert (mount.at, mount.rules) == (frozenset(), {"enter", "leave"})
 
     for bad, message in [
-        (MountDef(hook="nope", mount_point="rule_hit"), "unknown hook"),
-        (MountDef(hook="countHits", mount_point="closed"), "cannot mount at 'closed'"),
-        (
-            MountDef(hook="countHits", mount_point="rule_hit", params={"threshold": 0}),
-            "invalid params",
-        ),
+        (MountDef(hook="nope", rules=["enter"]), "unknown hook"),
+        (MountDef(hook="countHits", at=["closed"]), r"cannot mount at \['closed'\]"),
+        (MountDef(hook="countHits", at=["rule_hit"]), "list the rules"),
+        (MountDef(hook="countHits"), "mounted nowhere"),
+        (MountDef(hook="countHits", rules=["enter"], params={"threshold": 0}), "invalid params"),
     ]:
         with pytest.raises(MountCompileError, match=message):
             compiler.compile(bad)
@@ -185,8 +183,7 @@ def test_count_hits_counts_and_asks_to_close() -> None:
     event = FakeEvent()
     params = CountHitsParams(threshold=2)
 
-    count_hits.run(params, context({"hits": 0}, event.handle()), RULE_HIT)
-    count_hits.run(params, context({"hits": 1}, event.handle()), RULE_HIT)
-
-    assert event.patches == [{"hits": 1}, {"hits": 2}]
-    assert event.close_reasons == ["converged"]
+    first = count_hits.run(params, context({}, event.handle()), RULE_HIT)
+    assert (first, event.close_reasons) == ({"hits": 1}, [])
+    second = count_hits.run(params, context(first, event.handle()), RULE_HIT)
+    assert (second, event.close_reasons) == ({"hits": 2}, ["converged"])

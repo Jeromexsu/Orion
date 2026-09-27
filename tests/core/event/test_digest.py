@@ -16,7 +16,7 @@ def test_digest_rolls_one_machine_draft(env: Env) -> None:
     parent.runner("enter-zone").on_observation(env.envelope(5, 5))
     second = parent.digest()
     assert (second.id, second.version) == (first.id, 2)
-    assert "2026 周期进行中 {'hits': 1}" in second.content
+    assert "2026 周期进行中 {'countHits': {'hits': 1}}" in second.content
 
     parent.upsert_template(TemplateDef.model_validate(template(version=2)))
     assert "进入区域 v1（v2 待下个周期生效）" in parent.digest().content
@@ -38,7 +38,10 @@ def test_close_report_hook_writes_draft(env: Env) -> None:
     parent.add_target("t1")
     parent.upsert_template(
         TemplateDef.model_validate(
-            template(threshold=1, mounts=[mount("closeReport", "closed", title="进入告警")])
+            template(
+                threshold=1,
+                mounts=[mount("closeReport", "closed", rules=["enter"], title="进入告警")],
+            )
         )
     )
     parent.runner("enter-zone").on_observation(env.envelope(20, 20))
@@ -46,5 +49,5 @@ def test_close_report_hook_writes_draft(env: Env) -> None:
 
     (draft,) = env.reports.list_by_parent("p1")
     assert draft.title == "进入告警"
-    assert "涉及目标：MU5101" in draft.content
-    assert "'hits': 1" in draft.content
+    assert "已关闭（converged）" in draft.content
+    assert "命中 1 次，涉及目标：MU5101" in draft.content

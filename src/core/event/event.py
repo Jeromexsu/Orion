@@ -18,7 +18,6 @@ from core.hooks import (
     ObservationOccasion,
     Occasion,
     RuleHitOccasion,
-    StatusUpdatedOccasion,
 )
 from core.target import ObservationEnvelope
 
@@ -31,8 +30,8 @@ def _now() -> datetime:
 class Event:
     """子事件：模板的一次运行（一个周期）。由 EventRunner 创建、喂数据、存档。
 
-    状态变更的唯一入口是 update_status；它和关闭请求只经 EventHandle（ctx.event）由声明了
-    scopes={"event"} 的钩子调用。
+    两份状态，对照着看：条件状态按规则名分（判断方式返回新状态），钩子状态按挂载名分（钩子 run
+    返回新状态）；互相看不到。关闭请求只经 EventHandle（ctx.event）由声明了 scopes={"event"} 的钩子发出。
     """
 
     def __init__(
@@ -45,8 +44,8 @@ class Event:
         target_names: Callable[[], Mapping[str, str]],
         *,
         opened_at: datetime,
-        status: dict[str, Any] | None = None,
         condition_state: dict[str, dict[str, Any]] | None = None,
+        hook_state: dict[str, dict[str, Any]] | None = None,
         closed_at: datetime | None = None,
         close_reason: str | None = None,
     ) -> None:
@@ -57,11 +56,10 @@ class Event:
         self._runtime = runtime
         self._target_names = target_names
         self._opened_at = opened_at
-        self._status: dict[str, Any] = status or {}
         self._condition_state: dict[str, dict[str, Any]] = condition_state or {}
+        self._hook_state: dict[str, dict[str, Any]] = hook_state or {}
         self._closed_at = closed_at
         self._close_reason = close_reason
-        self._in_status_hooks = False
         self._close_requested: str | None = None   # 钩子请求关闭的原因，本条观测处理完才关闭
 
     @classmethod
@@ -101,8 +99,8 @@ class Event:
             runtime,
             target_names,
             opened_at=record.opened_at,
-            status=dict(record.status),
             condition_state=dict(record.condition_state),
+            hook_state=dict(record.hook_state),
             closed_at=record.closed_at,
             close_reason=record.close_reason,
         )
@@ -122,8 +120,9 @@ class Event:
         return self._cycle
 
     @property
-    def status(self) -> Mapping[str, Any]:
-        return dict(self._status)
+    def hook_state(self) -> Mapping[str, dict[str, Any]]:
+        """Mount name -> that mount's hook state."""
+        return dict(self._hook_state)
 
     @property
     def is_closed(self) -> bool:
@@ -137,8 +136,8 @@ class Event:
             template_id=self._template.id,
             template_version=self._template.version,
             cycle=self._cycle,
-            status=dict(self._status),
             condition_state=dict(self._condition_state),
+            hook_state=dict(self._hook_state),
             opened_at=self._opened_at,
             closed_at=self._closed_at,
             close_reason=self._close_reason,
@@ -176,25 +175,6 @@ class Event:
         if self._close_requested is not None:
             self.close(self._close_requested)
 
-    def update_status(self, patch: dict[str, Any]) -> None:
-        """状态变更的唯一入口：把 patch 合并进状态，之后跑 status_updated 钩子。
-
-        钩子里再调 update_status 只合并、不再触发钩子，避免无限递归。已关闭抛 EventClosedError。
-        """
-        if self.is_closed:
-            raise EventClosedError(self._id)
-        self._status.update(patch)
-        if self._in_status_hooks:
-            return
-        self._in_status_hooks = True
-        try:
-            self._run_hooks(
-                self._template.mounts_at("status_updated"),
-                StatusUpdatedOccasion(patch=dict(patch)),
-            )
-        finally:
-            self._in_status_hooks = False
-
     def request_close(self, reason: str) -> None:
         """Ask to close once the current observation has been processed.
 
@@ -209,7 +189,7 @@ class Event:
         """跑 closed 钩子后关闭。重复关闭忽略。不写库（由 runner 存档）。"""
         if self.is_closed:
             return
-        self._run_hooks(self._template.mounts_at("closed"), ClosedOccasion())
+        self._run_hooks(self._template.mounts_at("closed"), ClosedOccasion(reason=reason))
         self._closed_at = _now()
         self._close_reason = reason
 
@@ -217,32 +197,33 @@ class Event:
 
     def _run_hooks(self, mounts: tuple[Mount, ...], occasion: Occasion) -> None:
         """Run the mounted hooks in mount order, each isolated: one that raises is logged,
-        the rest run.
+        keeps its old state, and the rest run.
 
-        Each hook gets a context built from its declaration: ctx.event only with
-        scopes={"event"}, ctx.propose only with proposes=True.
+        Each gets its mount's state (a copy) and a context built from its declaration:
+        ctx.event only with scopes={"event"}, ctx.propose only with proposes=True. A state
+        it returns replaces its mount's state.
         TODO: run hooks whose only scope is "external" asynchronously (design doc §3).
         """
         for mount in mounts:
             hook = mount.hook
             ctx = HookContext(
-                state=self._status,
+                state=self._hook_state.get(mount.name, {}),
                 target_names=self._target_names(),
                 parent_id=self._parent_id,
                 event_id=self._id,
-                event=(
-                    EventHandle(self.update_status, self.request_close)
-                    if "event" in hook.scopes
-                    else None
-                ),
+                event=EventHandle(self.request_close) if "event" in hook.scopes else None,
                 propose=self._runtime.proposal_sink.receive if hook.proposes else None,
             )
             try:
-                hook.run(mount.params, ctx, occasion)
+                new_state = hook.run(mount.params, ctx, occasion)
             except Exception:
                 logger.exception(
-                    "hook %s failed at %s on event %s",
+                    "hook %s (mount %s) failed at %s on event %s",
                     hook.name,
+                    mount.name,
                     occasion.mount_point,
                     self._id,
                 )
+                continue
+            if new_state is not None:
+                self._hook_state[mount.name] = dict(new_state)

@@ -9,19 +9,14 @@ from core.hooks.errors import UndeclaredCapabilityError
 
 
 class EventHandle:
-    """What a hook with the event scope may do to the event it runs on."""
+    """What a hook with the event scope may do to the event it runs on.
 
-    def __init__(
-        self,
-        update_status: Callable[[dict[str, Any]], None],
-        request_close: Callable[[str], None],
-    ) -> None:
-        self._update_status = update_status
+    Only closing for now. A hook's own state is not part of this: every mount keeps
+    its own and changes it by returning it from run.
+    """
+
+    def __init__(self, request_close: Callable[[str], None]) -> None:
         self._request_close = request_close
-
-    def update_status(self, patch: dict[str, Any]) -> None:
-        """Merge patch into the event's status, then run the status_updated hooks."""
-        self._update_status(patch)
 
     def close(self, reason: str) -> None:
         """Ask for the event to close.
@@ -35,11 +30,12 @@ class EventHandle:
 class HookContext:
     """What a hook gets about the event it runs on, besides the occasion and its parameters.
 
-    Always available, read-only: a copy of the event's status, target display names and where it runs. Capabilities exist only if
-    declared: ctx.event needs scopes={"event"}, ctx.propose needs proposes=True;
-    using an undeclared one raises UndeclaredCapabilityError. The external scope
-    has no capability here: output channels (reports, notifications) are injected
-    into the hook when it is constructed.
+    Always available: a copy of this mount's own state (return the new state from run
+    to change it; no scope needed), target display names and where it runs, read-only.
+    Capabilities exist only if declared: ctx.event needs scopes={"event"}, ctx.propose
+    needs proposes=True; using an undeclared one raises UndeclaredCapabilityError.
+    The external scope has no capability here: output channels (reports, notifications)
+    are injected into the hook when it is constructed.
     """
 
     def __init__(
@@ -52,7 +48,8 @@ class HookContext:
         event: EventHandle | None = None,
         propose: Callable[[Proposal], None] | None = None,
     ) -> None:
-        self.state = deepcopy(dict(state))  # a copy: changing it does not change the event
+        # this mount's state, a copy: return the new state from run to keep it
+        self.state = deepcopy(dict(state))
         self.parent_id = parent_id
         self.event_id = event_id
         self._target_names = dict(target_names)

@@ -7,7 +7,7 @@ from core.condition_engine import (
 from core.event.definitions import TemplateDef
 from core.event.errors import TemplateCompileError
 from core.event.template import CompiledObservable, CompiledRule, EventTemplate
-from core.hooks import Mount, MountCompileError, MountCompiler, MountDef
+from core.hooks import Mount, MountCompileError, MountCompiler
 from core.target import Observation, TargetError, TargetManager
 
 
@@ -48,36 +48,23 @@ class TemplateCompiler:
         if dupes:
             errors.append(f"duplicate rule names {dupes}")
 
-        rules: list[CompiledRule] = []
+        trees: dict[str, ConditionTree] = {}
         for rule in template_def.rule_defs:
             tree = compile_tree(f"rule {rule.name!r}", rule.condition_def)
-            mounts: list[Mount] = []
-            for i, mount_def in enumerate(rule.mount_defs):
-                where = f"rule {rule.name!r} mount {i}"
-                if mount_def.mount_point != "rule_hit":
-                    errors.append(f"{where}: rule mounts must be at 'rule_hit'")
-                    continue
-                mount = self._compile_mount(mount_def, where, errors)
-                if mount is not None:
-                    mounts.append(mount)
             if tree is not None:
-                rules.append(CompiledRule(rule.name, tree, tuple(mounts)))
+                trees[rule.name] = tree
 
-        template_mounts: list[Mount] = []
-        for i, mount_def in enumerate(template_def.mount_defs):
-            where = f"mount {i}"
-            if mount_def.mount_point == "rule_hit":
-                errors.append(f"{where}: 'rule_hit' mounts belong on a rule")
-                continue
-            mount = self._compile_mount(mount_def, where, errors)
-            if mount is not None:
-                template_mounts.append(mount)
+        mounts = self._compile_mounts(template_def, set(names), errors)
+        rules = tuple(
+            CompiledRule(name, tree, tuple(m for m in mounts if name in m.rules))
+            for name, tree in trees.items()
+        )
 
         if errors or open_tree is None:
             raise TemplateCompileError(errors)
         compiled_observables = self._compile_observables(template_def)
         return EventTemplate(
-            template_def, compiled_observables, open_tree, tuple(rules), tuple(template_mounts)
+            template_def, compiled_observables, open_tree, rules, mounts
         )
 
     def _check_observables(
@@ -113,18 +100,34 @@ class TemplateCompiler:
             for o in template_def.observable_defs
         )
 
-    def _compile_mount(self, mount_def: MountDef, where: str, errors: list[str]) -> Mount | None:
-        """Compile a mount with the MountCompiler, collecting its errors instead of raising.
+    def _compile_mounts(
+        self, template_def: TemplateDef, rule_names: set[str], errors: list[str]
+    ) -> tuple[Mount, ...]:
+        """Compile every mount of the template, collecting errors instead of raising.
+
+        Besides what MountCompiler checks against the hook, checks what only the template
+        knows: mount names are unique (each keys a state) and the rules exist.
 
         Args:
-            where: Location prefix for error messages (e.g. "rule 'enter' mount 0").
+            rule_names: Rule names declared in the template.
             errors: Collects every error found. Appended to; nothing is raised.
 
         Returns:
-            The mount, or None if it did not compile.
+            The mounts that compiled, in declaration order.
         """
-        try:
-            return self._mount_compiler.compile(mount_def)
-        except MountCompileError as e:
-            errors.extend(f"{where}: {msg}" for msg in e.errors)
-            return None
+        names = [m.mount_name for m in template_def.mount_defs]
+        dupes = sorted({n for n in names if names.count(n) > 1})
+        if dupes:
+            errors.append(f"duplicate mount names {dupes}: give them distinct `name`s")
+
+        mounts: list[Mount] = []
+        for mount_def in template_def.mount_defs:
+            where = f"mount {mount_def.mount_name!r}"
+            unknown = sorted(set(mount_def.rules) - rule_names)
+            if unknown:
+                errors.append(f"{where}: unknown rules {unknown}")
+            try:
+                mounts.append(self._mount_compiler.compile(mount_def))
+            except MountCompileError as e:
+                errors.extend(f"{where}: {msg}" for msg in e.errors)
+        return tuple(mounts)
